@@ -42,7 +42,7 @@ export class GameManager {
   private constructor() {
     // Initialize player state
     this.player = {
-      money: 5000,
+      money: 8000,
       inventory: [],
       garageSlots: 1,
       prestige: 0,
@@ -204,13 +204,13 @@ export class GameManager {
 
   /**
    * Reset game state to initial values.
-   * Resets player to starting money ($5000), clears inventory, resets skills to level 1.
+   * Resets player to starting money ($8000), clears inventory, resets skills to level 1.
    * Resets world to day 1, 8:00 AM, at garage.
    * Emits all relevant change events.
    */
   public reset(): void {
     this.player = {
-      money: 5000,
+      money: 8000,
       inventory: [],
       garageSlots: 1,
       prestige: 0,

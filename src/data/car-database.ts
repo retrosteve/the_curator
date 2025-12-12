@@ -17,8 +17,51 @@ export interface Car {
  * Static car database - sample cars for the game.
  * These are template cars used to generate random encounters.
  * Each generated car gets a unique ID and randomized condition.
+ * Organized by tiers: Daily Drivers (starter), Cult Classics, Icons, Unicorns.
  */
 export const CarDatabase: Car[] = [
+  // Tier 1: Daily Drivers (Starter Cars - $3,000-$8,000)
+  {
+    id: 'car_starter_001',
+    name: '1998 Honda Civic',
+    baseValue: 3500,
+    condition: 50,
+    tags: ['Daily Driver', 'Import', 'Reliable'],
+    history: ['High Miles'],
+  },
+  {
+    id: 'car_starter_002',
+    name: '2005 Ford Focus',
+    baseValue: 4000,
+    condition: 45,
+    tags: ['Daily Driver', 'Practical', 'Commuter'],
+    history: ['Minor Accident'],
+  },
+  {
+    id: 'car_starter_003',
+    name: '1995 Mazda Miata',
+    baseValue: 5500,
+    condition: 55,
+    tags: ['Daily Driver', 'Roadster', 'Fun'],
+    history: ['Repainted'],
+  },
+  {
+    id: 'car_starter_004',
+    name: '2001 Volkswagen Golf',
+    baseValue: 4500,
+    condition: 48,
+    tags: ['Daily Driver', 'Hatchback', 'European'],
+    history: ['Rust'],
+  },
+  {
+    id: 'car_starter_005',
+    name: '1992 Toyota Corolla',
+    baseValue: 3000,
+    condition: 40,
+    tags: ['Daily Driver', 'Reliable', 'Budget'],
+    history: ['Rust'],
+  },
+  // Tier 2: Cult Classics ($25,000-$40,000)
   {
     id: 'car_001',
     name: '1969 Dodge Charger',

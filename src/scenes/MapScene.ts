@@ -4,6 +4,7 @@ import { UIManager } from '@/ui/UIManager';
 import { TimeSystem } from '@/systems/TimeSystem';
 import { getRandomCar, Car } from '@/data/CarDatabase';
 import { getRandomRival, calculateRivalInterest } from '@/data/RivalDatabase';
+import { eventBus } from '@/core/EventBus';
 
 /**
  * Map Node types
@@ -14,9 +15,12 @@ interface MapNode {
   x: number;
   y: number;
   type: 'scrapyard' | 'dealership' | 'auction';
-  timeCost: number;
   color: number;
 }
+
+const TRAVEL_HOURS = 1;
+const INSPECT_HOURS = 0.5;
+const AUCTION_HOURS = 2;
 
 /**
  * Map Scene - Player explores locations
@@ -26,6 +30,18 @@ export class MapScene extends Phaser.Scene {
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
   private nodes: MapNode[] = [];
+
+  private readonly handleMoneyChanged = (money: number): void => {
+    this.uiManager.updateHUD({ money });
+  };
+
+  private readonly handleTimeChanged = (_timeOfDay: number): void => {
+    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
+  };
+
+  private readonly handleDayChanged = (day: number): void => {
+    this.uiManager.updateHUD({ day });
+  };
 
   constructor() {
     super({ key: 'MapScene' });
@@ -41,6 +57,19 @@ export class MapScene extends Phaser.Scene {
     this.setupBackground();
     this.createMapNodes();
     this.setupUI();
+    this.setupEventListeners();
+  }
+
+  private setupEventListeners(): void {
+    eventBus.on('money-changed', this.handleMoneyChanged);
+    eventBus.on('time-changed', this.handleTimeChanged);
+    eventBus.on('day-changed', this.handleDayChanged);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      eventBus.off('money-changed', this.handleMoneyChanged);
+      eventBus.off('time-changed', this.handleTimeChanged);
+      eventBus.off('day-changed', this.handleDayChanged);
+    });
   }
 
   private setupBackground(): void {
@@ -67,7 +96,6 @@ export class MapScene extends Phaser.Scene {
         x: width * 0.25,
         y: height * 0.3,
         type: 'scrapyard',
-        timeCost: 2,
         color: 0x8b4513,
       },
       {
@@ -76,7 +104,6 @@ export class MapScene extends Phaser.Scene {
         x: width * 0.75,
         y: height * 0.3,
         type: 'dealership',
-        timeCost: 1,
         color: 0x4169e1,
       },
       {
@@ -85,7 +112,6 @@ export class MapScene extends Phaser.Scene {
         x: width * 0.5,
         y: height * 0.6,
         type: 'auction',
-        timeCost: 3,
         color: 0xffd700,
       },
     ];
@@ -104,7 +130,7 @@ export class MapScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       // Add time cost
-      this.add.text(node.x, node.y, `${node.timeCost}h`, {
+      this.add.text(node.x, node.y, `${TRAVEL_HOURS}h`, {
         fontSize: '18px',
         color: '#fff',
         fontStyle: 'bold',
@@ -127,10 +153,13 @@ export class MapScene extends Phaser.Scene {
   private setupUI(): void {
     this.uiManager.clear();
 
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+
     // Create HUD
     const hud = this.uiManager.createHUD({
-      money: this.gameManager.player.money,
-      day: this.gameManager.world.day,
+      money: player.money,
+      day: world.day,
       time: this.timeSystem.getFormattedTime(),
     });
     this.uiManager.append(hud);
@@ -149,8 +178,10 @@ export class MapScene extends Phaser.Scene {
   }
 
   private visitNode(node: MapNode): void {
+    const requiredHours = TRAVEL_HOURS;
+
     // Check if player has enough time
-    if (!this.timeSystem.hasEnoughTime(node.timeCost)) {
+    if (!this.timeSystem.hasEnoughTime(requiredHours)) {
       this.uiManager.showModal(
         'Not Enough Time',
         `You don't have enough time today to visit ${node.name}. Consider ending the day.`,
@@ -160,7 +191,7 @@ export class MapScene extends Phaser.Scene {
     }
 
     // Advance time
-    this.timeSystem.advanceTime(node.timeCost);
+    this.timeSystem.advanceTime(requiredHours);
 
     // Generate encounter based on node type
     this.generateEncounter(node);
@@ -171,12 +202,36 @@ export class MapScene extends Phaser.Scene {
     const hasRival = Math.random() > 0.5; // 50% chance of rival
 
     if (hasRival && node.type === 'auction') {
+      // Auction consumes additional time
+      if (!this.timeSystem.hasEnoughTime(AUCTION_HOURS)) {
+        this.uiManager.showModal(
+          'Not Enough Time',
+          "You don't have enough time today for an auction. Consider ending the day.",
+          [{ text: 'OK', onClick: () => {} }]
+        );
+        return;
+      }
+
+      this.timeSystem.advanceTime(AUCTION_HOURS);
+
       // Auction with rival
       const rival = getRandomRival();
       const interest = calculateRivalInterest(rival, car.tags);
       
       this.scene.start('AuctionScene', { car, rival, interest });
     } else {
+      // Negotiation consumes inspection time
+      if (!this.timeSystem.hasEnoughTime(INSPECT_HOURS)) {
+        this.uiManager.showModal(
+          'Not Enough Time',
+          "You don't have enough time today to inspect this car. Consider ending the day.",
+          [{ text: 'OK', onClick: () => {} }]
+        );
+        return;
+      }
+
+      this.timeSystem.advanceTime(INSPECT_HOURS);
+
       // Solo negotiation
       this.showNegotiation(car);
     }

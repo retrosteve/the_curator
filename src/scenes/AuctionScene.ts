@@ -15,7 +15,9 @@ export class AuctionScene extends Phaser.Scene {
   private rival!: Rival;
   private rivalAI!: RivalAI;
   private currentBid: number = 0;
-  private playerStress: number = 0;
+
+  private static readonly KICK_TIRES_BUDGET_REDUCTION = 500;
+  private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = 2;
 
   constructor() {
     super({ key: 'AuctionScene' });
@@ -26,7 +28,6 @@ export class AuctionScene extends Phaser.Scene {
     this.rival = data.rival;
     this.rivalAI = new RivalAI(data.rival, data.interest);
     this.currentBid = Math.floor(calculateCarValue(this.car) * 0.5);
-    this.playerStress = 0;
   }
 
   create(): void {
@@ -99,7 +100,7 @@ export class AuctionScene extends Phaser.Scene {
       `Patience: ${this.rivalAI.getPatience()}/100`
     );
     const rivalBudget = this.uiManager.createText(
-      `Budget: $${this.rival.budget.toLocaleString()}`
+      `Budget: $${this.rivalAI.getBudget().toLocaleString()}`
     );
 
     rivalInfo.appendChild(rivalName);
@@ -108,8 +109,9 @@ export class AuctionScene extends Phaser.Scene {
     panel.appendChild(rivalInfo);
 
     // Player info
+    const player = this.gameManager.getPlayerState();
     const playerInfo = this.uiManager.createText(
-      `Your Money: $${this.gameManager.player.money.toLocaleString()} | Stress: ${this.playerStress}/100`,
+      `Your Money: $${player.money.toLocaleString()}`,
       { textAlign: 'center', marginBottom: '20px' }
     );
     panel.appendChild(playerInfo);
@@ -130,11 +132,18 @@ export class AuctionScene extends Phaser.Scene {
     buttonContainer.appendChild(bidBtn);
 
     const powerBidBtn = this.uiManager.createButton(
-      'Power Bid +$500 (Stress +20)',
-      () => this.playerBid(500, 20),
+      'Power Bid +$500 (Rival Patience -20)',
+      () => this.playerBid(500, { power: true }),
       { width: '100%', backgroundColor: '#FF9800' }
     );
     buttonContainer.appendChild(powerBidBtn);
+
+    const kickTiresBtn = this.uiManager.createButton(
+      'Kick Tires (Eye 2+) (Rival Budget -$500)',
+      () => this.playerKickTires(),
+      { width: '100%', backgroundColor: '#607D8B' }
+    );
+    buttonContainer.appendChild(kickTiresBtn);
 
     const stallBtn = this.uiManager.createButton(
       'Stall (Rival Patience -20)',
@@ -154,10 +163,12 @@ export class AuctionScene extends Phaser.Scene {
     this.uiManager.append(panel);
   }
 
-  private playerBid(amount: number, stressCost: number = 0): void {
+  private playerBid(amount: number, options?: { power?: boolean }): void {
     const newBid = this.currentBid + amount;
 
-    if (this.gameManager.player.money < newBid) {
+    const player = this.gameManager.getPlayerState();
+
+    if (player.money < newBid) {
       this.uiManager.showModal(
         'Insufficient Funds',
         "You don't have enough money for this bid!",
@@ -167,11 +178,34 @@ export class AuctionScene extends Phaser.Scene {
     }
 
     this.currentBid = newBid;
-    this.playerStress += stressCost;
 
-    // Check stress limit
-    if (this.playerStress >= 100) {
-      this.endAuction(false, 'You became too stressed and had to quit!');
+    if (options?.power) {
+      this.rivalAI.onPlayerPowerBid();
+      if (this.rivalAI.getPatience() <= 0) {
+        this.endAuction(true, `${this.rival.name} lost patience and quit!`);
+        return;
+      }
+    }
+
+    // Rival's turn
+    this.rivalTurn();
+  }
+
+  private playerKickTires(): void {
+    const eye = this.gameManager.getPlayerState().skills.eye;
+    if (eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
+      this.uiManager.showModal(
+        'Requires Skill',
+        `Kick Tires requires Eye level ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES} (you have ${eye}).`,
+        [{ text: 'OK', onClick: () => {} }]
+      );
+      return;
+    }
+
+    this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
+
+    if (this.currentBid > this.rivalAI.getBudget()) {
+      this.endAuction(true, `${this.rival.name} is out of budget and quits!`);
       return;
     }
 

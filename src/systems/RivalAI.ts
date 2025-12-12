@@ -7,11 +7,13 @@ export class RivalAI {
   private rival: Rival;
   private carInterest: number;
   private currentPatience: number;
+  private currentBudget: number;
 
   constructor(rival: Rival, carInterest: number) {
     this.rival = { ...rival };
     this.carInterest = carInterest;
     this.currentPatience = rival.patience;
+    this.currentBudget = rival.budget;
   }
 
   /**
@@ -23,7 +25,7 @@ export class RivalAI {
 
     // Get decision from database function
     const decision = getRivalBidDecision(
-      { ...this.rival, patience: this.currentPatience },
+      { ...this.rival, patience: this.currentPatience, budget: this.currentBudget },
       currentBid,
       this.carInterest
     );
@@ -60,10 +62,33 @@ export class RivalAI {
   }
 
   /**
+   * React to player power bid (reduces rival patience)
+   */
+  public onPlayerPowerBid(): void {
+    this.currentPatience -= 20;
+    this.currentPatience = Math.max(0, this.currentPatience);
+  }
+
+  /**
+   * React to player kick tires (reduces rival budget)
+   */
+  public onPlayerKickTires(amount: number): void {
+    this.currentBudget -= amount;
+    this.currentBudget = Math.max(0, this.currentBudget);
+  }
+
+  /**
    * Get current patience level
    */
   public getPatience(): number {
     return this.currentPatience;
+  }
+
+  /**
+   * Get current rival budget
+   */
+  public getBudget(): number {
+    return this.currentBudget;
   }
 
   /**

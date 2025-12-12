@@ -13,6 +13,35 @@ export class GarageScene extends Phaser.Scene {
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
 
+  private inventoryButton?: HTMLButtonElement;
+  private currentView: 'menu' | 'inventory' = 'menu';
+
+  private readonly handleMoneyChanged = (money: number): void => {
+    this.uiManager.updateHUD({ money });
+  };
+
+  private readonly handlePrestigeChanged = (prestige: number): void => {
+    this.uiManager.updateHUD({ prestige });
+  };
+
+  private readonly handleTimeChanged = (_timeOfDay: number): void => {
+    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
+  };
+
+  private readonly handleDayChanged = (day: number): void => {
+    this.uiManager.updateHUD({ day });
+  };
+
+  private readonly handleInventoryChanged = (): void => {
+    if (this.inventoryButton) {
+      this.inventoryButton.textContent = `View Inventory (${this.gameManager.getPlayerState().inventory.length} cars)`;
+    }
+
+    if (this.currentView === 'inventory') {
+      this.showInventory();
+    }
+  };
+
   constructor() {
     super({ key: 'GarageScene' });
   }
@@ -47,11 +76,16 @@ export class GarageScene extends Phaser.Scene {
 
   private setupUI(): void {
     this.uiManager.clear();
+    this.currentView = 'menu';
+
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
 
     // Create HUD
     const hud = this.uiManager.createHUD({
-      money: this.gameManager.player.money,
-      day: this.gameManager.world.day,
+      money: player.money,
+      prestige: player.prestige,
+      day: world.day,
       time: this.timeSystem.getFormattedTime(),
     });
     this.uiManager.append(hud);
@@ -81,10 +115,11 @@ export class GarageScene extends Phaser.Scene {
 
     // View Inventory button
     const inventoryBtn = this.uiManager.createButton(
-      `View Inventory (${this.gameManager.player.inventory.length} cars)`,
+      `View Inventory (${player.inventory.length} cars)`,
       () => this.showInventory(),
       { width: '100%' }
     );
+    this.inventoryButton = inventoryBtn;
     buttonContainer.appendChild(inventoryBtn);
 
     // Go to Map button
@@ -108,21 +143,35 @@ export class GarageScene extends Phaser.Scene {
   }
 
   private setupEventListeners(): void {
-    eventBus.on('money-changed', (money: number) => {
-      this.uiManager.updateHUD({ money });
-    });
+    eventBus.on('money-changed', this.handleMoneyChanged);
+    eventBus.on('prestige-changed', this.handlePrestigeChanged);
+    eventBus.on('time-changed', this.handleTimeChanged);
+    eventBus.on('day-changed', this.handleDayChanged);
+    eventBus.on('inventory-changed', this.handleInventoryChanged);
 
-    eventBus.on('time-changed', () => {
-      this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
-    });
-
-    eventBus.on('day-changed', (day: number) => {
-      this.uiManager.updateHUD({ day });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      eventBus.off('money-changed', this.handleMoneyChanged);
+      eventBus.off('prestige-changed', this.handlePrestigeChanged);
+      eventBus.off('time-changed', this.handleTimeChanged);
+      eventBus.off('day-changed', this.handleDayChanged);
+      eventBus.off('inventory-changed', this.handleInventoryChanged);
     });
   }
 
   private showInventory(): void {
     this.uiManager.clear();
+    this.currentView = 'inventory';
+
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+
+    const hud = this.uiManager.createHUD({
+      money: player.money,
+      prestige: player.prestige,
+      day: world.day,
+      time: this.timeSystem.getFormattedTime(),
+    });
+    this.uiManager.append(hud);
 
     const panel = this.uiManager.createPanel({
       position: 'absolute',
@@ -139,14 +188,14 @@ export class GarageScene extends Phaser.Scene {
     });
     panel.appendChild(heading);
 
-    if (this.gameManager.player.inventory.length === 0) {
+    if (player.inventory.length === 0) {
       const emptyText = this.uiManager.createText('No cars in inventory. Visit the map to find some!', {
         textAlign: 'center',
         fontSize: '16px',
       });
       panel.appendChild(emptyText);
     } else {
-      this.gameManager.player.inventory.forEach((car) => {
+      player.inventory.forEach((car) => {
         const carPanel = this.uiManager.createPanel({
           margin: '10px 0',
           backgroundColor: 'rgba(52, 73, 94, 0.6)',
@@ -216,7 +265,7 @@ export class GarageScene extends Phaser.Scene {
             if (this.gameManager.spendMoney(cost)) {
               this.timeSystem.advanceTime(time);
               const restoredCar = Economy.restoreCar(car, targetCondition);
-              Object.assign(car, restoredCar);
+              this.gameManager.updateCar(restoredCar);
               this.showInventory();
             } else {
               alert('Not enough money!');
@@ -263,9 +312,13 @@ export class GarageScene extends Phaser.Scene {
 
   private endDay(): void {
     this.timeSystem.endDay();
+
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+
     this.uiManager.showModal(
       'Day Ended',
-      `Day ${this.gameManager.world.day - 1} complete!\n\nMoney: $${this.gameManager.player.money.toLocaleString()}\nCars: ${this.gameManager.player.inventory.length}`,
+      `Day ${world.day - 1} complete!\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
       [
         {
           text: 'Continue',

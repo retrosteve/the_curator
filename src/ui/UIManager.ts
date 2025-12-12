@@ -199,6 +199,7 @@ export class UIManager {
    */
   public createHUD(data: {
     money: number;
+    prestige?: number;
     day: number;
     time: string;
   }): HTMLDivElement {
@@ -219,9 +220,10 @@ export class UIManager {
     });
 
     hud.innerHTML = `
-      <div>💰 Money: $${data.money.toLocaleString()}</div>
-      <div>📅 Day: ${data.day}</div>
-      <div>🕐 Time: ${data.time}</div>
+      <div data-hud="money">💰 Money: $${data.money.toLocaleString()}</div>
+      ${data.prestige !== undefined ? `<div data-hud="prestige">Prestige: ${data.prestige}</div>` : ''}
+      <div data-hud="day">📅 Day: ${data.day}</div>
+      <div data-hud="time">🕐 Time: ${data.time}</div>
     `;
 
     return hud;
@@ -232,22 +234,29 @@ export class UIManager {
    */
   public updateHUD(data: {
     money?: number;
+    prestige?: number;
     day?: number;
     time?: string;
   }): void {
     const hud = document.getElementById('game-hud');
     if (!hud) return;
 
-    const lines = hud.querySelectorAll('div');
-    
-    if (data.money !== undefined) {
-      lines[0].textContent = `💰 Money: $${data.money.toLocaleString()}`;
+    const moneyEl = hud.querySelector<HTMLDivElement>('[data-hud="money"]');
+    const prestigeEl = hud.querySelector<HTMLDivElement>('[data-hud="prestige"]');
+    const dayEl = hud.querySelector<HTMLDivElement>('[data-hud="day"]');
+    const timeEl = hud.querySelector<HTMLDivElement>('[data-hud="time"]');
+
+    if (data.money !== undefined && moneyEl) {
+      moneyEl.textContent = `💰 Money: $${data.money.toLocaleString()}`;
     }
-    if (data.day !== undefined) {
-      lines[1].textContent = `📅 Day: ${data.day}`;
+    if (data.prestige !== undefined && prestigeEl) {
+      prestigeEl.textContent = `Prestige: ${data.prestige}`;
     }
-    if (data.time !== undefined) {
-      lines[2].textContent = `🕐 Time: ${data.time}`;
+    if (data.day !== undefined && dayEl) {
+      dayEl.textContent = `📅 Day: ${data.day}`;
+    }
+    if (data.time !== undefined && timeEl) {
+      timeEl.textContent = `🕐 Time: ${data.time}`;
     }
   }
 }

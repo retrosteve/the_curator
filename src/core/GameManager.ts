@@ -7,7 +7,12 @@ import { eventBus } from './EventBus';
 export interface PlayerState {
   money: number;
   inventory: Car[];
-  reputation: number;
+  prestige: number;
+  skills: {
+    eye: number; // 1-5
+    tongue: number; // 1-5
+    network: number; // 1-5
+  };
 }
 
 /**
@@ -25,15 +30,20 @@ export interface WorldState {
 export class GameManager {
   private static instance: GameManager;
 
-  public player: PlayerState;
-  public world: WorldState;
+  private player: PlayerState;
+  private world: WorldState;
 
   private constructor() {
     // Initialize player state
     this.player = {
       money: 5000,
       inventory: [],
-      reputation: 0,
+      prestige: 0,
+      skills: {
+        eye: 1,
+        tongue: 1,
+        network: 1,
+      },
     };
 
     // Initialize world state
@@ -52,6 +62,22 @@ export class GameManager {
       GameManager.instance = new GameManager();
     }
     return GameManager.instance;
+  }
+
+  /**
+   * Read-only snapshot of player state.
+   * Treat returned objects as immutable.
+   */
+  public getPlayerState(): Readonly<PlayerState> {
+    return this.player;
+  }
+
+  /**
+   * Read-only snapshot of world state.
+   * Treat returned objects as immutable.
+   */
+  public getWorldState(): Readonly<WorldState> {
+    return this.world;
   }
 
   /**
@@ -75,11 +101,31 @@ export class GameManager {
   }
 
   /**
+   * Add prestige to player
+   */
+  public addPrestige(amount: number): void {
+    this.player.prestige = Math.max(0, this.player.prestige + amount);
+    eventBus.emit('prestige-changed', this.player.prestige);
+  }
+
+  /**
    * Add car to inventory
    */
   public addCar(car: Car): void {
     this.player.inventory.push(car);
     eventBus.emit('inventory-changed', this.player.inventory);
+  }
+
+  /**
+   * Replace an existing car in inventory (by id).
+   */
+  public updateCar(updatedCar: Car): boolean {
+    const index = this.player.inventory.findIndex((car) => car.id === updatedCar.id);
+    if (index === -1) return false;
+
+    this.player.inventory[index] = updatedCar;
+    eventBus.emit('inventory-changed', this.player.inventory);
+    return true;
   }
 
   /**
@@ -123,7 +169,8 @@ export class GameManager {
    * Get car by ID
    */
   public getCar(carId: string): Car | undefined {
-    return this.player.inventory.find((car) => car.id === carId);
+    const car = this.player.inventory.find((c) => c.id === carId);
+    return car ? { ...car } : undefined;
   }
 
   /**
@@ -133,7 +180,12 @@ export class GameManager {
     this.player = {
       money: 5000,
       inventory: [],
-      reputation: 0,
+      prestige: 0,
+      skills: {
+        eye: 1,
+        tongue: 1,
+        network: 1,
+      },
     };
 
     this.world = {
@@ -142,6 +194,11 @@ export class GameManager {
       currentLocation: 'garage',
     };
 
-    eventBus.emit('game-reset');
+    eventBus.emit('money-changed', this.player.money);
+    eventBus.emit('prestige-changed', this.player.prestige);
+    eventBus.emit('inventory-changed', this.player.inventory);
+    eventBus.emit('day-changed', this.world.day);
+    eventBus.emit('time-changed', this.world.timeOfDay);
+    eventBus.emit('location-changed', this.world.currentLocation);
   }
 }

@@ -113,7 +113,7 @@ export function getRivalBidDecision(
   carInterest: number
 ): BidDecision {
   // Check budget constraint
-  if (currentBid >= rival.budget) {
+  if (currentBid > rival.budget) {
     return {
       shouldBid: false,
       bidAmount: 0,

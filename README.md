@@ -22,7 +22,7 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
   main.ts        - Entry point
 ```
 
-## Game Features (MVP)
+## Game Features
 
 ### ✅ Garage Scene
 - View your car inventory
@@ -32,16 +32,20 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 
 ### ✅ Map Scene
 - Three explorable locations:
-  - **Joe's Scrapyard** (2 hours) - Find project cars
-  - **Classic Car Dealership** (1 hour) - Browse inventory
-  - **Weekend Auction House** (3 hours) - Compete in auctions
-- Each visit costs time
+  - **Joe's Scrapyard** (Travel: 1 hour) - Find project cars
+  - **Classic Car Dealership** (Travel: 1 hour) - Browse inventory
+  - **Weekend Auction House** (Travel: 1 hour) - May trigger an auction
+- Time costs follow the rules:
+  - **Travel:** 1 hour
+  - **Inspect (solo negotiation):** 30 mins
+  - **Auction:** 2 hours
 - Random encounters
 
 ### ✅ Auction Scene
 Turn-based bidding battles against AI rivals:
 - **Bid** (+$100) - Standard bid
-- **Power Bid** (+$500, +20 Stress) - Aggressive bid
+- **Power Bid** (+$500, -20 Rival Patience) - Aggressive bid
+- **Kick Tires** (-$500 Rival Budget, requires Eye skill) - Undercut their spending power
 - **Stall** (-20 Rival Patience) - Psychological warfare
 - **Quit** - Walk away
 
@@ -54,7 +58,7 @@ Rivals have unique:
 ### ✅ Core Systems
 - **Economy** - Value calculations, restoration costs
 - **Time Management** - Day/night cycle, action costs
-- **Player State** - Money, inventory, reputation
+- **Player State** - Money, inventory, prestige, skills (Eye/Tongue/Network)
 - **Event System** - Decoupled communication
 
 ## Installation
@@ -163,16 +167,23 @@ For strict architecture constraints, see
 
 ## Future Enhancements
 
-- [ ] Real car images and sprites
-- [ ] Museum building mechanic
-- [ ] More rival personalities
-- [ ] Special events (barn finds, estate sales)
-- [ ] Car history stories and lore
-- [ ] Reputation system effects
-- [ ] Market fluctuation mechanics
-- [ ] Sound effects and music
-- [ ] Save/load game state
-- [ ] Multiple garage slots
+### Content & Visuals
+- [ ] Real car images and sprites (Pixel art or stylized)
+- [ ] Sound effects and music (Auction ticking, garage ambience)
+- [ ] Car history stories and lore (Generated descriptions for "Hidden Gems")
+
+### Gameplay Mechanics
+- [ ] **Rival Progression Tiers:** Implement distinct leagues (Tier 3: Scrappers, Tier 2: Enthusiasts, Tier 1: Tycoons).
+- [ ] **The Forger Specialist:** A 3rd restoration option to hide accident history (High Risk / High Reward).
+- [ ] **Direct Trading:** Mechanics to swap cars with Rivals based on their Wishlists (e.g., 2-for-1 deals).
+- [ ] **Museum Mechanic:** A visual gallery to display "Icon" tier cars for passive Prestige gain.
+- [ ] **Market Fluctuations:** Dynamic price changes based on trends (e.g., "Winter" lowers Convertible prices).
+- [ ] **Multiple Garage Slots:** Upgradeable storage to hold more inventory.
+
+### Systems
+- [ ] Save/load game state (Persistence).
+- [ ] Special Events: Random map nodes like "Police Auctions" or "Barn Find Rumors."
+- [ ] Prestige System Effects: Unlocking VIP Auctions and "Black Book" intel based on reputation.
 
 ## License
 

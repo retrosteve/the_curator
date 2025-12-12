@@ -4,7 +4,7 @@ description: Game design rules and core loop specification for The Curator
 applyTo: "**"
 ---
 
-# GAME DESIGN: THE CURATOR (RULES)
+## GAME DESIGN: THE CURATOR (RULES)
 
 This document covers gameplay rules; implementation constraints (Phaser/DOM split, state/events, scene boundaries) live in `.github/instructions/architecture.instructions.md`.
 
@@ -16,12 +16,13 @@ This game is not about driving physics; it is about **Access, Valuation, and Tim
 You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You must outbid, outsmart, and outmaneuver them to secure the rarest vehicles in history.
 
 ## Core Loop
-1. **Map Phase:** Player clicks nodes (Scrapyard, Dealership). Costs time (1 Hour).
-2. **Encounter Phase:**
+1. **Morning Phase:** Start in Garage. Check news/intel.
+2. **Map Phase (The Day Loop):** Travel to nodes. Costs time (1 Hour).
+3. **Encounter Phase:**
    - If rival present -> Auction (turn-based battle).
    - If solo -> Negotiation (menu choices using Player Stats).
-3. **Garage Phase:** Player assigns cars to Specialists for restoration.
-4. **Sales:** Player sells flipped cars for profit or keeps for Museum Prestige.
+   - **Outcome:** Return to Map (continue day) or Return to Garage (if inventory full/day ends).
+4. **Garage Phase:** Restore cars, sell inventory, or end day.
 
 ### Expanded Loop (Target)
 The game is played across **Days** and **Weeks**. The player manages **Cash**, **Time**, and **Prestige**.

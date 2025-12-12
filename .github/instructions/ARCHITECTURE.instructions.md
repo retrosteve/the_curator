@@ -4,7 +4,7 @@ description: Strict architecture constraints for The Curator (Phaser + DOM hybri
 applyTo: "**"
 ---
 
-# ARCHITECTURE: THE CURATOR (STRICT)
+## ARCHITECTURE: THE CURATOR (STRICT)
 
 This document covers implementation constraints; gameplay rules and tuning live in `.github/instructions/game-design.instructions.md`.
 
@@ -19,7 +19,8 @@ This document covers implementation constraints; gameplay rules and tuning live 
 
 ## Scenes & Transitions
 - Scenes live under `src/scenes/`.
-- Expected flow: `BootScene` → `GarageScene` ⇄ `MapScene` → `AuctionScene` → back to `MapScene`.
+- Expected flow: `BootScene` → `GarageScene` (Hub) ⇄ `MapScene` (Day Loop).
+- Encounter flow: `MapScene` → `AuctionScene` (PvP) OR `NegotiationScene` (PvE) → back to `MapScene`.
 - Use Phaser scene transitions: `this.scene.start('SceneName', data)`.
 
 ## State & Ownership
@@ -51,9 +52,9 @@ This document covers implementation constraints; gameplay rules and tuning live 
 ## Repo Structure (Reference)
 /src
   /assets        (Images - currently empty)
-  /core          (GameManager.ts, EventBus.ts)
-  /data          (Static data: CarDatabase.ts, RivalDatabase.ts)
-  /scenes        (Phaser Scenes: Boot, Garage, Map, Auction)
-  /systems       (Logic: Economy.ts, RivalAI.ts, TimeSystem.ts)
+  /core          (game-manager.ts, event-bus.ts)
+  /data          (Static data: car-database.ts, rival-database.ts)
+  /scenes        (Phaser Scenes: boot-scene.ts, garage-scene.ts, map-scene.ts, auction-scene.ts, negotiation-scene.ts)
+  /systems       (Logic: economy.ts, rival-ai.ts, time-system.ts)
   /ui            (HTML/CSS generation scripts)
   main.ts        (Entry Point)

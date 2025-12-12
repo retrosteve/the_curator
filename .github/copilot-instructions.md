@@ -1,4 +1,4 @@
-# The Curator — AI Agent Instructions
+## The Curator — AI Agent Instructions
 
 These instructions make AI agents immediately productive in this Phaser + DOM hybrid project. Keep changes minimal, follow existing patterns, and reference the files noted here.
 

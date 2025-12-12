@@ -1,4 +1,4 @@
-# Assets Directory
+## Assets Directory
 
 This directory is reserved for game assets (images, sprites, sounds).
 

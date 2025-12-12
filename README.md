@@ -1,4 +1,4 @@
-# The Curator
+## The Curator
 
 A 2D Strategy/Management game about running a car museum. Buy, restore, and flip classic cars to fund your dream museum.
 

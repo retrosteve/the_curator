@@ -6,7 +6,10 @@ import { AuctionScene } from './scenes/auction-scene';
 import { NegotiationScene } from './scenes/negotiation-scene';
 
 /**
- * Main entry point for The Curator
+ * Main entry point for The Curator.
+ * Initializes Phaser game instance with all scenes.
+ * Scene flow: Boot → Garage (hub) ⇄ Map → Auction/Negotiation → Map
+ * UI is rendered via DOM overlay (#ui-overlay), not Phaser Text objects.
  */
 
 const config: Phaser.Types.Core.GameConfig = {

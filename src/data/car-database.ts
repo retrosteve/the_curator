@@ -1,5 +1,7 @@
 /**
- * Car data structure
+ * Car data structure.
+ * Represents a single vehicle with its condition, history, and metadata.
+ * currentValue is typically calculated via calculateCarValue() and not stored in the database.
  */
 export interface Car {
   id: string;
@@ -12,7 +14,9 @@ export interface Car {
 }
 
 /**
- * Static car database - sample cars for the game
+ * Static car database - sample cars for the game.
+ * These are template cars used to generate random encounters.
+ * Each generated car gets a unique ID and randomized condition.
  */
 export const CarDatabase: Car[] = [
   {
@@ -82,7 +86,9 @@ export const CarDatabase: Car[] = [
 ];
 
 /**
- * Generate a random car from the database
+ * Generate a random car from the database.
+ * Creates a new instance with a unique ID and random condition (30-90).
+ * @returns A new car instance with randomized properties
  */
 export function getRandomCar(): Car {
   const randomIndex = Math.floor(Math.random() * CarDatabase.length);
@@ -97,7 +103,12 @@ export function getRandomCar(): Car {
 }
 
 /**
- * Calculate current value of a car based on condition and history
+ * Calculate current value of a car based on condition and history.
+ * Formula: baseValue × (condition/100) × historyMultiplier
+ * History multipliers: Flooded=0.5, Rust=0.7, Mint=1.25, Standard=1.0
+ * When multiple history tags exist, the worst multiplier applies ("worst tag wins").
+ * @param car - The car to evaluate
+ * @returns Calculated market value as an integer
  */
 export function calculateCarValue(car: Car): number {
   const conditionMultiplier = car.condition / 100;
@@ -123,7 +134,9 @@ export function calculateCarValue(car: Car): number {
 }
 
 /**
- * Get cars by tag
+ * Get all cars from database that match a specific tag.
+ * @param tag - The tag to filter by (e.g., 'Muscle', 'JDM', 'Classic')
+ * @returns Array of cars containing the specified tag
  */
 export function getCarsByTag(tag: string): Car[] {
   return CarDatabase.filter((car) => car.tags.includes(tag));

@@ -6,7 +6,9 @@ import { Rival } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 
 /**
- * Auction Scene - Turn-based bidding battle
+ * Auction Scene - Turn-based bidding battle against a rival.
+ * Player uses various tactics (bid, power bid, stall, kick tires) to win the car.
+ * Rival patience and budget determine when they quit.
  */
 export class AuctionScene extends Phaser.Scene {
   private gameManager!: GameManager;
@@ -16,6 +18,7 @@ export class AuctionScene extends Phaser.Scene {
   private rivalAI!: RivalAI;
   private currentBid: number = 0;
 
+  // Kick Tires action constants
   private static readonly KICK_TIRES_BUDGET_REDUCTION = 500;
   private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = 2;
 

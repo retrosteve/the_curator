@@ -1,5 +1,9 @@
 import { eventBus } from '@/core/event-bus';
 
+/**
+ * Tutorial step identifiers.
+ * Tracks player progression through the tutorial sequence.
+ */
 export type TutorialStep = 
   | 'intro'
   | 'first_visit_scrapyard'
@@ -11,6 +15,11 @@ export type TutorialStep =
   | 'redemption'
   | 'complete';
 
+/**
+ * TutorialManager - Singleton managing tutorial progression.
+ * Tracks tutorial state and triggers appropriate dialogue/guidance.
+ * Tutorial follows the script defined in game-design.instructions.md.
+ */
 export class TutorialManager {
   private static instance: TutorialManager;
   private currentStep: TutorialStep = 'intro';
@@ -25,6 +34,10 @@ export class TutorialManager {
     return TutorialManager.instance;
   }
 
+  /**
+   * Start the tutorial from the beginning.
+   * Sets state to active and shows intro dialogue.
+   */
   public startTutorial(): void {
     this.isActive = true;
     this.currentStep = 'intro';
@@ -33,6 +46,12 @@ export class TutorialManager {
     this.showDialogue("Uncle Ray", "Welcome to the garage, kid. It's a dump, but it's ours. Let's get you started.");
   }
 
+  /**
+   * Advance to the next tutorial step.
+   * Only advances if tutorial is active.
+   * Triggers step-specific dialogue/actions.
+   * @param step - The tutorial step to advance to
+   */
   public advanceStep(step: TutorialStep): void {
     if (!this.isActive) return;
     this.currentStep = step;
@@ -49,15 +68,29 @@ export class TutorialManager {
     }
   }
 
+  /**
+   * Show tutorial dialogue to the player.
+   * Emits show-dialogue event for UI to handle.
+   * @param speaker - Name of the character speaking
+   * @param text - Dialogue text to display
+   */
   private showDialogue(speaker: string, text: string): void {
     // Emit event for UI to handle
     eventBus.emit('show-dialogue', { speaker, text });
   }
 
+  /**
+   * Check if tutorial is currently active.
+   * @returns True if tutorial is running
+   */
   public isTutorialActive(): boolean {
     return this.isActive;
   }
 
+  /**
+   * Get the current tutorial step.
+   * @returns The active tutorial step identifier
+   */
   public getCurrentStep(): TutorialStep {
     return this.currentStep;
   }

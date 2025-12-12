@@ -1,5 +1,8 @@
 /**
- * UIManager - Manages HTML/CSS UI overlay
+ * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
+ * Creates and manages DOM elements for menus, buttons, HUD, and modals.
+ * All interactive UI is rendered via DOM, not Phaser Text objects.
+ * Container uses pointer-events:none; individual elements use pointer-events:auto.
  */
 export class UIManager {
   private container: HTMLElement;
@@ -13,14 +16,19 @@ export class UIManager {
   }
 
   /**
-   * Clear all UI elements
+   * Clear all UI elements from the overlay.
+   * Should be called when transitioning between UI states or scenes.
    */
   public clear(): void {
     this.container.innerHTML = '';
   }
 
   /**
-   * Create a button element
+   * Create a styled button element with hover effects.
+   * @param text - Button label text
+   * @param onClick - Click event handler
+   * @param style - Optional CSS style overrides
+   * @returns Configured button element
    */
   public createButton(
     text: string,
@@ -61,7 +69,10 @@ export class UIManager {
   }
 
   /**
-   * Create a panel element
+   * Create a styled panel container.
+   * Useful for grouping related UI elements.
+   * @param style - Optional CSS style overrides
+   * @returns Configured div element
    */
   public createPanel(style?: Partial<CSSStyleDeclaration>): HTMLDivElement {
     const panel = document.createElement('div');
@@ -80,7 +91,10 @@ export class UIManager {
   }
 
   /**
-   * Create a text element
+   * Create a styled text paragraph element.
+   * @param text - Text content
+   * @param style - Optional CSS style overrides
+   * @returns Configured paragraph element
    */
   public createText(
     text: string,
@@ -100,7 +114,11 @@ export class UIManager {
   }
 
   /**
-   * Create a heading element
+   * Create a styled heading element.
+   * @param text - Heading text
+   * @param level - Heading level (1, 2, or 3; default 2)
+   * @param style - Optional CSS style overrides
+   * @returns Configured heading element
    */
   public createHeading(
     text: string,
@@ -120,14 +138,17 @@ export class UIManager {
   }
 
   /**
-   * Append element to UI overlay
+   * Append element to the UI overlay container.
+   * @param element - Element to add to the overlay
    */
   public append(element: HTMLElement): void {
     this.container.appendChild(element);
   }
 
   /**
-   * Remove element from UI overlay
+   * Remove element from the UI overlay container.
+   * Only removes if element is currently a child of the container.
+   * @param element - Element to remove from the overlay
    */
   public remove(element: HTMLElement): void {
     if (this.container.contains(element)) {
@@ -136,7 +157,12 @@ export class UIManager {
   }
 
   /**
-   * Show a modal dialog
+   * Show a modal dialog with title, message, and action buttons.
+   * Modal auto-closes when any button is clicked.
+   * @param title - Modal title text
+   * @param message - Modal body text
+   * @param buttons - Array of button configurations with text and onClick handlers
+   * @returns The modal element (automatically appended to overlay)
    */
   public showModal(
     title: string,
@@ -195,7 +221,10 @@ export class UIManager {
   }
 
   /**
-   * Create HUD (Heads-Up Display)
+   * Create HUD (Heads-Up Display) showing player stats.
+   * Displays money, prestige (optional), day, and time.
+   * @param data - HUD data object with money, prestige, day, and time
+   * @returns Configured HUD element
    */
   public createHUD(data: {
     money: number;
@@ -230,7 +259,9 @@ export class UIManager {
   }
 
   /**
-   * Update HUD values
+   * Update existing HUD values without recreating the element.
+   * Only updates fields that are provided in the data object.
+   * @param data - Partial HUD data to update
    */
   public updateHUD(data: {
     money?: number;

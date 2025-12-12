@@ -2,7 +2,8 @@ import { Car } from '@/data/car-database';
 import { eventBus } from './event-bus';
 
 /**
- * Player State
+ * Player State - Represents all player-owned resources and progression.
+ * Treat returned objects as immutable to prevent untracked state mutations.
  */
 export interface PlayerState {
   money: number;
@@ -17,7 +18,8 @@ export interface PlayerState {
 }
 
 /**
- * World State
+ * World State - Represents game time and current location.
+ * Time is tracked in 24-hour format; days increment when time >= 24.
  */
 export interface WorldState {
   day: number;
@@ -26,7 +28,10 @@ export interface WorldState {
 }
 
 /**
- * GameManager - Central singleton for managing game state
+ * GameManager - Central singleton for managing game state.
+ * Single source of truth for player and world state.
+ * All state mutations must go through GameManager methods to ensure events are emitted.
+ * Never mutate state objects directly; always use the provided mutation methods.
  */
 export class GameManager {
   private static instance: GameManager;
@@ -83,7 +88,8 @@ export class GameManager {
   }
 
   /**
-   * Add money to player
+   * Add money to player and emit money-changed event.
+   * @param amount - Amount to add (positive number)
    */
   public addMoney(amount: number): void {
     this.player.money += amount;
@@ -91,8 +97,10 @@ export class GameManager {
   }
 
   /**
-   * Spend money
-   * Allows debt up to -$500
+   * Attempt to spend money with debt cap enforcement.
+   * Allows debt up to -$500 as per game design.
+   * @param amount - Amount to spend (positive number)
+   * @returns True if transaction succeeded, false if it would exceed debt cap
    */
   public spendMoney(amount: number): boolean {
     if (this.player.money - amount >= -500) {
@@ -104,7 +112,8 @@ export class GameManager {
   }
 
   /**
-   * Add prestige to player
+   * Add prestige to player (cannot go below 0).
+   * @param amount - Amount to add or subtract (can be negative)
    */
   public addPrestige(amount: number): void {
     this.player.prestige = Math.max(0, this.player.prestige + amount);
@@ -112,7 +121,9 @@ export class GameManager {
   }
 
   /**
-   * Add car to inventory
+   * Add car to inventory and emit inventory-changed event.
+   * Note: Does not check garage capacity; caller should verify before adding.
+   * @param car - The car to add to inventory
    */
   public addCar(car: Car): void {
     this.player.inventory.push(car);
@@ -120,7 +131,9 @@ export class GameManager {
   }
 
   /**
-   * Replace an existing car in inventory (by id).
+   * Replace an existing car in inventory (matched by id).
+   * @param updatedCar - The car with updated properties
+   * @returns True if car was found and updated, false otherwise
    */
   public updateCar(updatedCar: Car): boolean {
     const index = this.player.inventory.findIndex((car) => car.id === updatedCar.id);
@@ -132,7 +145,9 @@ export class GameManager {
   }
 
   /**
-   * Remove car from inventory
+   * Remove car from inventory by ID.
+   * @param carId - The unique ID of the car to remove
+   * @returns True if car was found and removed, false otherwise
    */
   public removeCar(carId: string): boolean {
     const index = this.player.inventory.findIndex((car) => car.id === carId);
@@ -145,7 +160,9 @@ export class GameManager {
   }
 
   /**
-   * Advance time
+   * Advance time and handle day transitions with daily rent.
+   * When time reaches 24h, advances to next day and deducts $100 rent.
+   * @param hours - Hours to advance (can be fractional, e.g., 0.5 for 30 minutes)
    */
   public advanceTime(hours: number): void {
     this.world.timeOfDay += hours;
@@ -166,7 +183,8 @@ export class GameManager {
   }
 
   /**
-   * Set current location
+   * Set current location and emit location-changed event.
+   * @param location - Name of the location (e.g., 'garage', 'scrapyard')
    */
   public setLocation(location: string): void {
     this.world.currentLocation = location;
@@ -174,7 +192,10 @@ export class GameManager {
   }
 
   /**
-   * Get car by ID
+   * Get a copy of a car from inventory by ID.
+   * Returns a copy to prevent unintended mutations.
+   * @param carId - The unique ID of the car
+   * @returns A copy of the car if found, undefined otherwise
    */
   public getCar(carId: string): Car | undefined {
     const car = this.player.inventory.find((c) => c.id === carId);
@@ -182,7 +203,10 @@ export class GameManager {
   }
 
   /**
-   * Reset game state
+   * Reset game state to initial values.
+   * Resets player to starting money ($5000), clears inventory, resets skills to level 1.
+   * Resets world to day 1, 8:00 AM, at garage.
+   * Emits all relevant change events.
    */
   public reset(): void {
     this.player = {

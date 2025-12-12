@@ -1,10 +1,15 @@
 /**
- * Rival AI strategy types
+ * Rival AI strategy types.
+ * Aggressive: Bids often, spends patience quickly
+ * Passive: Conservative bidding, maintains patience
+ * Collector: Overpays for wishlist items, passive otherwise
  */
 export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 
 /**
- * Rival data structure
+ * Rival data structure.
+ * Tiers: 1=Tycoon (late-game, hardest), 2=Enthusiast (mid-game), 3=Scrapper (early-game, easiest)
+ * Note: Tier numbering is intentionally inverted from difficulty.
  */
 export interface Rival {
   id: string;
@@ -18,7 +23,9 @@ export interface Rival {
 }
 
 /**
- * Static rival database
+ * Static rival database.
+ * Defines all rival NPCs with their budgets, strategies, and preferences.
+ * Each rival has a unique personality and collection focus.
  */
 export const RivalDatabase: Rival[] = [
   {
@@ -84,7 +91,8 @@ export const RivalDatabase: Rival[] = [
 ];
 
 /**
- * Get a random rival
+ * Get a random rival from the database.
+ * @returns A rival selected randomly from the database
  */
 export function getRandomRival(): Rival {
   const randomIndex = Math.floor(Math.random() * RivalDatabase.length);
@@ -92,7 +100,11 @@ export function getRandomRival(): Rival {
 }
 
 /**
- * Calculate rival interest in a car (0-100)
+ * Calculate rival interest in a car based on wishlist matching.
+ * Base interest is 50; each matching tag adds 15 points.
+ * @param rival - The rival to evaluate
+ * @param carTags - Tags of the car being considered
+ * @returns Interest level (0-100, capped at 100)
  */
 export function calculateRivalInterest(rival: Rival, carTags: string[]): number {
   let interest = 50; // Base interest
@@ -106,7 +118,16 @@ export function calculateRivalInterest(rival: Rival, carTags: string[]): number 
 }
 
 /**
- * Determine if rival should continue bidding
+ * Determine if rival should continue bidding and calculate bid amount.
+ * Factors: budget constraint, patience level, strategy type, car interest.
+ * @param rival - The rival making the decision
+ * @param currentBid - Current auction bid amount
+ * @param carInterest - Rival's interest level in the car (0-100)
+ * @returns Decision object with shouldBid flag, bid amount, and reason
+ */
+/**
+ * Bid decision result from rival AI.
+ * Used to communicate rival's bidding choice and reasoning.
  */
 export interface BidDecision {
   shouldBid: boolean;

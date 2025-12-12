@@ -1,7 +1,9 @@
 import { Rival, BidDecision, getRivalBidDecision } from '@/data/rival-database';
 
 /**
- * RivalAI - Manages rival behavior during auctions
+ * RivalAI - Manages rival behavior during auctions.
+ * Tracks dynamic state (patience, budget) and makes bidding decisions.
+ * Patience and budget decrease based on player actions and strategy.
  */
 export class RivalAI {
   private rival: Rival;
@@ -17,7 +19,10 @@ export class RivalAI {
   }
 
   /**
-   * Get rival's decision on whether to bid
+   * Get rival's decision on whether to bid and how much.
+   * Automatically updates patience based on strategy before deciding.
+   * @param currentBid - Current auction bid amount
+   * @returns Bid decision with shouldBid flag, amount, and reason
    */
   public decideBid(currentBid: number): BidDecision {
     // Update patience based on strategy
@@ -34,7 +39,9 @@ export class RivalAI {
   }
 
   /**
-   * Update patience level based on strategy
+   * Update patience level based on strategy (called each turn).
+   * Aggressive: -15, Passive: -5, Collector: -5 (high interest) or -10 (low interest)
+   * Patience is capped at 0 minimum.
    */
   private updatePatience(): void {
     switch (this.rival.strategy) {
@@ -54,7 +61,8 @@ export class RivalAI {
   }
 
   /**
-   * React to player stall action
+   * React to player stall action by reducing patience.
+   * Reduces patience by 20 points.
    */
   public onPlayerStall(): void {
     this.currentPatience -= 20;
@@ -62,7 +70,8 @@ export class RivalAI {
   }
 
   /**
-   * React to player power bid (reduces rival patience)
+   * React to player power bid by reducing patience.
+   * Reduces patience by 20 points.
    */
   public onPlayerPowerBid(): void {
     this.currentPatience -= 20;
@@ -70,7 +79,8 @@ export class RivalAI {
   }
 
   /**
-   * React to player kick tires (reduces rival budget)
+   * React to player kick tires action by reducing budget.
+   * @param amount - Amount to reduce rival's available budget by
    */
   public onPlayerKickTires(amount: number): void {
     this.currentBudget -= amount;
@@ -78,21 +88,24 @@ export class RivalAI {
   }
 
   /**
-   * Get current patience level
+   * Get current patience level.
+   * @returns Current patience (0-100)
    */
   public getPatience(): number {
     return this.currentPatience;
   }
 
   /**
-   * Get current rival budget
+   * Get current rival budget.
+   * @returns Current available budget
    */
   public getBudget(): number {
     return this.currentBudget;
   }
 
   /**
-   * Get rival info
+   * Get rival info (static properties).
+   * @returns The rival's base configuration
    */
   public getRival(): Rival {
     return this.rival;

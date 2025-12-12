@@ -6,7 +6,9 @@ import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/economy';
 
 /**
- * Garage Scene - Player's home base for managing cars
+ * Garage Scene - Player's home base for managing cars.
+ * Hub scene where players can view inventory, restore cars, sell cars, and end the day.
+ * Provides access to the map for exploring locations.
  */
 export class GarageScene extends Phaser.Scene {
   private gameManager!: GameManager;
@@ -16,6 +18,8 @@ export class GarageScene extends Phaser.Scene {
   private inventoryButton?: HTMLButtonElement;
   private currentView: 'menu' | 'inventory' = 'menu';
 
+  // Event handler methods stored as arrow functions to preserve 'this' binding
+  // This allows proper cleanup when scene shuts down
   private readonly handleMoneyChanged = (money: number): void => {
     this.uiManager.updateHUD({ money });
   };

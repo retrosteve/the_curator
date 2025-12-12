@@ -5,7 +5,10 @@ import { Car, calculateCarValue } from '@/data/car-database';
 import { Economy } from '@/systems/economy';
 
 /**
- * Negotiation Scene - PvE encounter with a seller
+ * Negotiation Scene - PvE encounter with a seller.
+ * Player can haggle to reduce the asking price.
+ * Haggle attempts limited by Tongue skill level.
+ * Eye skill reveals hidden car history.
  */
 export class NegotiationScene extends Phaser.Scene {
   private gameManager!: GameManager;

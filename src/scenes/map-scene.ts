@@ -7,7 +7,8 @@ import { getRandomRival, calculateRivalInterest } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
 
 /**
- * Map Node types
+ * Map Node configuration.
+ * Represents a location on the map that the player can visit.
  */
 interface MapNode {
   id: string;
@@ -18,12 +19,15 @@ interface MapNode {
   color: number;
 }
 
+// Time costs for different map actions (in hours)
 const TRAVEL_HOURS = 1;
 const INSPECT_HOURS = 0.5;
 const AUCTION_HOURS = 2;
 
 /**
- * Map Scene - Player explores locations
+ * Map Scene - Player explores locations and finds cars.
+ * Displays clickable nodes representing different locations.
+ * Each visit costs time and may result in auction (PvP) or negotiation (PvE).
  */
 export class MapScene extends Phaser.Scene {
   private gameManager!: GameManager;
@@ -31,6 +35,7 @@ export class MapScene extends Phaser.Scene {
   private timeSystem!: TimeSystem;
   private nodes: MapNode[] = [];
 
+  // Event handler methods as arrow functions for proper 'this' binding
   private readonly handleMoneyChanged = (money: number): void => {
     this.uiManager.updateHUD({ money });
   };

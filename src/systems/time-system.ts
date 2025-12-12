@@ -1,7 +1,9 @@
 import { GameManager } from '@/core/game-manager';
 
 /**
- * TimeSystem - Manages game time and day/night cycle
+ * TimeSystem - Manages game time and day/night cycle.
+ * Wraps GameManager time-related operations with helper methods.
+ * Business hours: 8:00 AM - 8:00 PM (08:00 - 20:00)
  */
 export class TimeSystem {
   private gameManager: GameManager;
@@ -11,14 +13,17 @@ export class TimeSystem {
   }
 
   /**
-   * Advance time by specified hours
+   * Advance time by specified hours.
+   * Delegates to GameManager which handles day transitions and rent.
+   * @param hours - Hours to advance (can be fractional)
    */
   public advanceTime(hours: number): void {
     this.gameManager.advanceTime(hours);
   }
 
   /**
-   * Get current time of day formatted
+   * Get current time of day formatted as 12-hour clock.
+   * @returns Formatted time string (e.g., '3:30 PM')
    */
   public getFormattedTime(): string {
     const time = this.gameManager.getWorldState().timeOfDay;
@@ -31,14 +36,16 @@ export class TimeSystem {
   }
 
   /**
-   * Get current day
+   * Get current day number.
+   * @returns Current day (starts at 1)
    */
   public getCurrentDay(): number {
     return this.gameManager.getWorldState().day;
   }
 
   /**
-   * Check if it's business hours (8 AM - 8 PM)
+   * Check if it's business hours (8 AM - 8 PM).
+   * @returns True if current time is between 08:00 and 20:00
    */
   public isBusinessHours(): boolean {
     const time = this.gameManager.getWorldState().timeOfDay;
@@ -46,21 +53,26 @@ export class TimeSystem {
   }
 
   /**
-   * Get time remaining in day (until 20:00)
+   * Get time remaining in current day (until 20:00).
+   * @returns Hours remaining until 8 PM
    */
   public getTimeRemainingInDay(): number {
     return 20 - this.gameManager.getWorldState().timeOfDay;
   }
 
   /**
-   * Check if enough time for action
+   * Check if enough time remains for an action.
+   * @param requiredHours - Hours needed for the action
+   * @returns True if action can be completed before 8 PM
    */
   public hasEnoughTime(requiredHours: number): boolean {
     return this.getTimeRemainingInDay() >= requiredHours;
   }
 
   /**
-   * End current day and start new day
+   * End current day and start new day at 08:00.
+   * Advances time to midnight, then to 8 AM next day.
+   * Daily rent ($100) is automatically deducted by GameManager.
    */
   public endDay(): void {
     // Advance to next day at 08:00 without directly mutating world state.

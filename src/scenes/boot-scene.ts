@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 
 /**
- * Boot Scene - Initial loading and setup
+ * Boot Scene - Initial loading and setup.
+ * First scene to run; initializes GameManager and transitions to GarageScene.
+ * Future: Load assets (images, fonts) here.
  */
 export class BootScene extends Phaser.Scene {
   constructor() {

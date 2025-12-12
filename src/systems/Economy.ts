@@ -1,44 +1,96 @@
 import { Car, calculateCarValue } from '@/data/car-database';
 
+export interface RestorationOption {
+  id: string;
+  name: string;
+  specialist: 'Charlie' | 'Artisan';
+  type: 'Minor' | 'Major';
+  cost: number;
+  time: number;
+  conditionGain: number;
+  description: string;
+  risk?: string;
+}
+
 /**
  * Economy System - Handles value calculations and transactions
  */
 export class Economy {
   /**
-   * Calculate restoration cost
+   * Get available restoration options for a car
    */
-  public static getRestorationCost(car: Car, targetCondition: number): number {
-    const conditionGain = targetCondition - car.condition;
-    if (conditionGain <= 0) return 0;
-    
-    // Cost scales with base value and condition gain
-    const costPerPoint = car.baseValue * 0.01;
-    return Math.floor(conditionGain * costPerPoint);
+  public static getRestorationOptions(car: Car): RestorationOption[] {
+    const options: RestorationOption[] = [];
+    const baseValue = car.baseValue;
+
+    // Cheap Charlie - Minor Service
+    // Low Cost, Fast, Risk of bad work
+    if (car.condition < 100) {
+      options.push({
+        id: 'charlie_minor',
+        name: "Cheap Charlie's Quick Fix",
+        specialist: 'Charlie',
+        type: 'Minor',
+        cost: Math.floor(baseValue * 0.02), // Placeholder tuning: 2% of base value
+        time: 4,
+        conditionGain: 10,
+        description: "Fast and cheap. Don't ask questions.",
+        risk: "10% chance to damage car",
+      });
+    }
+
+    // The Artisan - Major Overhaul
+    // High Cost, Slow, Quality work
+    if (car.condition < 90) {
+      options.push({
+        id: 'artisan_major',
+        name: "The Artisan's Restoration",
+        specialist: 'Artisan',
+        type: 'Major',
+        cost: Math.floor(baseValue * 0.15), // Placeholder tuning: 15% of base value
+        time: 8,
+        conditionGain: 30,
+        description: "Perfection takes time. Increases value significantly.",
+      });
+    }
+
+    return options;
   }
 
   /**
-   * Calculate time required for restoration (in hours)
+   * Perform restoration
    */
-  public static getRestorationTime(car: Car, targetCondition: number): number {
-    const conditionGain = targetCondition - car.condition;
-    if (conditionGain <= 0) return 0;
-    
-    // 0.5 hours per condition point
-    return Math.ceil(conditionGain * 0.5);
-  }
+  public static performRestoration(car: Car, option: RestorationOption): { car: Car; success: boolean; message: string } {
+    let newCondition = car.condition;
+    let message = "Restoration complete.";
+    let success = true;
 
-  /**
-   * Restore a car to target condition
-   */
-  public static restoreCar(car: Car, targetCondition: number): Car {
-    return {
+    if (option.specialist === 'Charlie') {
+      // Charlie has a risk factor
+      if (Math.random() < 0.1) {
+        // 10% fail rate
+        newCondition -= 5;
+        message = "Charlie botched the job! Condition worsened.";
+        success = false;
+      } else {
+        newCondition += option.conditionGain;
+        message = "Charlie managed to fix it up.";
+      }
+    } else {
+      // Artisan always succeeds
+      newCondition += option.conditionGain;
+      message = "The Artisan did a magnificent job.";
+    }
+
+    const updatedCar = {
       ...car,
-      condition: Math.min(targetCondition, 100),
-      currentValue: calculateCarValue({
-        ...car,
-        condition: Math.min(targetCondition, 100),
-      }),
+      condition: Math.min(newCondition, 100),
     };
+    
+    // Recalculate value
+    updatedCar.currentValue = calculateCarValue(updatedCar);
+
+    return { car: updatedCar, success, message };
   }
 
   /**

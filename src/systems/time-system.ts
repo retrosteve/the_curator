@@ -38,18 +38,18 @@ export class TimeSystem {
   }
 
   /**
-   * Check if it's business hours (8 AM - 6 PM)
+   * Check if it's business hours (8 AM - 8 PM)
    */
   public isBusinessHours(): boolean {
     const time = this.gameManager.getWorldState().timeOfDay;
-    return time >= 8 && time < 18;
+    return time >= 8 && time < 20;
   }
 
   /**
-   * Get time remaining in day
+   * Get time remaining in day (until 20:00)
    */
   public getTimeRemainingInDay(): number {
-    return 24 - this.gameManager.getWorldState().timeOfDay;
+    return 20 - this.gameManager.getWorldState().timeOfDay;
   }
 
   /**
@@ -63,9 +63,10 @@ export class TimeSystem {
    * End current day and start new day
    */
   public endDay(): void {
-    // Advance to next day at 8:00 AM without directly mutating world state.
-    // (24 - currentTime) brings us to midnight; +8 brings us to 8 AM next day.
-    const hoursToNextMorning = this.getTimeRemainingInDay() + 8;
+    // Advance to next day at 08:00 without directly mutating world state.
+    // (24 - timeOfDay) brings us to midnight; +8 brings us to 08:00 next day.
+    const timeOfDay = this.gameManager.getWorldState().timeOfDay;
+    const hoursToNextMorning = (24 - timeOfDay) + 8;
     this.advanceTime(hoursToNextMorning);
   }
 }

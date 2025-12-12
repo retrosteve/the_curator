@@ -155,7 +155,7 @@ As the player levels up, they improve three core tools:
 - **Major Overhaul:** 8 Hours
 
 ### Garage Rules
-- **Garage capacity:** 1 slot.
+- **Garage capacity:** Starts at 1 slot (upgradeable).
 - If the player attempts to buy a car while the Garage is full: show error **"Garage Full - Sell or Scrap current car first."**
 - **Softlock prevention:** Add a **"Sell As-Is"** option in the Garage.
   - Sell value: `sellAsIsValue = carValue × 0.7`.

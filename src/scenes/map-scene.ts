@@ -233,41 +233,7 @@ export class MapScene extends Phaser.Scene {
       this.timeSystem.advanceTime(INSPECT_HOURS);
 
       // Solo negotiation
-      this.showNegotiation(car);
+      this.scene.start('NegotiationScene', { car });
     }
-  }
-
-  private showNegotiation(car: Car): void {
-    const askingPrice = Math.floor(car.baseValue * (car.condition / 100) * (0.8 + Math.random() * 0.4));
-
-    this.uiManager.showModal(
-      `Found: ${car.name}`,
-      `Condition: ${car.condition}/100\nAsking Price: $${askingPrice.toLocaleString()}\n\nBuy this car?`,
-      [
-        {
-          text: 'Buy',
-          onClick: () => {
-            if (this.gameManager.spendMoney(askingPrice)) {
-              this.gameManager.addCar(car);
-              this.uiManager.showModal(
-                'Purchase Complete',
-                `You bought ${car.name}!`,
-                [{ text: 'OK', onClick: () => {} }]
-              );
-            } else {
-              this.uiManager.showModal(
-                'Insufficient Funds',
-                "You don't have enough money!",
-                [{ text: 'OK', onClick: () => {} }]
-              );
-            }
-          },
-        },
-        {
-          text: 'Pass',
-          onClick: () => {},
-        },
-      ]
-    );
   }
 }

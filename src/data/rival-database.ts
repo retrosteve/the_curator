@@ -9,6 +9,7 @@ export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 export interface Rival {
   id: string;
   name: string;
+  tier: 1 | 2 | 3; // 1 = Tycoon, 2 = Enthusiast, 3 = Scrapper
   budget: number;
   patience: number; // 0-100
   wishlist: string[]; // Tags they target
@@ -23,6 +24,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_001',
     name: 'Marcus "The Shark" Thompson',
+    tier: 1,
     budget: 50000,
     patience: 30,
     wishlist: ['Muscle', 'American', 'Classic'],
@@ -32,6 +34,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_002',
     name: 'Yuki Tanaka',
+    tier: 2,
     budget: 60000,
     patience: 70,
     wishlist: ['JDM', 'Sports', 'Turbo'],
@@ -41,6 +44,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_003',
     name: 'Sarah Mitchell',
+    tier: 2,
     budget: 40000,
     patience: 50,
     wishlist: ['Classic', 'Rare', 'Original'],
@@ -50,6 +54,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_004',
     name: 'Victor "Fast Vic" Rodriguez',
+    tier: 1,
     budget: 55000,
     patience: 40,
     wishlist: ['Sports', 'Modified', 'Track Car'],
@@ -59,6 +64,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_005',
     name: 'Eleanor Wright',
+    tier: 1,
     budget: 45000,
     patience: 60,
     wishlist: ['Exotic', 'Pristine', 'Low Miles'],
@@ -68,6 +74,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_006',
     name: 'Tommy "Rust Bucket" Chen',
+    tier: 3,
     budget: 35000,
     patience: 80,
     wishlist: ['Project Car', 'Barn Find', 'Rust'],

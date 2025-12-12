@@ -3,6 +3,7 @@ import { BootScene } from './scenes/boot-scene';
 import { GarageScene } from './scenes/garage-scene';
 import { MapScene } from './scenes/map-scene';
 import { AuctionScene } from './scenes/auction-scene';
+import { NegotiationScene } from './scenes/negotiation-scene';
 
 /**
  * Main entry point for The Curator
@@ -14,7 +15,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 720,
   parent: 'phaser-game',
   backgroundColor: '#1a1a1a',
-  scene: [BootScene, GarageScene, MapScene, AuctionScene],
+  scene: [BootScene, GarageScene, MapScene, AuctionScene, NegotiationScene],
   physics: {
     // No physics needed for this game
     default: undefined,

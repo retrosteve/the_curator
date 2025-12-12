@@ -11,6 +11,7 @@ export type GameEvents = {
   'time-changed': number;
   'day-changed': number;
   'location-changed': string;
+  'show-dialogue': { speaker: string; text: string };
 };
 
 export type EventMap = Record<string, unknown>;

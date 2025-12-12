@@ -252,6 +252,21 @@ export class AuctionScene extends Phaser.Scene {
 
   private endAuction(playerWon: boolean, message: string): void {
     if (playerWon) {
+      // Check garage capacity
+      if (this.gameManager.getPlayerState().inventory.length >= this.gameManager.getPlayerState().garageSlots) {
+        this.uiManager.showModal(
+          'Garage Full!',
+          `You won the auction, but your garage is full!\n\nYou are forced to forfeit the car.`,
+          [
+            {
+              text: 'Continue',
+              onClick: () => this.scene.start('MapScene'),
+            },
+          ]
+        );
+        return;
+      }
+
       if (this.gameManager.spendMoney(this.currentBid)) {
         this.gameManager.addCar(this.car);
         this.uiManager.showModal(

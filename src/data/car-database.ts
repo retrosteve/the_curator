@@ -97,11 +97,28 @@ export function getRandomCar(): Car {
 }
 
 /**
- * Calculate current value of a car based on condition
+ * Calculate current value of a car based on condition and history
  */
 export function calculateCarValue(car: Car): number {
   const conditionMultiplier = car.condition / 100;
-  const value = Math.floor(car.baseValue * conditionMultiplier);
+  
+  // Calculate history multiplier (worst tag wins)
+  let historyMultiplier = 1.0;
+  
+  if (car.history && car.history.length > 0) {
+    const multipliers: number[] = [];
+    
+    if (car.history.includes('Flooded')) multipliers.push(0.5);
+    if (car.history.includes('Rust')) multipliers.push(0.7);
+    if (car.history.includes('Mint')) multipliers.push(1.25);
+    
+    // If we found recognized tags, take the minimum
+    if (multipliers.length > 0) {
+      historyMultiplier = Math.min(...multipliers);
+    }
+  }
+  
+  const value = Math.floor(car.baseValue * conditionMultiplier * historyMultiplier);
   return value;
 }
 

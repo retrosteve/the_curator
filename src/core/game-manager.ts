@@ -7,6 +7,7 @@ import { eventBus } from './event-bus';
 export interface PlayerState {
   money: number;
   inventory: Car[];
+  garageSlots: number;
   prestige: number;
   skills: {
     eye: number; // 1-5
@@ -38,6 +39,7 @@ export class GameManager {
     this.player = {
       money: 5000,
       inventory: [],
+      garageSlots: 1,
       prestige: 0,
       skills: {
         eye: 1,
@@ -90,9 +92,10 @@ export class GameManager {
 
   /**
    * Spend money
+   * Allows debt up to -$500
    */
   public spendMoney(amount: number): boolean {
-    if (this.player.money >= amount) {
+    if (this.player.money - amount >= -500) {
       this.player.money -= amount;
       eventBus.emit('money-changed', this.player.money);
       return true;
@@ -151,6 +154,11 @@ export class GameManager {
     while (this.world.timeOfDay >= 24) {
       this.world.timeOfDay -= 24;
       this.world.day += 1;
+      
+      // Daily Rent: $100
+      this.player.money -= 100;
+      eventBus.emit('money-changed', this.player.money);
+      
       eventBus.emit('day-changed', this.world.day);
     }
     
@@ -180,6 +188,7 @@ export class GameManager {
     this.player = {
       money: 5000,
       inventory: [],
+      garageSlots: 1,
       prestige: 0,
       skills: {
         eye: 1,

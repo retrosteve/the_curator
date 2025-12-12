@@ -225,9 +225,15 @@ export class GarageScene extends Phaser.Scene {
           () => this.sellCar(car.id),
           { backgroundColor: '#27ae60' }
         );
+        const sellAsIsBtn = this.uiManager.createButton(
+          'Sell As-Is',
+          () => this.sellCarAsIs(car.id),
+          { backgroundColor: '#e67e22' }
+        );
 
         buttonContainer.appendChild(restoreBtn);
         buttonContainer.appendChild(sellBtn);
+        buttonContainer.appendChild(sellAsIsBtn);
 
         carPanel.appendChild(carName);
         carPanel.appendChild(carCondition);
@@ -251,32 +257,36 @@ export class GarageScene extends Phaser.Scene {
     const car = this.gameManager.getCar(carId);
     if (!car) return;
 
-    const targetCondition = Math.min(car.condition + 20, 100);
-    const cost = Economy.getRestorationCost(car, targetCondition);
-    const time = Economy.getRestorationTime(car, targetCondition);
+    if (car.condition >= 100) {
+      alert("Car is already in perfect condition!");
+      return;
+    }
+
+    const options = Economy.getRestorationOptions(car);
+    const modalOptions = options.map(opt => ({
+      text: `${opt.name} ($${opt.cost.toLocaleString()} | ${opt.time}h) - ${opt.description} ${opt.risk ? `[WARNING: ${opt.risk}]` : ''}`,
+      onClick: () => {
+        if (this.gameManager.spendMoney(opt.cost)) {
+          this.timeSystem.advanceTime(opt.time);
+          const result = Economy.performRestoration(car, opt);
+          this.gameManager.updateCar(result.car);
+          alert(result.message);
+          this.showInventory();
+        } else {
+          alert('Not enough money!');
+        }
+      }
+    }));
+
+    modalOptions.push({
+      text: 'Cancel',
+      onClick: () => this.showInventory(),
+    });
 
     this.uiManager.showModal(
-      'Restore Car',
-      `Restore ${car.name} from ${car.condition} to ${targetCondition} condition?\n\nCost: $${cost.toLocaleString()}\nTime: ${time} hours`,
-      [
-        {
-          text: 'Confirm',
-          onClick: () => {
-            if (this.gameManager.spendMoney(cost)) {
-              this.timeSystem.advanceTime(time);
-              const restoredCar = Economy.restoreCar(car, targetCondition);
-              this.gameManager.updateCar(restoredCar);
-              this.showInventory();
-            } else {
-              alert('Not enough money!');
-            }
-          },
-        },
-        {
-          text: 'Cancel',
-          onClick: () => this.showInventory(),
-        },
-      ]
+      'Select Restoration Service',
+      `Choose a specialist for ${car.name} (Current: ${car.condition}/100):`,
+      modalOptions
     );
   }
 
@@ -306,19 +316,46 @@ export class GarageScene extends Phaser.Scene {
     );
   }
 
+  private sellCarAsIs(carId: string): void {
+    const car = this.gameManager.getCar(carId);
+    if (!car) return;
+
+    // Sell As-Is Value = 70% of current value
+    const salePrice = Math.floor(Economy.getSalePrice(car) * 0.7);
+
+    this.uiManager.showModal(
+      'Sell As-Is',
+      `Quick sell ${car.name} for $${salePrice.toLocaleString()}? (70% Value)`,
+      [
+        {
+          text: 'Sell',
+          onClick: () => {
+            this.gameManager.addMoney(salePrice);
+            this.gameManager.removeCar(carId);
+            this.showInventory();
+          },
+        },
+        {
+          text: 'Cancel',
+          onClick: () => this.showInventory(),
+        },
+      ]
+    );
+  }
+
   private goToMap(): void {
     this.scene.start('MapScene');
   }
 
   private endDay(): void {
     this.timeSystem.endDay();
-
+    
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
 
     this.uiManager.showModal(
       'Day Ended',
-      `Day ${world.day - 1} complete!\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
+      `Day ${world.day - 1} complete!\nDaily Rent Paid: $100\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
       [
         {
           text: 'Continue',

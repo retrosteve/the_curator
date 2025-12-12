@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/GameManager';
-import { UIManager } from '@/ui/UIManager';
-import { Car, calculateCarValue } from '@/data/CarDatabase';
-import { Rival } from '@/data/RivalDatabase';
-import { RivalAI } from '@/systems/RivalAI';
+import { GameManager } from '@/core/game-manager';
+import { UIManager } from '@/ui/ui-manager';
+import { Car, calculateCarValue } from '@/data/car-database';
+import { Rival } from '@/data/rival-database';
+import { RivalAI } from '@/systems/rival-ai';
 
 /**
  * Auction Scene - Turn-based bidding battle

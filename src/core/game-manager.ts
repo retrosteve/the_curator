@@ -1,5 +1,5 @@
-import { Car } from '@/data/CarDatabase';
-import { eventBus } from './EventBus';
+import { Car } from '@/data/car-database';
+import { eventBus } from './event-bus';
 
 /**
  * Player State

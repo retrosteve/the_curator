@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/GameManager';
-import { UIManager } from '@/ui/UIManager';
-import { TimeSystem } from '@/systems/TimeSystem';
-import { eventBus } from '@/core/EventBus';
-import { Economy } from '@/systems/Economy';
+import { GameManager } from '@/core/game-manager';
+import { UIManager } from '@/ui/ui-manager';
+import { TimeSystem } from '@/systems/time-system';
+import { eventBus } from '@/core/event-bus';
+import { Economy } from '@/systems/economy';
 
 /**
  * Garage Scene - Player's home base for managing cars

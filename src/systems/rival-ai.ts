@@ -1,4 +1,4 @@
-import { Rival, BidDecision, getRivalBidDecision } from '@/data/RivalDatabase';
+import { Rival, BidDecision, getRivalBidDecision } from '@/data/rival-database';
 
 /**
  * RivalAI - Manages rival behavior during auctions

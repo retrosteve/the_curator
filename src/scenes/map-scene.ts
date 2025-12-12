@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/GameManager';
-import { UIManager } from '@/ui/UIManager';
-import { TimeSystem } from '@/systems/TimeSystem';
-import { getRandomCar, Car } from '@/data/CarDatabase';
-import { getRandomRival, calculateRivalInterest } from '@/data/RivalDatabase';
-import { eventBus } from '@/core/EventBus';
+import { GameManager } from '@/core/game-manager';
+import { UIManager } from '@/ui/ui-manager';
+import { TimeSystem } from '@/systems/time-system';
+import { getRandomCar, Car } from '@/data/car-database';
+import { getRandomRival, calculateRivalInterest } from '@/data/rival-database';
+import { eventBus } from '@/core/event-bus';
 
 /**
  * Map Node types

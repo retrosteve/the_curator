@@ -1,4 +1,4 @@
-import { GameManager } from '@/core/GameManager';
+import { GameManager } from '@/core/game-manager';
 
 /**
  * TimeSystem - Manages game time and day/night cycle

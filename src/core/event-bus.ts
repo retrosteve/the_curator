@@ -1,4 +1,4 @@
-import type { Car } from '@/data/CarDatabase';
+import type { Car } from '@/data/car-database';
 
 /**
  * Central event contract for the game.

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/GameManager';
+import { GameManager } from '@/core/game-manager';
 
 /**
  * Boot Scene - Initial loading and setup

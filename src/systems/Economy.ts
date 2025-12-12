@@ -1,4 +1,4 @@
-import { Car, calculateCarValue } from '@/data/CarDatabase';
+import { Car, calculateCarValue } from '@/data/car-database';
 
 /**
  * Economy System - Handles value calculations and transactions

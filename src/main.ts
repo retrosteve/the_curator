@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene';
-import { GarageScene } from './scenes/GarageScene';
-import { MapScene } from './scenes/MapScene';
-import { AuctionScene } from './scenes/AuctionScene';
+import { BootScene } from './scenes/boot-scene';
+import { GarageScene } from './scenes/garage-scene';
+import { MapScene } from './scenes/map-scene';
+import { AuctionScene } from './scenes/auction-scene';
 
 /**
  * Main entry point for The Curator

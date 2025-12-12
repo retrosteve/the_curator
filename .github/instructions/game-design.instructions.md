@@ -44,8 +44,8 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 ## Data Structures
 
 ### Player (The RPG Layer)
-- `money`: number
-- `prestige`: number
+- `money`: number (Start: $5,000)
+- `prestige`: number (Start: 0)
 - `skills`:
   - `eye`: Level 1-5 (Reveals hidden damage)
   - `tongue`: Level 1-5 (Unlocks better bids)

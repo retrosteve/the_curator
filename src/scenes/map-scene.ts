@@ -187,9 +187,19 @@ export class MapScene extends Phaser.Scene {
 
     // Check if player has enough time
     if (!this.timeSystem.hasEnoughTime(requiredHours)) {
+      const currentTime = this.timeSystem.getFormattedTime();
+      const hoursLeft = this.timeSystem.getTimeRemainingInDay();
+      
+      let message = '';
+      if (hoursLeft === 0) {
+        message = `It's ${currentTime} - the business day has ended.\n\nReturn to the garage to end your day.`;
+      } else {
+        message = `You only have ${hoursLeft.toFixed(1)} hour${hoursLeft !== 1 ? 's' : ''} left today, but visiting ${node.name} requires ${requiredHours} hour${requiredHours !== 1 ? 's' : ''}.\n\nReturn to the garage to end your day.`;
+      }
+      
       this.uiManager.showModal(
-        'Not Enough Time',
-        `You don't have enough time today to visit ${node.name}. Consider ending the day.`,
+        'Day Ending Soon',
+        message,
         [{ text: 'OK', onClick: () => {} }]
       );
       return;

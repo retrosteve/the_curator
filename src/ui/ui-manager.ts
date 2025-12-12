@@ -50,6 +50,7 @@ export class UIManager {
       cursor: 'pointer',
       borderRadius: '5px',
       transition: 'all 0.2s',
+      pointerEvents: 'auto',
       ...style,
     });
 
@@ -184,6 +185,7 @@ export class UIManager {
       minWidth: '400px',
       maxWidth: '600px',
       zIndex: '1000',
+      pointerEvents: 'auto',
     });
 
     const heading = this.createHeading(title, 2, {

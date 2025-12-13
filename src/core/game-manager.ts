@@ -1,5 +1,6 @@
 import { Car } from '@/data/car-database';
 import { eventBus } from './event-bus';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Player State - Represents all player-owned resources and progression.
@@ -10,6 +11,7 @@ export interface PlayerState {
   inventory: Car[];
   garageSlots: number;
   prestige: number;
+  bankLoanTaken: boolean;
   skills: {
     eye: number; // 1-5
     tongue: number; // 1-5
@@ -19,7 +21,7 @@ export interface PlayerState {
 
 /**
  * World State - Represents game time and current location.
- * Time is tracked in 24-hour format; days increment when time >= 24.
+ * Time is tracked in 24-hour format; days advance only via end-of-day transitions.
  */
 export interface WorldState {
   day: number;
@@ -27,10 +29,14 @@ export interface WorldState {
   currentLocation: string;
 }
 
-const DAY_START_HOUR = 8;
-const DAY_END_HOUR = 20;
-const DAILY_RENT = 100;
-const DEBT_CAP = -500;
+const DAY_START_HOUR = GAME_CONFIG.day.startHour;
+const DAY_END_HOUR = GAME_CONFIG.day.endHour;
+const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
+const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
+
+export type EndDayResult =
+  | { bankrupt: true; requiredRent: number }
+  | { bankrupt: false; rentPaid: number };
 
 /**
  * GameManager - Central singleton for managing game state.
@@ -47,21 +53,18 @@ export class GameManager {
   private constructor() {
     // Initialize player state
     this.player = {
-      money: 8000,
+      money: GAME_CONFIG.player.startingMoney,
       inventory: [],
-      garageSlots: 1,
-      prestige: 0,
-      skills: {
-        eye: 1,
-        tongue: 1,
-        network: 1,
-      },
+      garageSlots: GAME_CONFIG.player.startingGarageSlots,
+      prestige: GAME_CONFIG.player.startingPrestige,
+      bankLoanTaken: false,
+      skills: { ...GAME_CONFIG.player.startingSkills },
     };
 
     // Initialize world state
     this.world = {
       day: 1,
-      timeOfDay: DAY_START_HOUR, // Start at 8 AM
+      timeOfDay: DAY_START_HOUR, // Start at business day start
       currentLocation: 'garage',
     };
   }
@@ -101,34 +104,53 @@ export class GameManager {
     eventBus.emit('money-changed', this.player.money);
   }
 
-  /**
-   * Attempt to spend money with debt cap enforcement.
-   * Allows debt up to -$500 as per game design.
-   * @param amount - Amount to spend (positive number)
-   * @returns True if transaction succeeded, false if it would exceed debt cap
-   */
-  public spendMoney(amount: number): boolean {
-    if (this.player.money - amount >= DEBT_CAP) {
-      this.player.money -= amount;
-      eventBus.emit('money-changed', this.player.money);
-      return true;
-    }
-    return false;
+  public getDailyRent(): number {
+    return DAILY_RENT;
+  }
+
+  public getBankLoanAmount(): number {
+    return BANK_LOAN_AMOUNT;
+  }
+
+  public canTakeBankLoan(): boolean {
+    return !this.player.bankLoanTaken;
   }
 
   /**
-   * Apply daily rent while respecting the debt cap.
-   * @returns True if rent was fully paid, false if clamped by debt cap
+   * Take a one-time bank loan (MVP).
+   * Loan repayment is not implemented yet; this is an emergency cash injection.
    */
-  private applyDailyRent(): boolean {
-    const next = this.player.money - DAILY_RENT;
-    const clamped = Math.max(DEBT_CAP, next);
-    const fullyPaid = clamped === next;
+  public takeBankLoan(): boolean {
+    if (!this.canTakeBankLoan()) return false;
 
-    this.player.money = clamped;
+    this.player.bankLoanTaken = true;
+    this.player.money += BANK_LOAN_AMOUNT;
     eventBus.emit('money-changed', this.player.money);
+    return true;
+  }
 
-    return fullyPaid;
+  /**
+    * Attempt to spend money.
+   * @param amount - Amount to spend (positive number)
+   * @returns True if transaction succeeded, false if insufficient funds
+   */
+  public spendMoney(amount: number): boolean {
+    if (amount <= 0) return true;
+    if (this.player.money < amount) return false;
+
+    this.player.money -= amount;
+    eventBus.emit('money-changed', this.player.money);
+    return true;
+  }
+
+  /**
+   * Apply daily rent (requires sufficient money).
+   * @returns The amount paid.
+   */
+  private applyDailyRent(): number {
+    this.player.money -= DAILY_RENT;
+    eventBus.emit('money-changed', this.player.money);
+    return DAILY_RENT;
   }
 
   /**
@@ -180,14 +202,13 @@ export class GameManager {
   }
 
   /**
-   * Advance time and handle day transitions with daily rent.
-   * When time reaches 24h, advances to next day and deducts $100 rent.
+    * Advance time.
    * @param hours - Hours to advance (can be fractional, e.g., 0.5 for 30 minutes)
    */
   public advanceTime(hours: number): void {
     this.world.timeOfDay += hours;
 
-    // Game design: actions should be blocked from pushing time past 20:00.
+    // Game design: actions should be blocked from pushing time past DAY_END_HOUR.
     // Still clamp to a sensible range defensively.
     if (this.world.timeOfDay < 0) this.world.timeOfDay = 0;
     if (this.world.timeOfDay > 24) this.world.timeOfDay = 24;
@@ -196,20 +217,26 @@ export class GameManager {
   }
 
   /**
-   * End the current day and start the next day at 08:00.
-   * Applies daily rent ($100) and enforces the debt cap (-$500).
+    * End the current day and start the next day at DAY_START_HOUR.
+    * Applies daily rent (DAILY_RENT). If rent cannot be paid, the player is bankrupt.
    */
-  public endDay(): void {
+  public endDay(): EndDayResult {
+    if (this.player.money < DAILY_RENT) {
+      return { bankrupt: true, requiredRent: DAILY_RENT };
+    }
+
     this.world.day += 1;
     this.world.timeOfDay = DAY_START_HOUR;
 
-    this.applyDailyRent();
+    const rentPaid = this.applyDailyRent();
     eventBus.emit('day-changed', this.world.day);
     eventBus.emit('time-changed', this.world.timeOfDay);
+
+    return { bankrupt: false, rentPaid };
   }
 
   /**
-   * Check if an action of the given duration can complete before 20:00.
+   * Check if an action of the given duration can complete before DAY_END_HOUR.
    */
   public canCompleteAction(requiredHours: number): boolean {
     return this.world.timeOfDay + requiredHours <= DAY_END_HOUR;
@@ -237,21 +264,18 @@ export class GameManager {
 
   /**
    * Reset game state to initial values.
-   * Resets player to starting money ($8000), clears inventory, resets skills to level 1.
-   * Resets world to day 1, 8:00 AM, at garage.
+    * Resets player to starting money, clears inventory, resets skills.
+    * Resets world to day 1, business day start, at garage.
    * Emits all relevant change events.
    */
   public reset(): void {
     this.player = {
-      money: 8000,
+      money: GAME_CONFIG.player.startingMoney,
       inventory: [],
-      garageSlots: 1,
-      prestige: 0,
-      skills: {
-        eye: 1,
-        tongue: 1,
-        network: 1,
-      },
+      garageSlots: GAME_CONFIG.player.startingGarageSlots,
+      prestige: GAME_CONFIG.player.startingPrestige,
+      bankLoanTaken: false,
+      skills: { ...GAME_CONFIG.player.startingSkills },
     };
 
     this.world = {

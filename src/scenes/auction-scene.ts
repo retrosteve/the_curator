@@ -6,6 +6,7 @@ import { Car, calculateCarValue } from '@/data/car-database';
 import { Rival } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 import { eventBus } from '@/core/event-bus';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
@@ -43,12 +44,16 @@ export class AuctionScene extends Phaser.Scene {
     this.uiManager.updateHUD({ location });
   };
 
-  // Kick Tires action constants
-  private static readonly KICK_TIRES_BUDGET_REDUCTION = 500;
-  private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = 2;
+  private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
+  private static readonly BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
+  private static readonly POWER_BID_INCREMENT = GAME_CONFIG.auction.powerBidIncrement;
+  private static readonly POWER_BID_PATIENCE_PENALTY = GAME_CONFIG.auction.powerBidPatiencePenalty;
+  private static readonly STALL_PATIENCE_PENALTY = GAME_CONFIG.auction.stallPatiencePenalty;
 
-  // Stall action constants
-  private static readonly REQUIRED_TONGUE_LEVEL_FOR_STALL = 2;
+  private static readonly KICK_TIRES_BUDGET_REDUCTION = GAME_CONFIG.auction.kickTires.rivalBudgetReduction;
+  private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = GAME_CONFIG.auction.kickTires.requiredEyeLevel;
+
+  private static readonly REQUIRED_TONGUE_LEVEL_FOR_STALL = GAME_CONFIG.auction.stall.requiredTongueLevel;
 
   constructor() {
     super({ key: 'AuctionScene' });
@@ -58,7 +63,7 @@ export class AuctionScene extends Phaser.Scene {
     this.car = data.car;
     this.rival = data.rival;
     this.rivalAI = new RivalAI(data.rival, data.interest);
-    this.currentBid = Math.floor(calculateCarValue(this.car) * 0.5);
+    this.currentBid = Math.floor(calculateCarValue(this.car) * AuctionScene.STARTING_BID_MULTIPLIER);
     this.stallUsesThisAuction = 0;
   }
 
@@ -188,21 +193,21 @@ export class AuctionScene extends Phaser.Scene {
     });
 
     const bidBtn = this.uiManager.createButton(
-      'Bid +$100',
-      () => this.playerBid(100),
+      `Bid +$${AuctionScene.BID_INCREMENT.toLocaleString()}`,
+      () => this.playerBid(AuctionScene.BID_INCREMENT),
       { width: '100%', backgroundColor: '#2196F3' }
     );
     buttonContainer.appendChild(bidBtn);
 
     const powerBidBtn = this.uiManager.createButton(
-      'Power Bid +$500 (Rival Patience -20)',
-      () => this.playerBid(500, { power: true }),
+      `Power Bid +$${AuctionScene.POWER_BID_INCREMENT.toLocaleString()} (Rival Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY})`,
+      () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
       { width: '100%', backgroundColor: '#FF9800' }
     );
     buttonContainer.appendChild(powerBidBtn);
 
     const kickTiresBtn = this.uiManager.createButton(
-      'Kick Tires (Eye 2+) (Rival Budget -$500)',
+      `Kick Tires (Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+) (Rival Budget -$${AuctionScene.KICK_TIRES_BUDGET_REDUCTION.toLocaleString()})`,
       () => this.playerKickTires(),
       { width: '100%', backgroundColor: '#607D8B' }
     );
@@ -211,7 +216,7 @@ export class AuctionScene extends Phaser.Scene {
     const maxStalls = player.skills.tongue;
     const stallsRemaining = Math.max(0, maxStalls - this.stallUsesThisAuction);
     const stallBtn = this.uiManager.createButton(
-      `Stall (Tongue 2+) (Uses left: ${stallsRemaining}) (Rival Patience -20)`,
+      `Stall (Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+) (Uses left: ${stallsRemaining}) (Rival Patience -${AuctionScene.STALL_PATIENCE_PENALTY})`,
       () => this.playerStall(),
       { width: '100%', backgroundColor: '#9C27B0' }
     );
@@ -246,8 +251,8 @@ export class AuctionScene extends Phaser.Scene {
 
     if (player.money < newBid) {
       this.uiManager.showModal(
-        'Insufficient Funds',
-        "You don't have enough money for this bid!",
+        'Not Enough Money',
+        "You don't have enough money for this bid.",
         [{ text: 'OK', onClick: () => {} }]
       );
       return;
@@ -343,7 +348,7 @@ export class AuctionScene extends Phaser.Scene {
             },
           ]
         );
-      }, 500);
+      }, GAME_CONFIG.auction.rivalBidModalDelayMs);
     }
   }
 

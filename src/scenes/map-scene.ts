@@ -5,6 +5,7 @@ import { TimeSystem } from '@/systems/time-system';
 import { getRandomCar } from '@/data/car-database';
 import { getRandomRival, calculateRivalInterest } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Map Node configuration.
@@ -20,9 +21,9 @@ interface MapNode {
 }
 
 // Time costs for different map actions (in hours)
-const TRAVEL_HOURS = 1;
-const INSPECT_HOURS = 0.5;
-const AUCTION_HOURS = 2;
+const TRAVEL_HOURS = GAME_CONFIG.timeCosts.travelHours;
+const INSPECT_HOURS = GAME_CONFIG.timeCosts.inspectHours;
+const AUCTION_HOURS = GAME_CONFIG.timeCosts.auctionHours;
 
 /**
  * Map Scene - Player explores locations and finds cars.
@@ -225,7 +226,7 @@ export class MapScene extends Phaser.Scene {
 
   private generateEncounter(node: MapNode): void {
     const car = getRandomCar();
-    const hasRival = Math.random() > 0.5; // 50% chance of rival
+    const hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
 
     if (hasRival) {
       // Auction consumes additional time

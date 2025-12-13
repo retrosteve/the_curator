@@ -3,7 +3,8 @@ import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { eventBus } from '@/core/event-bus';
-import { Economy } from '@/systems/Economy';
+import { Economy } from '@/systems/economy';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -363,8 +364,7 @@ export class GarageScene extends Phaser.Scene {
     const car = this.gameManager.getCar(carId);
     if (!car) return;
 
-    // Sell As-Is Value = 70% of current value
-    const salePrice = Math.floor(Economy.getSalePrice(car) * 0.7);
+    const salePrice = Math.floor(Economy.getSalePrice(car) * GAME_CONFIG.economy.sellAsIsMultiplier);
 
     this.uiManager.showModal(
       'Sell As-Is',
@@ -391,14 +391,91 @@ export class GarageScene extends Phaser.Scene {
   }
 
   private endDay(): void {
-    this.timeSystem.endDay();
-    
+    const playerBefore = this.gameManager.getPlayerState();
+    const rent = this.gameManager.getDailyRent();
+
+    if (playerBefore.money < rent) {
+      const canSell = playerBefore.inventory.length > 0;
+      const canLoan = this.gameManager.canTakeBankLoan();
+
+      if (!canSell && !canLoan) {
+        this.uiManager.showModal(
+          'Bankrupt',
+          `You can't pay today's rent ($${rent.toLocaleString()}).\n\nGame Over.`,
+          [
+            {
+              text: 'New Game',
+              onClick: () => {
+                this.gameManager.reset();
+                this.setupUI();
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      const shortfall = rent - playerBefore.money;
+      const buttons: { text: string; onClick: () => void }[] = [];
+
+      if (canSell) {
+        buttons.push({
+          text: 'Sell a Car',
+          onClick: () => this.showInventory(),
+        });
+      }
+
+      if (canLoan) {
+        const loanAmount = this.gameManager.getBankLoanAmount();
+        buttons.push({
+          text: `Take Bank Loan (+$${loanAmount.toLocaleString()})`,
+          onClick: () => {
+            this.gameManager.takeBankLoan();
+            this.endDay();
+          },
+        });
+      }
+
+      buttons.push({
+        text: 'Cancel',
+        onClick: () => this.setupUI(),
+      });
+
+      this.uiManager.showModal(
+        'Rent Due',
+        `Daily rent is $${rent.toLocaleString()}, but you only have $${playerBefore.money.toLocaleString()} (short $${shortfall.toLocaleString()}).\n\nSell a car or take a bank loan to avoid bankruptcy.`,
+        buttons
+      );
+
+      return;
+    }
+
+    const result = this.timeSystem.endDay();
+
+    if (result.bankrupt) {
+      // Defensive: this should be prevented by the rent pre-check above.
+      this.uiManager.showModal(
+        'Bankrupt',
+        `You can't pay today's rent ($${result.requiredRent.toLocaleString()}).\n\nGame Over.`,
+        [
+          {
+            text: 'New Game',
+            onClick: () => {
+              this.gameManager.reset();
+              this.setupUI();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
 
     this.uiManager.showModal(
       'Day Ended',
-      `Welcome to Day ${world.day}!\nDaily Rent Paid: $100\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
+      `Welcome to Day ${world.day}!\nDaily Rent Paid: $${result.rentPaid.toLocaleString()}\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
       [
         {
           text: 'Continue',

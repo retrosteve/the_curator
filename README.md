@@ -99,6 +99,13 @@ npm run preview
 
 ## Game Mechanics
 
+### Daily Rent and Bankruptcy
+- A daily rent of **$100** is due when you **End Day**.
+- If you can't pay rent, you must raise cash before ending the day:
+  - Sell a car (if you have one), or
+  - Take a bank loan (if one is available).
+- If you still can't pay, you're bankrupt and it's **Game Over**.
+
 ### Car System
 - Each car has:
   - **Name** - e.g., "1969 Dodge Charger"

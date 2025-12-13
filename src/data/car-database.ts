@@ -3,6 +3,8 @@
  * Represents a single vehicle with its condition, history, and metadata.
  * currentValue is typically calculated via calculateCarValue() and not stored in the database.
  */
+import { GAME_CONFIG } from '@/config/game-config';
+
 export interface Car {
   id: string;
   name: string;
@@ -130,25 +132,30 @@ export const CarDatabase: Car[] = [
 
 /**
  * Generate a random car from the database.
- * Creates a new instance with a unique ID and random condition (30-90).
+ * Creates a new instance with a unique ID and random condition (see GAME_CONFIG.cars.randomConditionMin/max).
  * @returns A new car instance with randomized properties
  */
 export function getRandomCar(): Car {
   const randomIndex = Math.floor(Math.random() * CarDatabase.length);
   const baseCar = CarDatabase[randomIndex];
+
+  const minCondition = GAME_CONFIG.cars.randomConditionMin;
+  const maxCondition = GAME_CONFIG.cars.randomConditionMax;
+  const randomCondition =
+    Math.floor(Math.random() * (maxCondition - minCondition + 1)) + minCondition;
   
   // Create a copy with a unique ID
   return {
     ...baseCar,
     id: `car_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    condition: Math.floor(Math.random() * 60) + 30, // Random condition 30-90
+    condition: randomCondition,
   };
 }
 
 /**
  * Calculate current value of a car based on condition and history.
  * Formula: baseValue × (condition/100) × historyMultiplier
- * History multipliers: Flooded=0.5, Rust=0.7, Mint=1.25, Standard=1.0
+ * History multipliers are defined in GAME_CONFIG.valuation.historyMultipliers.
  * When multiple history tags exist, the worst multiplier applies ("worst tag wins").
  * @param car - The car to evaluate
  * @returns Calculated market value as an integer
@@ -157,14 +164,20 @@ export function calculateCarValue(car: Car): number {
   const conditionMultiplier = car.condition / 100;
   
   // Calculate history multiplier (worst tag wins)
-  let historyMultiplier = 1.0;
+  let historyMultiplier: number = GAME_CONFIG.valuation.historyMultipliers.standard;
   
   if (car.history && car.history.length > 0) {
     const multipliers: number[] = [];
     
-    if (car.history.includes('Flooded')) multipliers.push(0.5);
-    if (car.history.includes('Rust')) multipliers.push(0.7);
-    if (car.history.includes('Mint')) multipliers.push(1.25);
+    if (car.history.includes('Flooded')) {
+      multipliers.push(GAME_CONFIG.valuation.historyMultipliers.flooded);
+    }
+    if (car.history.includes('Rust')) {
+      multipliers.push(GAME_CONFIG.valuation.historyMultipliers.rust);
+    }
+    if (car.history.includes('Mint')) {
+      multipliers.push(GAME_CONFIG.valuation.historyMultipliers.mint);
+    }
     
     // If we found recognized tags, take the minimum
     if (multipliers.length > 0) {

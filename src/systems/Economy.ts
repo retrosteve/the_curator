@@ -1,4 +1,5 @@
 import { Car, calculateCarValue } from '@/data/car-database';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Restoration option configuration.
@@ -33,33 +34,36 @@ export class Economy {
     const options: RestorationOption[] = [];
     const baseValue = car.baseValue;
 
+    const charlie = GAME_CONFIG.economy.restoration.charlieMinor;
+    const artisan = GAME_CONFIG.economy.restoration.artisanMajor;
+
     // Cheap Charlie - Minor Service
     // Low Cost, Fast, Risk of bad work
-    if (car.condition < 100) {
+    if (car.condition < charlie.availableBelowCondition) {
       options.push({
         id: 'charlie_minor',
         name: "Cheap Charlie's Quick Fix",
         specialist: 'Charlie',
         type: 'Minor',
-        cost: Math.floor(baseValue * 0.02), // Placeholder tuning: 2% of base value
-        time: 4,
-        conditionGain: 10,
+        cost: Math.floor(baseValue * charlie.costRateOfBaseValue),
+        time: charlie.timeHours,
+        conditionGain: charlie.conditionGain,
         description: "Fast and cheap. Don't ask questions.",
-        risk: "10% chance to damage car",
+        risk: `${Math.round(charlie.failChance * 100)}% chance to damage car`,
       });
     }
 
     // The Artisan - Major Overhaul
     // High Cost, Slow, Quality work
-    if (car.condition < 90) {
+    if (car.condition < artisan.availableBelowCondition) {
       options.push({
         id: 'artisan_major',
         name: "The Artisan's Restoration",
         specialist: 'Artisan',
         type: 'Major',
-        cost: Math.floor(baseValue * 0.15), // Placeholder tuning: 15% of base value
-        time: 8,
-        conditionGain: 30,
+        cost: Math.floor(baseValue * artisan.costRateOfBaseValue),
+        time: artisan.timeHours,
+        conditionGain: artisan.conditionGain,
         description: "Perfection takes time. Increases value significantly.",
       });
     }
@@ -81,11 +85,13 @@ export class Economy {
     let message = "Restoration complete.";
     let success = true;
 
+    const charlie = GAME_CONFIG.economy.restoration.charlieMinor;
+    const conditionMax = GAME_CONFIG.economy.restoration.conditionMax;
+
     if (option.specialist === 'Charlie') {
       // Charlie has a risk factor
-      if (Math.random() < 0.1) {
-        // 10% fail rate
-        newCondition -= 5;
+      if (Math.random() < charlie.failChance) {
+        newCondition -= charlie.failConditionPenalty;
         message = "Charlie botched the job! Condition worsened.";
         success = false;
       } else {
@@ -100,7 +106,7 @@ export class Economy {
 
     const updatedCar = {
       ...car,
-      condition: Math.min(newCondition, 100),
+      condition: Math.min(newCondition, conditionMax),
     };
     
     // Recalculate value
@@ -112,7 +118,7 @@ export class Economy {
   /**
    * Calculate sale price with optional market fluctuation.
    * @param car - The car to price
-   * @param marketModifier - Market multiplier (default 1.0; 0.8-1.2 recommended)
+    * @param marketModifier - Market multiplier (default 1.0; see GAME_CONFIG.economy.market for typical range)
    * @returns Final sale price as an integer
    */
   public static getSalePrice(car: Car, marketModifier: number = 1.0): number {
@@ -137,9 +143,11 @@ export class Economy {
 
   /**
    * Generate a random market modifier representing demand fluctuation.
-   * @returns Random value between 0.8 and 1.2
+   * @returns Random value between GAME_CONFIG.economy.market.modifierMin and modifierMax
    */
   public static getMarketModifier(): number {
-    return 0.8 + Math.random() * 0.4;
+    const min = GAME_CONFIG.economy.market.modifierMin;
+    const max = GAME_CONFIG.economy.market.modifierMax;
+    return min + Math.random() * (max - min);
   }
 }

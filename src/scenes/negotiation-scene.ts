@@ -4,6 +4,7 @@ import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { Car, calculateCarValue } from '@/data/car-database';
 import { eventBus } from '@/core/event-bus';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Negotiation Scene - PvE encounter with a seller.
@@ -48,9 +49,9 @@ export class NegotiationScene extends Phaser.Scene {
     this.car = data.car;
     // Seller starts asking for 120% of value (or market value)
     const value = calculateCarValue(this.car);
-    this.askingPrice = Math.floor(value * 1.2);
+    this.askingPrice = Math.floor(value * GAME_CONFIG.negotiation.askingPriceMultiplier);
     // Seller won't go below 90% of value
-    this.lowestPrice = Math.floor(value * 0.9);
+    this.lowestPrice = Math.floor(value * GAME_CONFIG.negotiation.lowestPriceMultiplier);
     this.negotiationCount = 0;
   }
 
@@ -201,7 +202,7 @@ export class NegotiationScene extends Phaser.Scene {
     this.negotiationCount++;
     
     // Simple reduction logic
-    const reduction = Math.floor(this.askingPrice * 0.05); // 5% drop
+    const reduction = Math.floor(this.askingPrice * GAME_CONFIG.negotiation.haggleReductionRate);
     this.askingPrice = Math.max(this.lowestPrice, this.askingPrice - reduction);
 
     // Update UI
@@ -215,17 +216,6 @@ export class NegotiationScene extends Phaser.Scene {
   }
 
   private handleBuy(): void {
-    const player = this.gameManager.getPlayerState();
-
-    if (player.money < this.askingPrice) {
-      this.uiManager.showModal(
-        'Insufficient Funds',
-        "You can't afford this car.",
-        [{ text: 'OK', onClick: () => {} }]
-      );
-      return;
-    }
-
     if (this.gameManager.getPlayerState().inventory.length >= this.gameManager.getPlayerState().garageSlots) {
        // Check garage capacity
        this.uiManager.showModal(
@@ -236,7 +226,15 @@ export class NegotiationScene extends Phaser.Scene {
        return;
     }
 
-    this.gameManager.spendMoney(this.askingPrice);
+    if (!this.gameManager.spendMoney(this.askingPrice)) {
+      this.uiManager.showModal(
+        'Not Enough Money',
+        "You don't have enough money to buy this car.",
+        [{ text: 'OK', onClick: () => {} }]
+      );
+      return;
+    }
+
     this.gameManager.addCar(this.car);
 
     this.uiManager.showModal(

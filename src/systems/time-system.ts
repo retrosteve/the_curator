@@ -1,9 +1,10 @@
-import { GameManager } from '@/core/game-manager';
+import { EndDayResult, GameManager } from '@/core/game-manager';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * TimeSystem - Manages game time and day/night cycle.
  * Wraps GameManager time-related operations with helper methods.
- * Business hours: 8:00 AM - 8:00 PM (08:00 - 20:00)
+ * Business hours are defined in GAME_CONFIG.day.
  */
 export class TimeSystem {
   private gameManager: GameManager;
@@ -14,7 +15,7 @@ export class TimeSystem {
 
   /**
    * Advance time by specified hours.
-   * Delegates to GameManager which handles day transitions and rent.
+   * Delegates to GameManager.
    * @param hours - Hours to advance (can be fractional)
    */
   public advanceTime(hours: number): void {
@@ -44,27 +45,27 @@ export class TimeSystem {
   }
 
   /**
-   * Check if it's business hours (8 AM - 8 PM).
-   * @returns True if current time is between 08:00 and 20:00
+    * Check if it's business hours.
+    * @returns True if current time is between GAME_CONFIG.day.startHour and GAME_CONFIG.day.endHour
    */
   public isBusinessHours(): boolean {
     const time = this.gameManager.getWorldState().timeOfDay;
-    return time >= 8 && time < 20;
+    return time >= GAME_CONFIG.day.startHour && time < GAME_CONFIG.day.endHour;
   }
 
   /**
-   * Get time remaining in current day (until 20:00).
-   * @returns Hours remaining until 8 PM
+    * Get time remaining in current day (until business day end).
+    * @returns Hours remaining until GAME_CONFIG.day.endHour
    */
   public getTimeRemainingInDay(): number {
-    const remaining = 20 - this.gameManager.getWorldState().timeOfDay;
+    const remaining = GAME_CONFIG.day.endHour - this.gameManager.getWorldState().timeOfDay;
     return Math.max(0, remaining);
   }
 
   /**
    * Check if enough time remains for an action.
    * @param requiredHours - Hours needed for the action
-   * @returns True if action can be completed before 8 PM
+    * @returns True if action can be completed before GAME_CONFIG.day.endHour
    */
   public hasEnoughTime(requiredHours: number): boolean {
     return this.getTimeRemainingInDay() >= requiredHours;
@@ -100,10 +101,10 @@ export class TimeSystem {
   }
 
   /**
-   * End current day and start new day at 08:00.
-   * Daily rent ($100) is applied during the transition.
+   * End current day and start new day at GAME_CONFIG.day.startHour.
+   * Daily rent (GAME_CONFIG.economy.dailyRent) is applied during the transition.
    */
-  public endDay(): void {
-    this.gameManager.endDay();
+  public endDay(): EndDayResult {
+    return this.gameManager.endDay();
   }
 }

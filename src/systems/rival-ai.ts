@@ -1,4 +1,5 @@
 import { Rival, BidDecision, getRivalBidDecision } from '@/data/rival-database';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * RivalAI - Manages rival behavior during auctions.
@@ -46,14 +47,17 @@ export class RivalAI {
   private updatePatience(): void {
     switch (this.rival.strategy) {
       case 'Aggressive':
-        this.currentPatience -= 15;
+        this.currentPatience -= GAME_CONFIG.rivalAI.patienceLossPerTurn.aggressive;
         break;
       case 'Passive':
-        this.currentPatience -= 5;
+        this.currentPatience -= GAME_CONFIG.rivalAI.patienceLossPerTurn.passive;
         break;
       case 'Collector':
         // Collectors lose less patience for cars they want
-        this.currentPatience -= this.carInterest > 70 ? 5 : 10;
+        this.currentPatience -=
+          this.carInterest > GAME_CONFIG.rivalAI.collectorHighInterestThreshold
+            ? GAME_CONFIG.rivalAI.patienceLossPerTurn.collectorHighInterest
+            : GAME_CONFIG.rivalAI.patienceLossPerTurn.collectorLowInterest;
         break;
     }
 
@@ -65,7 +69,7 @@ export class RivalAI {
    * Reduces patience by 20 points.
    */
   public onPlayerStall(): void {
-    this.currentPatience -= 20;
+    this.currentPatience -= GAME_CONFIG.auction.stallPatiencePenalty;
     this.currentPatience = Math.max(0, this.currentPatience);
   }
 
@@ -74,7 +78,7 @@ export class RivalAI {
    * Reduces patience by 20 points.
    */
   public onPlayerPowerBid(): void {
-    this.currentPatience -= 20;
+    this.currentPatience -= GAME_CONFIG.auction.powerBidPatiencePenalty;
     this.currentPatience = Math.max(0, this.currentPatience);
   }
 

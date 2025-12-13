@@ -4,6 +4,8 @@
  * Passive: Conservative bidding, maintains patience
  * Collector: Overpays for wishlist items, passive otherwise
  */
+import { GAME_CONFIG } from '@/config/game-config';
+
 export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 
 /**
@@ -160,16 +162,21 @@ export function getRivalBidDecision(
 
   // Calculate bid amount based on strategy
   let bidAmount = 0;
+  const collectorHighInterestThreshold =
+    GAME_CONFIG.rivalAI.collectorHighInterestThreshold;
   
   switch (rival.strategy) {
     case 'Aggressive':
-      bidAmount = 500;
+      bidAmount = GAME_CONFIG.auction.rivalBidIncrements.aggressive;
       break;
     case 'Passive':
-      bidAmount = 100;
+      bidAmount = GAME_CONFIG.auction.rivalBidIncrements.passive;
       break;
     case 'Collector':
-      bidAmount = carInterest > 70 ? 500 : 200;
+      bidAmount =
+        carInterest > collectorHighInterestThreshold
+          ? GAME_CONFIG.auction.rivalBidIncrements.collectorHighInterest
+          : GAME_CONFIG.auction.rivalBidIncrements.collectorLowInterest;
       break;
   }
 

@@ -7,6 +7,7 @@ import { Rival } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
+import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
@@ -17,6 +18,7 @@ export class AuctionScene extends Phaser.Scene {
   private gameManager!: GameManager;
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
+  private tutorialManager!: TutorialManager;
   private car!: Car;
   private rival!: Rival;
   private rivalAI!: RivalAI;
@@ -74,6 +76,7 @@ export class AuctionScene extends Phaser.Scene {
     this.gameManager.setLocation('auction');
     this.uiManager = new UIManager();
     this.timeSystem = new TimeSystem();
+    this.tutorialManager = TutorialManager.getInstance();
 
     this.setupBackground();
     this.setupUI();
@@ -363,6 +366,15 @@ export class AuctionScene extends Phaser.Scene {
   }
 
   private endAuction(playerWon: boolean, message: string): void {
+    // Tutorial triggers
+    if (this.tutorialManager.isTutorialActive()) {
+      if (!playerWon && this.tutorialManager.getCurrentStep() === 'first_flip') {
+        this.tutorialManager.advanceStep('first_loss');
+      } else if (playerWon && this.tutorialManager.getCurrentStep() === 'first_loss') {
+        this.tutorialManager.advanceStep('redemption');
+      }
+    }
+
     if (playerWon) {
       // Check garage capacity
       if (this.gameManager.getPlayerState().inventory.length >= this.gameManager.getPlayerState().garageSlots) {

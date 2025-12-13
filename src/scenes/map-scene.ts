@@ -6,6 +6,7 @@ import { getRandomCar } from '@/data/car-database';
 import { getRivalByTierProgression, calculateRivalInterest } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
+import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Map Node configuration.
@@ -35,6 +36,7 @@ export class MapScene extends Phaser.Scene {
   private gameManager!: GameManager;
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
+  private tutorialManager!: TutorialManager;
   private nodes: MapNode[] = [];
 
   // Event handler methods as arrow functions for proper 'this' binding
@@ -69,6 +71,7 @@ export class MapScene extends Phaser.Scene {
     this.gameManager.setLocation('map');
     this.uiManager = new UIManager();
     this.timeSystem = new TimeSystem();
+    this.tutorialManager = TutorialManager.getInstance();
 
     this.setupBackground();
     this.createMapNodes();
@@ -243,6 +246,11 @@ export class MapScene extends Phaser.Scene {
     // Update current location for downstream systems/UI
     this.gameManager.setLocation(node.type);
 
+    // Tutorial trigger: first inspect
+    if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_visit_scrapyard') {
+      this.tutorialManager.advanceStep('first_inspect');
+    }
+
     // Generate encounter based on node type
     this.generateEncounter(node);
   }
@@ -257,7 +265,8 @@ export class MapScene extends Phaser.Scene {
 
     // Regular encounters
     const car = getRandomCar();
-    const hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+    // Force solo encounter during tutorial to ensure player learns negotiation
+    const hasRival = this.tutorialManager.isTutorialActive() ? false : Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
 
     if (hasRival) {
       // Auction consumes additional time

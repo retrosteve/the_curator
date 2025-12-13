@@ -6,6 +6,7 @@ import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/economy';
 import { Car } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
+import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -16,6 +17,7 @@ export class GarageScene extends Phaser.Scene {
   private gameManager!: GameManager;
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
+  private tutorialManager!: TutorialManager;
 
   private autoEndDayOnEnter: boolean = false;
 
@@ -63,6 +65,21 @@ export class GarageScene extends Phaser.Scene {
     }
   };
 
+  private readonly handleShowDialogue = (data: { speaker: string; text: string }): void => {
+    try {
+      this.uiManager.showModal(data.speaker, data.text, [{ text: 'OK', onClick: () => {
+        // Handle tutorial progression after dialogue
+        if (this.tutorialManager && this.tutorialManager.isTutorialActive()) {
+          if (this.tutorialManager.getCurrentStep() === 'intro') {
+            this.tutorialManager.advanceStep('first_visit_scrapyard');
+          }
+        }
+      }}]);
+    } catch (error) {
+      console.error('Error showing tutorial dialogue:', error);
+    }
+  };
+
   constructor() {
     super({ key: 'GarageScene' });
   }
@@ -78,10 +95,14 @@ export class GarageScene extends Phaser.Scene {
     this.gameManager.setLocation('garage');
     this.uiManager = new UIManager();
     this.timeSystem = new TimeSystem();
+    this.tutorialManager = TutorialManager.getInstance();
 
     this.setupBackground();
     this.setupUI();
     this.setupEventListeners();
+
+    // Start tutorial for new players
+    this.initializeTutorial();
 
     if (this.autoEndDayOnEnter) {
       // Reset the flag to avoid re-triggering if the scene is reused.
@@ -159,6 +180,14 @@ export class GarageScene extends Phaser.Scene {
       gap: '10px',
     });
 
+    // Go to Map button (primary action)
+    const mapBtn = this.uiManager.createButton(
+      'Go to Map',
+      () => this.goToMap(),
+      { width: '100%' }
+    );
+    buttonContainer.appendChild(mapBtn);
+
     // View Inventory button
     const inventoryBtn = this.uiManager.createButton(
       `View Inventory (${player.inventory.length} cars)`,
@@ -176,14 +205,6 @@ export class GarageScene extends Phaser.Scene {
       { width: '100%', backgroundColor: '#f39c12' }
     );
     buttonContainer.appendChild(museumBtn);
-
-    // Go to Map button
-    const mapBtn = this.uiManager.createButton(
-      'Go to Map',
-      () => this.goToMap(),
-      { width: '100%' }
-    );
-    buttonContainer.appendChild(mapBtn);
 
     // End Day button
     const endDayBtn = this.uiManager.createButton(
@@ -220,26 +241,62 @@ export class GarageScene extends Phaser.Scene {
     );
     buttonContainer.appendChild(loadBtn);
 
+    // New Game button (for testing/tutorial)
+    const newGameBtn = this.uiManager.createButton(
+      'New Game',
+      () => this.startNewGame(),
+      { width: '100%', backgroundColor: '#f39c12' }
+    );
+    buttonContainer.appendChild(newGameBtn);
+
     menuPanel.appendChild(buttonContainer);
     this.uiManager.append(menuPanel);
   }
 
   private setupEventListeners(): void {
+    // Clean up existing listeners first to avoid duplicates
+    this.cleanupEventListeners();
+    
     eventBus.on('money-changed', this.handleMoneyChanged);
     eventBus.on('prestige-changed', this.handlePrestigeChanged);
     eventBus.on('time-changed', this.handleTimeChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
     eventBus.on('inventory-changed', this.handleInventoryChanged);
+    eventBus.on('show-dialogue', this.handleShowDialogue);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      eventBus.off('money-changed', this.handleMoneyChanged);
-      eventBus.off('prestige-changed', this.handlePrestigeChanged);
-      eventBus.off('time-changed', this.handleTimeChanged);
-      eventBus.off('day-changed', this.handleDayChanged);
-      eventBus.off('location-changed', this.handleLocationChanged);
-      eventBus.off('inventory-changed', this.handleInventoryChanged);
+      this.cleanupEventListeners();
     });
+  }
+
+  private cleanupEventListeners(): void {
+    eventBus.off('money-changed', this.handleMoneyChanged);
+    eventBus.off('prestige-changed', this.handlePrestigeChanged);
+    eventBus.off('time-changed', this.handleTimeChanged);
+    eventBus.off('day-changed', this.handleDayChanged);
+    eventBus.off('location-changed', this.handleLocationChanged);
+    eventBus.off('inventory-changed', this.handleInventoryChanged);
+    eventBus.off('show-dialogue', this.handleShowDialogue);
+  }
+
+  private initializeTutorial(): void {
+    try {
+      if (!this.tutorialManager) {
+        console.warn('TutorialManager not initialized');
+        return;
+      }
+      
+      // Start tutorial for new players (day 1, no cars, no prestige)
+      const player = this.gameManager.getPlayerState();
+      const world = this.gameManager.getWorldState();
+      
+      if (world.day === 1 && player.inventory.length === 0 && player.prestige === 0) {
+        this.tutorialManager.startTutorial();
+      }
+    } catch (error) {
+      console.error('Error initializing tutorial:', error);
+    }
   }
 
   private showInventory(): void {
@@ -286,6 +343,17 @@ export class GarageScene extends Phaser.Scene {
       });
       panel.appendChild(emptyText);
     } else {
+      // Tutorial guidance: first car in inventory
+      if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_buy') {
+        setTimeout(() => {
+          this.uiManager.showModal(
+            'Your First Car!',
+            'Click the "Restore" button on your car below to improve its condition. Choose a service - higher quality costs more but gives better results. This will advance time.',
+            [{ text: 'Start Restoring', onClick: () => {} }]
+          );
+        }, 500);
+      }
+
       player.inventory.forEach((car) => {
         const carPanel = this.uiManager.createPanel({
           margin: '10px 0',
@@ -370,10 +438,32 @@ export class GarageScene extends Phaser.Scene {
           this.timeSystem.advanceTime(opt.time);
           const result = Economy.performRestoration(car, opt);
           this.gameManager.updateCar(result.car);
+          
+          // Tutorial trigger: first restore
+          if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_buy') {
+            this.tutorialManager.advanceStep('first_restore');
+          }
+          
           this.uiManager.showModal(
             'Restoration Result',
             result.message,
-            [{ text: 'OK', onClick: () => this.showInventory() }]
+            [{
+              text: 'OK',
+              onClick: () => {
+                // Tutorial guidance after first restoration
+                if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_restore') {
+                  setTimeout(() => {
+                    this.uiManager.showModal(
+                      'Final Step: Sell the Car',
+                      'Perfect! Now click the "Sell" button on your restored car to flip it for profit. Higher condition = higher sale price. This completes your first car deal!',
+                      [{ text: 'Start Selling', onClick: () => this.showInventory() }]
+                    );
+                  }, 500);
+                } else {
+                  this.showInventory();
+                }
+              }
+            }]
           );
         } else {
           this.uiManager.showModal(
@@ -412,6 +502,12 @@ export class GarageScene extends Phaser.Scene {
           onClick: () => {
             this.gameManager.addMoney(salePrice);
             this.gameManager.removeCar(carId);
+            
+            // Tutorial trigger: first flip
+            if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_restore') {
+              this.tutorialManager.advanceStep('first_flip');
+            }
+            
             this.showInventory();
           },
         },
@@ -450,7 +546,18 @@ export class GarageScene extends Phaser.Scene {
   }
 
   private goToMap(): void {
-    this.scene.start('MapScene');
+    try {
+      // Tutorial trigger: first visit to scrapyard
+      if (this.tutorialManager && this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'intro') {
+        this.tutorialManager.advanceStep('first_visit_scrapyard');
+      }
+      
+      this.scene.start('MapScene');
+    } catch (error) {
+      console.error('Error going to map:', error);
+      // Fallback: still go to map even if tutorial fails
+      this.scene.start('MapScene');
+    }
   }
 
   private endDay(): void {
@@ -588,6 +695,28 @@ export class GarageScene extends Phaser.Scene {
         [{ text: 'OK', onClick: () => {} }]
       );
     }
+  }
+
+  private startNewGame(): void {
+    this.uiManager.showModal(
+      'Start New Game',
+      'This will reset your progress and start the tutorial. Are you sure?',
+      [
+        {
+          text: 'Cancel',
+          onClick: () => {}
+        },
+        {
+          text: 'Start New Game',
+          onClick: () => {
+            this.gameManager.reset();
+            this.setupEventListeners(); // Re-setup event listeners after reset
+            this.setupUI();
+            this.initializeTutorial(); // Start tutorial after UI is ready
+          }
+        }
+      ]
+    );
   }
 
   private upgradeGarage(): void {

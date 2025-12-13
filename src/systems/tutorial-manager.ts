@@ -43,7 +43,7 @@ export class TutorialManager {
     this.currentStep = 'intro';
     console.log('Tutorial started');
     // Trigger intro dialogue
-    this.showDialogue("Uncle Ray", "Welcome to the garage, kid. It's a dump, but it's ours. Let's get you started.");
+    this.showDialogue("Uncle Ray", "Welcome to the garage, kid. It's a dump, but it's ours. Let's get you started in the car collecting business.");
   }
 
   /**
@@ -61,7 +61,7 @@ export class TutorialManager {
     // Note: only a subset of steps have bespoke behavior today.
     switch (step) {
       case 'first_visit_scrapyard':
-        this.showDialogue("Uncle Ray", "Head over to Joe's Scrapyard. I heard he has a rusty sedan that might run.");
+        this.showDialogue("Uncle Ray", "Click the 'Go to Map' button below, then click on 'Joe's Scrapyard' to find your first car. It costs 1 hour to travel there.");
         break;
       default:
         break;

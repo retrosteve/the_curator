@@ -5,6 +5,7 @@ import { TimeSystem } from '@/systems/time-system';
 import { Car, calculateCarValue } from '@/data/car-database';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
+import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Negotiation Scene - PvE encounter with a seller.
@@ -16,6 +17,7 @@ export class NegotiationScene extends Phaser.Scene {
   private gameManager!: GameManager;
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
+  private tutorialManager!: TutorialManager;
   private car!: Car;
   private specialEvent?: any;
   private askingPrice: number = 0;
@@ -73,10 +75,22 @@ export class NegotiationScene extends Phaser.Scene {
     this.gameManager.setLocation('negotiation');
     this.uiManager = new UIManager();
     this.timeSystem = new TimeSystem();
+    this.tutorialManager = TutorialManager.getInstance();
 
     this.setupBackground();
     this.setupUI();
     this.setupEventListeners();
+
+    // Tutorial guidance: first inspect
+    if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_inspect') {
+      setTimeout(() => {
+        this.uiManager.showModal(
+          'Your First Car Inspection',
+          'Look at the car details above. Your Eye skill level determines what you can see:\n\n• Level 1: Basic info only\n• Level 2+: Reveals hidden damage history\n\nTry haggling to lower the price, then click "Accept Offer" to buy. This will cost inspection time.',
+          [{ text: 'Start Inspecting', onClick: () => {} }]
+        );
+      }, 500); // Small delay to let UI render first
+    }
   }
 
   private setupEventListeners(): void {
@@ -267,6 +281,11 @@ export class NegotiationScene extends Phaser.Scene {
 
     this.gameManager.addCar(this.car);
 
+    // Tutorial trigger: first buy
+    if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_inspect') {
+      this.tutorialManager.advanceStep('first_buy');
+    }
+
     // Apply special event rewards
     let rewardMessage = '';
     if (this.specialEvent) {
@@ -283,7 +302,23 @@ export class NegotiationScene extends Phaser.Scene {
     this.uiManager.showModal(
       'Purchase Complete',
       `Purchased ${this.car.name} for $${this.askingPrice.toLocaleString()}!${rewardMessage}`,
-      [{ text: 'Continue', onClick: () => this.handleLeave() }]
+      [{
+        text: 'Continue',
+        onClick: () => {
+          // Tutorial guidance after first purchase
+          if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_buy') {
+            setTimeout(() => {
+              this.uiManager.showModal(
+                'Next Step: Restoration',
+                'Great! Now head back to the garage (click the map location or use the HUD button) to restore your new car. Higher condition means higher sale value!',
+                [{ text: 'Got it', onClick: () => this.handleLeave() }]
+              );
+            }, 500);
+          } else {
+            this.handleLeave();
+          }
+        }
+      }]
     );
   }
 

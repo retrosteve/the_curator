@@ -102,6 +102,43 @@ export function getRandomRival(): Rival {
 }
 
 /**
+ * Get a random rival based on player prestige tier progression.
+ * Tier 3 (Scrappers): Early game, easiest - available up to 50 prestige
+ * Tier 2 (Enthusiasts): Mid game - available up to 150 prestige
+ * Tier 1 (Tycoons): Late game, hardest - available from 150+ prestige
+ * @param playerPrestige - Current player prestige level
+ * @returns A rival appropriate for the player's current prestige level
+ */
+export function getRivalByTierProgression(playerPrestige: number): Rival {
+  const { tierProgression } = GAME_CONFIG.rivalAI;
+
+  let availableTiers: (1 | 2 | 3)[];
+
+  if (playerPrestige >= tierProgression.tier1MinPrestige) {
+    // High prestige: All tiers available, but favor Tier 1
+    availableTiers = [1, 1, 1, 2, 3]; // 60% Tier 1, 20% Tier 2, 20% Tier 3
+  } else if (playerPrestige >= tierProgression.tier2MaxPrestige) {
+    // Medium prestige: Tier 2 and 3 available
+    availableTiers = [2, 2, 2, 3]; // 75% Tier 2, 25% Tier 3
+  } else {
+    // Low prestige: Only Tier 3 available
+    availableTiers = [3];
+  }
+
+  const selectedTier = availableTiers[Math.floor(Math.random() * availableTiers.length)];
+  const tierRivals = RivalDatabase.filter(rival => rival.tier === selectedTier);
+
+  if (tierRivals.length === 0) {
+    // Fallback to any rival if no rivals match the selected tier
+    console.warn(`No rivals found for tier ${selectedTier}, falling back to random rival`);
+    return getRandomRival();
+  }
+
+  const randomIndex = Math.floor(Math.random() * tierRivals.length);
+  return tierRivals[randomIndex];
+}
+
+/**
  * Calculate rival interest in a car based on wishlist matching.
  * Base interest is 50; each matching tag adds 15 points.
  * @param rival - The rival to evaluate

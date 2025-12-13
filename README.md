@@ -25,9 +25,12 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 ## Game Features
 
 ### ✅ Garage Scene
-- View your car inventory
+- View your car inventory (shows current/max garage slots)
+- View your car museum (display high-value restored cars)
 - Restore cars (costs money + time)
 - Sell cars for profit
+- Upgrade garage capacity (costs prestige)
+- Save/Load game progress
 - End day mechanic
 
 ### ✅ Map Scene
@@ -35,16 +38,32 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
   - **Joe's Scrapyard** (Travel: 1 hour) - Find project cars
   - **Classic Car Dealership** (Travel: 1 hour) - Browse inventory
   - **Weekend Auction House** (Travel: 1 hour)
+- **Special Events:** Dynamic temporary locations (15% daily chance) with unique opportunities:
+  - Estate Sales (discounted high-value cars)
+  - Barn Finds (rare cars with guaranteed tags)
+  - Private Collections (prestige cars with bonuses)
+  - Clearance Events (multiple cheap cars)
 - Time costs follow the rules:
   - **Travel:** 1 hour
   - **Inspect (solo negotiation):** 30 mins
+  - **Special Events:** 30 mins (no travel time)
   - **Auction:** 2 hours
 - Random encounters:
   - If a rival is present, the encounter becomes an **Auction** (from any location).
   - If no rival is present, the encounter is a **Negotiation**.
+  - Special events are always solo encounters (no auctions).
 
 ### ✅ Auction Scene
 Turn-based bidding battles against AI rivals:
+- **Rival Tiers:** Progressive difficulty (Scrappers → Enthusiasts → Tycoons) based on prestige
+- **Tactics:** Bid, Power Bid (reduces patience), Stall (requires Tongue skill), Kick Tires (requires Eye skill)
+- **Rival AI:** Patience and budget determine when rivals quit
+- **Tier Display:** Shows opponent tier in auction UI
+- **Market Fluctuations:** Dynamic pricing based on seasons and random events
+- **Rival Tiers:** Progressive difficulty (Scrappers → Enthusiasts → Tycoons) based on prestige
+- **Tactics:** Bid, Power Bid (reduces patience), Stall (requires Tongue skill), Kick Tires (requires Eye skill)
+- **Rival AI:** Patience and budget determine when rivals quit
+- **Tier Display:** Shows opponent tier in auction UI
 - **Bid** (+$100) - Standard bid
 - **Power Bid** (+$500, -20 Rival Patience) - Aggressive bid
 - **Kick Tires** (-$500 Rival Budget, requires Eye skill) - Undercut their spending power
@@ -61,6 +80,7 @@ Rivals have unique:
 - **Economy** - Value calculations, restoration costs
 - **Time Management** - Day/night cycle, action costs
 - **Player State** - Money, inventory, prestige, skills (Eye/Tongue/Network)
+- **Save/Load** - Persistent game progress via localStorage
 - **Event System** - Decoupled communication
 
 ## Installation
@@ -94,8 +114,9 @@ npm run preview
    - Solo negotiations - Simple buy/pass decisions
    - Auctions - Strategic bidding against rivals
 4. **Restore Cars** - Improve condition to increase value
-5. **Sell for Profit** - Fund your museum
-6. **End Day** - Rest and start fresh
+5. **Build Museum** - Restore cars to excellent condition for prestige bonuses
+6. **Sell for Profit** - Fund your operations and upgrades
+7. **End Day** - Rest and start fresh (collect museum prestige)
 
 ## Game Mechanics
 
@@ -113,6 +134,24 @@ npm run preview
   - **Base Value** - Starting worth
   - **Tags** - Muscle, JDM, Classic, etc.
   - **History** - Barn Find, Rust, Modified, etc.
+
+### Garage Capacity
+- Start with **1 garage slot**
+- **Upgrade Cost:** Prestige points (100 for 1→2, 200 for 2→3, 400 for 3→4, 800 for 4→5)
+- **Maximum:** 5 slots
+- Cannot buy cars when garage is full
+- Shows current usage in HUD: "🏠 Garage: 2/3"
+
+### Museum Mechanic
+- **Museum Cars:** Cars with condition ≥80%
+- **Daily Prestige Bonus:** +1 prestige per museum car when you end the day
+- **Purpose:** Encourages long-term car restoration and collection building
+- **Display:** View museum in garage to see your collection
+
+### Save/Load System
+- **Auto-Save:** Game state automatically saves to browser localStorage on every change
+- **Manual Save/Load:** Buttons in garage scene for explicit save/load operations
+- **Saved Data:** Money, prestige, inventory, garage slots, day/time, museum display status
 
 ### Restoration
 - Two restoration services are available (time is a major cost):
@@ -182,17 +221,13 @@ For strict architecture constraints, see
 - [ ] Car history stories and lore (Generated descriptions for "Hidden Gems")
 
 ### Gameplay Mechanics
-- [ ] **Rival Progression Tiers:** Implement distinct leagues (Tier 3: Scrappers, Tier 2: Enthusiasts, Tier 1: Tycoons).
 - [ ] **The Forger Specialist:** A 3rd restoration option to hide accident history (High Risk / High Reward).
 - [ ] **Direct Trading:** Mechanics to swap cars with Rivals based on their Wishlists (e.g., 2-for-1 deals).
-- [ ] **Museum Mechanic:** A visual gallery to display "Icon" tier cars for passive Prestige gain.
-- [ ] **Market Fluctuations:** Dynamic price changes based on trends (e.g., "Winter" lowers Convertible prices).
-- [ ] **Multiple Garage Slots:** Upgradeable storage to hold more inventory.
+- [ ] **Special Events:** Random map nodes like "Police Auctions" or "Barn Find Rumors."
+- [ ] **Prestige System Effects:** Unlocking VIP Auctions and "Black Book" intel based on reputation.
 
 ### Systems
-- [ ] Save/load game state (Persistence).
-- [ ] Special Events: Random map nodes like "Police Auctions" or "Barn Find Rumors."
-- [ ] Prestige System Effects: Unlocking VIP Auctions and "Black Book" intel based on reputation.
+- [ ] Enhanced UI: Better car inspection screens and auction animations.
 
 ## License
 

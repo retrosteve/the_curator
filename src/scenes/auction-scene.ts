@@ -123,6 +123,11 @@ export class AuctionScene extends Phaser.Scene {
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+      market: this.gameManager.getMarketDescription(),
     });
     this.uiManager.append(hud);
 
@@ -165,6 +170,10 @@ export class AuctionScene extends Phaser.Scene {
       `Rival: ${this.rival.name}`,
       { fontWeight: 'bold' }
     );
+    const rivalTier = this.uiManager.createText(
+      `Tier: ${this.getTierName(this.rival.tier)}`,
+      { fontSize: '14px', color: '#ccc' }
+    );
     const rivalPatience = this.uiManager.createText(
       `Patience: ${this.rivalAI.getPatience()}/100`
     );
@@ -173,6 +182,7 @@ export class AuctionScene extends Phaser.Scene {
     );
 
     rivalInfo.appendChild(rivalName);
+    rivalInfo.appendChild(rivalTier);
     rivalInfo.appendChild(rivalPatience);
     rivalInfo.appendChild(rivalBudget);
     panel.appendChild(rivalInfo);
@@ -393,6 +403,24 @@ export class AuctionScene extends Phaser.Scene {
           },
         ]
       );
+    }
+  }
+
+  /**
+   * Get human-readable tier name from tier number.
+   * @param tier - The tier number (1, 2, or 3)
+   * @returns Human-readable tier name
+   */
+  private getTierName(tier: 1 | 2 | 3): string {
+    switch (tier) {
+      case 1:
+        return 'Tycoon';
+      case 2:
+        return 'Enthusiast';
+      case 3:
+        return 'Scrapper';
+      default:
+        return 'Unknown';
     }
   }
 }

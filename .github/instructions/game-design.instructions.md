@@ -41,6 +41,25 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
     - **Flip:** Sell immediately for Cash (operating capital).
     - **Hold:** Keep in the Museum for Prestige (unlocks better access over time).
 
+## Persistence & Progression
+
+### Save/Load System
+- **Persistence:** Game state is automatically saved to localStorage on every state mutation.
+- **Manual Save/Load:** Players can manually save/load game state via buttons in the Garage scene.
+- **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and museum display status.
+
+### Garage Expansion
+- **Starting Capacity:** 1 garage slot.
+- **Upgrade Mechanics:** Prestige-based upgrades unlock additional slots (up to 5 total).
+- **Upgrade Costs:** Slot 2: 100 prestige, Slot 3: 200 prestige, Slot 4: 400 prestige, Slot 5: 800 prestige.
+- **Garage Full:** Players cannot acquire new cars when garage is full; must sell or scrap existing cars first.
+
+### Museum Display Mechanic
+- **Eligibility:** Cars with condition >= 80% can be displayed in the museum.
+- **Passive Prestige:** Displayed cars generate 1 prestige per day per car.
+- **Management:** Players can toggle cars between garage storage and museum display.
+- **Capacity:** Museum display slots are unlimited (no hard cap).
+
 ## Data Structures
 
 ### Player (The RPG Layer)
@@ -90,7 +109,28 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
     - Take a bank loan (if one is available).
   - If you still can’t pay rent, you are **bankrupt** and it is **Game Over**.
   - Bank loan (MVP): a one-time emergency loan that adds cash immediately.
-- **Market Trends (Future):** Periodic modifiers can shift prices by category (e.g., seasonal demand affecting convertibles).
+- **Market Trends:** Periodic modifiers can shift prices by category (e.g., seasonal demand affecting convertibles).
+
+**Implementation Note:** Market fluctuations are active with seasonal trends and random events:
+- **Seasons:** Winter reduces convertible/sports prices, summer boosts sports/muscle prices, etc.
+- **Events:** Random "boom/bust" periods (10% chance daily) and "niche boom" events (15% chance)
+- **Display:** Current market conditions shown in HUD across all scenes
+
+### Special Events System
+Special Events add dynamic variety to the exploration phase, appearing as temporary map nodes that offer unique opportunities.
+
+- **Event Generation:** 15% chance per day for 1-2 special events to spawn on the map.
+- **Event Types:**
+  - **Estate Sale:** High-value cars at discounted prices (0.8x asking price multiplier).
+  - **Barn Find:** Rare cars with guaranteed tags, but may have hidden damage.
+  - **Private Collection:** Prestige cars with money bonuses upon purchase.
+  - **Clearance Event:** Multiple cheap cars available at once.
+- **Event Duration:** Events last 1-2 days before disappearing.
+- **Rewards:** Events can provide bonuses like money rewards, prestige boosts, or guaranteed car tags.
+- **Time Cost:** Visiting special events costs inspection time (30 minutes) instead of travel time.
+- **No Rivals:** Special events are always solo encounters (no auctions).
+
+**Implementation Note:** Special events are generated daily in GameManager.endDay(), stored in SpecialEventsSystem, and displayed as dynamic nodes in MapScene.
 
 ### Rival System (AI)
 Rivals are described by two orthogonal ideas:
@@ -114,6 +154,11 @@ NPCs can be organized into tiers with distinct archetypes:
 - **Aggressive:** Raises often; spends patience to pressure opponents.
 - **Passive:** Holds budget; bids only when value is clearly favorable.
 - **Collector:** Overpays within `wishlist` tags; deprioritizes cars outside the collection.
+
+**Implementation Note:** Tier progression is active - rivals are selected based on player prestige:
+- 0-49 prestige: Tier 3 only (Scrappers)
+- 50-149 prestige: Tier 2-3 (75% Enthusiasts, 25% Scrappers)  
+- 150+ prestige: All tiers (60% Tycoons, 20% Enthusiasts, 20% Scrappers)
 
 ### Player Stats (RPG Elements)
 As the player levels up, they improve three core tools:

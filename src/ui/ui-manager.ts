@@ -290,6 +290,11 @@ export class UIManager {
       tongue: number;
       network: number;
     };
+    garage?: {
+      used: number;
+      total: number;
+    };
+    market?: string;
   }): HTMLDivElement {
     const hud = document.createElement('div');
     hud.id = 'game-hud';
@@ -310,10 +315,12 @@ export class UIManager {
     hud.innerHTML = `
       <div data-hud="money">💰 Money: $${data.money.toLocaleString()}</div>
       ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
+      ${data.garage !== undefined ? `<div data-hud="garage">🏠 Garage: ${data.garage.used}/${data.garage.total}</div>` : ''}
       ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
       <div data-hud="day">📅 Day: ${data.day}</div>
       <div data-hud="time">🕐 Time: ${data.time}</div>
       ${data.location !== undefined ? `<div data-hud="location">📍 Location: ${UIManager.formatLocationLabel(data.location)}</div>` : ''}
+      ${data.market !== undefined ? `<div data-hud="market">📈 ${data.market}</div>` : ''}
     `;
 
     return hud;
@@ -335,22 +342,32 @@ export class UIManager {
     day?: number;
     time?: string;
     location?: string;
+    garage?: {
+      used: number;
+      total: number;
+    };
+    market?: string;
   }): void {
     const hud = document.getElementById('game-hud');
     if (!hud) return;
 
     const moneyEl = hud.querySelector<HTMLDivElement>('[data-hud="money"]');
     const prestigeEl = hud.querySelector<HTMLDivElement>('[data-hud="prestige"]');
+    const garageEl = hud.querySelector<HTMLDivElement>('[data-hud="garage"]');
     const skillsEl = hud.querySelector<HTMLDivElement>('[data-hud="skills"]');
     const dayEl = hud.querySelector<HTMLDivElement>('[data-hud="day"]');
     const timeEl = hud.querySelector<HTMLDivElement>('[data-hud="time"]');
     const locationEl = hud.querySelector<HTMLDivElement>('[data-hud="location"]');
+    const marketEl = hud.querySelector<HTMLDivElement>('[data-hud="market"]');
 
     if (data.money !== undefined && moneyEl) {
       moneyEl.textContent = `💰 Money: $${data.money.toLocaleString()}`;
     }
     if (data.prestige !== undefined && prestigeEl) {
       prestigeEl.textContent = `🏆 Prestige: ${data.prestige}`;
+    }
+    if (data.garage !== undefined && garageEl) {
+      garageEl.textContent = `🏠 Garage: ${data.garage.used}/${data.garage.total}`;
     }
     if (data.skills !== undefined && skillsEl) {
       skillsEl.textContent = `🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}`;
@@ -363,6 +380,9 @@ export class UIManager {
     }
     if (data.location !== undefined && locationEl) {
       locationEl.textContent = `📍 Location: ${UIManager.formatLocationLabel(data.location)}`;
+    }
+    if (data.market !== undefined && marketEl) {
+      marketEl.textContent = `📈 ${data.market}`;
     }
   }
 }

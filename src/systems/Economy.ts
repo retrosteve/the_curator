@@ -116,13 +116,14 @@ export class Economy {
   }
 
   /**
-   * Calculate sale price with optional market fluctuation.
+   * Calculate sale price with market fluctuation based on car tags.
    * @param car - The car to price
-    * @param marketModifier - Market multiplier (default 1.0; see GAME_CONFIG.economy.market for typical range)
+   * @param gameManager - GameManager instance for market data
    * @returns Final sale price as an integer
    */
-  public static getSalePrice(car: Car, marketModifier: number = 1.0): number {
+  public static getSalePrice(car: Car, gameManager?: any): number {
     const baseValue = calculateCarValue(car);
+    const marketModifier = gameManager ? gameManager.getMarketModifier(car.tags) : 1.0;
     return Math.floor(baseValue * marketModifier);
   }
 

@@ -3,7 +3,7 @@ import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { getRandomCar } from '@/data/car-database';
-import { getRandomRival, calculateRivalInterest } from '@/data/rival-database';
+import { getRivalByTierProgression, calculateRivalInterest } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
 
@@ -16,8 +16,9 @@ interface MapNode {
   name: string;
   x: number;
   y: number;
-  type: 'scrapyard' | 'dealership' | 'auction';
+  type: 'scrapyard' | 'dealership' | 'auction' | 'special';
   color: number;
+  specialEvent?: any; // For special event nodes
 }
 
 // Time costs for different map actions (in hours)
@@ -108,6 +109,7 @@ export class MapScene extends Phaser.Scene {
   private createMapNodes(): void {
     const { width, height } = this.cameras.main;
 
+    // Regular map nodes
     this.nodes = [
       {
         id: 'scrapyard_1',
@@ -135,6 +137,20 @@ export class MapScene extends Phaser.Scene {
       },
     ];
 
+    // Add special events as additional nodes
+    const specialEvents = this.gameManager.getActiveSpecialEvents();
+    specialEvents.forEach((event: any) => {
+      this.nodes.push({
+        id: event.id,
+        name: event.name,
+        x: event.x,
+        y: event.y,
+        type: 'special',
+        color: event.color,
+        specialEvent: event,
+      });
+    });
+
     this.nodes.forEach((node) => {
       // Draw node circle
       const circle = this.add.circle(node.x, node.y, 40, node.color);
@@ -148,8 +164,9 @@ export class MapScene extends Phaser.Scene {
         wordWrap: { width: 150 },
       }).setOrigin(0.5);
 
-      // Add time cost
-      this.add.text(node.x, node.y, `${TRAVEL_HOURS}h`, {
+      // Add time cost (use special event time cost if available)
+      const timeCost = (node as any).specialEvent?.timeCost || TRAVEL_HOURS;
+      this.add.text(node.x, node.y, `${timeCost}h`, {
         fontSize: '18px',
         color: '#fff',
         fontStyle: 'bold',
@@ -183,6 +200,11 @@ export class MapScene extends Phaser.Scene {
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+      market: this.gameManager.getMarketDescription(),
     });
     this.uiManager.append(hud);
 
@@ -204,7 +226,8 @@ export class MapScene extends Phaser.Scene {
   }
 
   private visitNode(node: MapNode): void {
-    const requiredHours = TRAVEL_HOURS;
+    const timeCost = (node as any).specialEvent?.timeCost || TRAVEL_HOURS;
+    const requiredHours = timeCost;
 
     const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);
     if (block) {
@@ -225,6 +248,14 @@ export class MapScene extends Phaser.Scene {
   }
 
   private generateEncounter(node: MapNode): void {
+    // Handle special events
+    if (node.type === 'special') {
+      const specialEvent = (node as any).specialEvent;
+      this.generateSpecialEncounter(specialEvent);
+      return;
+    }
+
+    // Regular encounters
     const car = getRandomCar();
     const hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
 
@@ -239,7 +270,8 @@ export class MapScene extends Phaser.Scene {
       }
 
       // Auction with rival
-      const rival = getRandomRival();
+      const playerPrestige = this.gameManager.getPlayerState().prestige;
+      const rival = getRivalByTierProgression(playerPrestige);
       const interest = calculateRivalInterest(rival, car.tags);
 
       // Explain why we're switching to an auction encounter.
@@ -271,5 +303,51 @@ export class MapScene extends Phaser.Scene {
       // Solo negotiation
       this.scene.start('NegotiationScene', { car });
     }
+  }
+
+  private generateSpecialEncounter(specialEvent: any): void {
+    // Generate a car with special event properties
+    let car = getRandomCar();
+
+    // Apply special event modifiers
+    if (specialEvent.reward.guaranteedTags) {
+      // Add guaranteed tags to the car
+      car.tags = [...new Set([...car.tags, ...specialEvent.reward.guaranteedTags])];
+    }
+
+    if (specialEvent.reward.carValueMultiplier) {
+      // Modify car value (this will be handled in the negotiation/auction)
+      car.baseValue = Math.floor(car.baseValue * specialEvent.reward.carValueMultiplier);
+    }
+
+    // Special events always have a car to negotiate for (no auctions for simplicity)
+    const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, `the ${specialEvent.name}`);
+    if (block) {
+      this.uiManager.showModal(block.title, block.message, [
+        { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+      ]);
+      return;
+    }
+
+    this.timeSystem.advanceTime(INSPECT_HOURS);
+
+    // Show special event description
+    this.uiManager.showModal(
+      specialEvent.name,
+      `${specialEvent.description}\n\nYou find an interesting vehicle:\n${car.name}`,
+      [
+        {
+          text: 'Negotiate Purchase',
+          onClick: () => {
+            // Remove the event since it's been completed
+            this.gameManager.removeSpecialEvent(specialEvent.id);
+            this.scene.start('NegotiationScene', {
+              car,
+              specialEvent: specialEvent
+            });
+          },
+        },
+      ]
+    );
   }
 }

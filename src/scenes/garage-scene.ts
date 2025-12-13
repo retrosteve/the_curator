@@ -4,6 +4,7 @@ import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/economy';
+import { Car } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
@@ -19,7 +20,7 @@ export class GarageScene extends Phaser.Scene {
   private autoEndDayOnEnter: boolean = false;
 
   private inventoryButton?: HTMLButtonElement;
-  private currentView: 'menu' | 'inventory' = 'menu';
+  private currentView: 'menu' | 'inventory' | 'museum' = 'menu';
 
   // Event handler methods stored as arrow functions to preserve 'this' binding
   // This allows proper cleanup when scene shuts down
@@ -44,9 +45,18 @@ export class GarageScene extends Phaser.Scene {
   };
 
   private readonly handleInventoryChanged = (): void => {
+    const player = this.gameManager.getPlayerState();
     if (this.inventoryButton) {
-      this.inventoryButton.textContent = `View Inventory (${this.gameManager.getPlayerState().inventory.length} cars)`;
+      this.inventoryButton.textContent = `View Inventory (${player.inventory.length} cars)`;
     }
+
+    // Update garage info in HUD
+    this.uiManager.updateHUD({
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+    });
 
     if (this.currentView === 'inventory') {
       this.showInventory();
@@ -111,6 +121,11 @@ export class GarageScene extends Phaser.Scene {
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+      market: this.gameManager.getMarketDescription(),
     });
     this.uiManager.append(hud);
 
@@ -129,6 +144,13 @@ export class GarageScene extends Phaser.Scene {
     });
     menuPanel.appendChild(heading);
 
+    // Garage status
+    const garageStatus = this.uiManager.createText(
+      `Garage: ${player.inventory.length}/${player.garageSlots} slots used`,
+      { textAlign: 'center', marginBottom: '10px', fontWeight: 'bold' }
+    );
+    menuPanel.appendChild(garageStatus);
+
     // Button container
     const buttonContainer = document.createElement('div');
     Object.assign(buttonContainer.style, {
@@ -146,6 +168,15 @@ export class GarageScene extends Phaser.Scene {
     this.inventoryButton = inventoryBtn;
     buttonContainer.appendChild(inventoryBtn);
 
+    // View Museum button
+    const museumCars = this.getMuseumCars();
+    const museumBtn = this.uiManager.createButton(
+      `View Museum (${museumCars.length} cars)`,
+      () => this.showMuseum(),
+      { width: '100%', backgroundColor: '#f39c12' }
+    );
+    buttonContainer.appendChild(museumBtn);
+
     // Go to Map button
     const mapBtn = this.uiManager.createButton(
       'Go to Map',
@@ -161,6 +192,33 @@ export class GarageScene extends Phaser.Scene {
       { width: '100%', backgroundColor: '#e74c3c' }
     );
     buttonContainer.appendChild(endDayBtn);
+
+    // Upgrade Garage button (if available)
+    const upgradeCost = this.gameManager.getNextGarageSlotCost();
+    if (upgradeCost !== null) {
+      const upgradeBtn = this.uiManager.createButton(
+        `Upgrade Garage (${upgradeCost} Prestige)`,
+        () => this.upgradeGarage(),
+        { width: '100%', backgroundColor: '#9b59b6' }
+      );
+      buttonContainer.appendChild(upgradeBtn);
+    }
+
+    // Save Game button
+    const saveBtn = this.uiManager.createButton(
+      'Save Game',
+      () => this.saveGame(),
+      { width: '100%', backgroundColor: '#27ae60' }
+    );
+    buttonContainer.appendChild(saveBtn);
+
+    // Load Game button
+    const loadBtn = this.uiManager.createButton(
+      'Load Game',
+      () => this.loadGame(),
+      { width: '100%', backgroundColor: '#3498db' }
+    );
+    buttonContainer.appendChild(loadBtn);
 
     menuPanel.appendChild(buttonContainer);
     this.uiManager.append(menuPanel);
@@ -198,6 +256,11 @@ export class GarageScene extends Phaser.Scene {
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+      market: this.gameManager.getMarketDescription(),
     });
     this.uiManager.append(hud);
 
@@ -234,7 +297,7 @@ export class GarageScene extends Phaser.Scene {
           `Condition: ${car.condition}/100`
         );
         const carValue = this.uiManager.createText(
-          `Value: $${Economy.getSalePrice(car).toLocaleString()}`
+          `Value: $${Economy.getSalePrice(car, this.gameManager).toLocaleString()}`
         );
 
         const buttonContainer = document.createElement('div');
@@ -338,7 +401,7 @@ export class GarageScene extends Phaser.Scene {
     const car = this.gameManager.getCar(carId);
     if (!car) return;
 
-    const salePrice = Economy.getSalePrice(car);
+    const salePrice = Economy.getSalePrice(car, this.gameManager);
 
     this.uiManager.showModal(
       'Sell Car',
@@ -364,7 +427,7 @@ export class GarageScene extends Phaser.Scene {
     const car = this.gameManager.getCar(carId);
     if (!car) return;
 
-    const salePrice = Math.floor(Economy.getSalePrice(car) * GAME_CONFIG.economy.sellAsIsMultiplier);
+    const salePrice = Math.floor(Economy.getSalePrice(car, this.gameManager) * GAME_CONFIG.economy.sellAsIsMultiplier);
 
     this.uiManager.showModal(
       'Sell As-Is',
@@ -483,5 +546,184 @@ export class GarageScene extends Phaser.Scene {
         },
       ]
     );
+  }
+
+  private saveGame(): void {
+    if (this.gameManager.save()) {
+      this.uiManager.showModal(
+        'Game Saved',
+        'Your progress has been saved successfully.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
+    } else {
+      this.uiManager.showModal(
+        'Save Failed',
+        'Unable to save game. Check console for details.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
+    }
+  }
+
+  private loadGame(): void {
+    if (this.gameManager.load()) {
+      // Emit events to update UI
+      const player = this.gameManager.getPlayerState();
+      const world = this.gameManager.getWorldState();
+      eventBus.emit('money-changed', player.money);
+      eventBus.emit('prestige-changed', player.prestige);
+      eventBus.emit('inventory-changed', player.inventory);
+      eventBus.emit('day-changed', world.day);
+      eventBus.emit('time-changed', world.timeOfDay);
+      eventBus.emit('location-changed', world.currentLocation);
+
+      this.uiManager.showModal(
+        'Game Loaded',
+        'Your saved game has been loaded successfully.',
+        [{ text: 'OK', onClick: () => this.setupUI() }]
+      );
+    } else {
+      this.uiManager.showModal(
+        'Load Failed',
+        'No saved game found or load failed.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
+    }
+  }
+
+  private upgradeGarage(): void {
+    const cost = this.gameManager.getNextGarageSlotCost();
+    const player = this.gameManager.getPlayerState();
+
+    if (cost === null) {
+      this.uiManager.showModal(
+        'Max Capacity',
+        'Your garage is already at maximum capacity.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
+      return;
+    }
+
+    if (player.prestige < cost) {
+      this.uiManager.showModal(
+        'Insufficient Prestige',
+        `You need ${cost} prestige to upgrade your garage. You have ${player.prestige}.`,
+        [{ text: 'OK', onClick: () => {} }]
+      );
+      return;
+    }
+
+    if (this.gameManager.upgradeGarageSlots()) {
+      this.uiManager.showModal(
+        'Garage Upgraded!',
+        `Your garage now has ${player.garageSlots + 1} slots.`,
+        [{ text: 'OK', onClick: () => this.setupUI() }]
+      );
+    } else {
+      this.uiManager.showModal(
+        'Upgrade Failed',
+        'Unable to upgrade garage. Please try again.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
+    }
+  }
+
+  private getMuseumCars(): Car[] {
+    const player = this.gameManager.getPlayerState();
+    return player.inventory.filter(car => {
+      const value = Economy.getSalePrice(car, this.gameManager);
+      return car.condition >= 80 && value >= 50000;
+    });
+  }
+
+  private getMuseumPrestigeBonus(): number {
+    const museumCars = this.getMuseumCars();
+    // Simple bonus: 1 prestige per museum car per day
+    return museumCars.length;
+  }
+
+  private showMuseum(): void {
+    this.uiManager.clear();
+    this.currentView = 'museum';
+
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+    const museumCars = this.getMuseumCars();
+    const prestigeBonus = this.getMuseumPrestigeBonus();
+
+    const hud = this.uiManager.createHUD({
+      money: player.money,
+      prestige: player.prestige,
+      skills: player.skills,
+      day: world.day,
+      time: this.timeSystem.getFormattedTime(),
+      location: world.currentLocation,
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+      market: this.gameManager.getMarketDescription(),
+    });
+    this.uiManager.append(hud);
+
+    const panel = this.uiManager.createPanel({
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      minWidth: '700px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+    });
+
+    const heading = this.uiManager.createHeading('Your Car Museum', 2, {
+      textAlign: 'center',
+      color: '#f39c12',
+    });
+    panel.appendChild(heading);
+
+    // Museum stats
+    const statsText = this.uiManager.createText(
+      `Museum Cars: ${museumCars.length} | Daily Prestige Bonus: +${prestigeBonus}`,
+      { textAlign: 'center', fontWeight: 'bold', marginBottom: '20px' }
+    );
+    panel.appendChild(statsText);
+
+    if (museumCars.length === 0) {
+      const emptyText = this.uiManager.createText(
+        'No cars in your museum yet. Restore cars to excellent condition (80%+) and high value ($50k+) to display them here!',
+        { textAlign: 'center', fontSize: '16px', color: '#7f8c8d' }
+      );
+      panel.appendChild(emptyText);
+    } else {
+      museumCars.forEach((car) => {
+        const carPanel = this.uiManager.createPanel({
+          margin: '15px 0',
+          backgroundColor: 'rgba(243, 156, 18, 0.1)',
+          border: '2px solid #f39c12',
+        });
+
+        const carName = this.uiManager.createHeading(car.name, 3, {
+          color: '#f39c12',
+        });
+        const carDetails = this.uiManager.createText(
+          `Condition: ${car.condition}/100 | Value: $${Economy.getSalePrice(car, this.gameManager).toLocaleString()} | Tags: ${car.tags.join(', ')}`,
+          { fontSize: '14px' }
+        );
+
+        carPanel.appendChild(carName);
+        carPanel.appendChild(carDetails);
+        panel.appendChild(carPanel);
+      });
+    }
+
+    // Back button
+    const backBtn = this.uiManager.createButton(
+      'Back to Garage',
+      () => this.setupUI(),
+      { marginTop: '20px' }
+    );
+    panel.appendChild(backBtn);
+
+    this.uiManager.append(panel);
   }
 }

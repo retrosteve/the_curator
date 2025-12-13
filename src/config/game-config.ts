@@ -55,6 +55,21 @@ export const GAME_CONFIG = {
     market: {
       modifierMin: 0.8,
       modifierMax: 1.2,
+
+      // Seasonal fluctuations (based on day of year)
+      seasonal: {
+        winter: { startDay: 335, endDay: 59, tags: ['Convertible', 'Sports'], modifier: 0.85 },
+        summer: { startDay: 152, endDay: 243, tags: ['Sports', 'Muscle'], modifier: 1.15 },
+        spring: { startDay: 60, endDay: 151, tags: ['Classic', 'Barn Find'], modifier: 1.1 },
+        fall: { startDay: 244, endDay: 334, tags: ['JDM', 'Exotic'], modifier: 1.05 },
+      },
+
+      // Random market events
+      events: {
+        boom: { chance: 0.1, duration: 3, modifier: 1.3, description: "Market Boom!" },
+        bust: { chance: 0.1, duration: 2, modifier: 0.7, description: "Market Bust!" },
+        nicheBoom: { chance: 0.15, duration: 2, modifier: 1.25, description: "Niche Demand Spike" },
+      },
     },
   },
 
@@ -120,5 +135,13 @@ export const GAME_CONFIG = {
       collectorLowInterest: 10,
     },
     collectorHighInterestThreshold: 70,
+
+    // Tier progression based on player prestige
+    tierProgression: {
+      // Prestige thresholds for unlocking tiers (higher prestige = lower tier numbers)
+      tier3MaxPrestige: 50,  // Tier 3 (Scrappers) available up to 50 prestige
+      tier2MaxPrestige: 150, // Tier 2 (Enthusiasts) available up to 150 prestige
+      tier1MinPrestige: 150, // Tier 1 (Tycoons) available from 150+ prestige
+    },
   },
 } as const;

@@ -17,6 +17,7 @@ export class NegotiationScene extends Phaser.Scene {
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
   private car!: Car;
+  private specialEvent?: any;
   private askingPrice: number = 0;
   private lowestPrice: number = 0;
   private negotiationCount: number = 0;
@@ -45,14 +46,24 @@ export class NegotiationScene extends Phaser.Scene {
     super({ key: 'NegotiationScene' });
   }
 
-  init(data: { car: Car }): void {
+  init(data: { car: Car; specialEvent?: any }): void {
     this.car = data.car;
+    this.specialEvent = data.specialEvent;
     // Seller starts asking for 120% of value (or market value)
     const value = calculateCarValue(this.car);
     this.askingPrice = Math.floor(value * GAME_CONFIG.negotiation.askingPriceMultiplier);
     // Seller won't go below 90% of value
     this.lowestPrice = Math.floor(value * GAME_CONFIG.negotiation.lowestPriceMultiplier);
     this.negotiationCount = 0;
+
+    // Handle special event modifiers
+    if (this.specialEvent) {
+      // Apply special event price modifiers
+      if (this.specialEvent.reward.priceMultiplier) {
+        this.askingPrice = Math.floor(this.askingPrice * this.specialEvent.reward.priceMultiplier);
+        this.lowestPrice = Math.floor(this.lowestPrice * this.specialEvent.reward.priceMultiplier);
+      }
+    }
   }
 
   create(): void {
@@ -112,6 +123,11 @@ export class NegotiationScene extends Phaser.Scene {
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
+      garage: {
+        used: player.inventory.length,
+        total: player.garageSlots,
+      },
+      market: this.gameManager.getMarketDescription(),
     });
     this.uiManager.append(hud);
     
@@ -151,6 +167,20 @@ export class NegotiationScene extends Phaser.Scene {
       const history = document.createElement('div');
       history.innerHTML = `<p style="color: #e74c3c">History: ${this.car.history.join(', ')}</p>`;
       infoPanel.appendChild(history);
+    }
+
+    // Special Event Info
+    if (this.specialEvent) {
+      const eventInfo = document.createElement('div');
+      eventInfo.innerHTML = `
+        <p style="color: #f39c12; font-weight: bold;">Special Event: ${this.specialEvent.name}</p>
+        <p style="color: #bdc3c7; font-style: italic;">${this.specialEvent.description}</p>
+      `;
+      eventInfo.style.marginTop = '20px';
+      eventInfo.style.padding = '10px';
+      eventInfo.style.backgroundColor = 'rgba(243, 156, 18, 0.1)';
+      eventInfo.style.borderRadius = '5px';
+      infoPanel.appendChild(eventInfo);
     }
 
     this.uiManager.append(infoPanel);
@@ -237,9 +267,22 @@ export class NegotiationScene extends Phaser.Scene {
 
     this.gameManager.addCar(this.car);
 
+    // Apply special event rewards
+    let rewardMessage = '';
+    if (this.specialEvent) {
+      if (this.specialEvent.reward.moneyBonus) {
+        this.gameManager.addMoney(this.specialEvent.reward.moneyBonus);
+        rewardMessage += `\nBonus: +$${this.specialEvent.reward.moneyBonus.toLocaleString()}`;
+      }
+      if (this.specialEvent.reward.prestigeBonus) {
+        this.gameManager.addPrestige(this.specialEvent.reward.prestigeBonus);
+        rewardMessage += `\nBonus: +${this.specialEvent.reward.prestigeBonus} Prestige`;
+      }
+    }
+
     this.uiManager.showModal(
       'Purchase Complete',
-      `Purchased ${this.car.name} for $${this.askingPrice.toLocaleString()}!`,
+      `Purchased ${this.car.name} for $${this.askingPrice.toLocaleString()}!${rewardMessage}`,
       [{ text: 'Continue', onClick: () => this.handleLeave() }]
     );
   }

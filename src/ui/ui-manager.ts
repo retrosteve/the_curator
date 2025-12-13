@@ -285,6 +285,11 @@ export class UIManager {
     day: number;
     time: string;
     location?: string;
+    skills?: {
+      eye: number;
+      tongue: number;
+      network: number;
+    };
   }): HTMLDivElement {
     const hud = document.createElement('div');
     hud.id = 'game-hud';
@@ -305,6 +310,7 @@ export class UIManager {
     hud.innerHTML = `
       <div data-hud="money">💰 Money: $${data.money.toLocaleString()}</div>
       ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
+      ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
       <div data-hud="day">📅 Day: ${data.day}</div>
       <div data-hud="time">🕐 Time: ${data.time}</div>
       ${data.location !== undefined ? `<div data-hud="location">📍 Location: ${UIManager.formatLocationLabel(data.location)}</div>` : ''}
@@ -321,6 +327,11 @@ export class UIManager {
   public updateHUD(data: {
     money?: number;
     prestige?: number;
+    skills?: {
+      eye: number;
+      tongue: number;
+      network: number;
+    };
     day?: number;
     time?: string;
     location?: string;
@@ -330,6 +341,7 @@ export class UIManager {
 
     const moneyEl = hud.querySelector<HTMLDivElement>('[data-hud="money"]');
     const prestigeEl = hud.querySelector<HTMLDivElement>('[data-hud="prestige"]');
+    const skillsEl = hud.querySelector<HTMLDivElement>('[data-hud="skills"]');
     const dayEl = hud.querySelector<HTMLDivElement>('[data-hud="day"]');
     const timeEl = hud.querySelector<HTMLDivElement>('[data-hud="time"]');
     const locationEl = hud.querySelector<HTMLDivElement>('[data-hud="location"]');
@@ -339,6 +351,9 @@ export class UIManager {
     }
     if (data.prestige !== undefined && prestigeEl) {
       prestigeEl.textContent = `🏆 Prestige: ${data.prestige}`;
+    }
+    if (data.skills !== undefined && skillsEl) {
+      skillsEl.textContent = `🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}`;
     }
     if (data.day !== undefined && dayEl) {
       dayEl.textContent = `📅 Day: ${data.day}`;

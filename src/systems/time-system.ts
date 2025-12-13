@@ -101,14 +101,9 @@ export class TimeSystem {
 
   /**
    * End current day and start new day at 08:00.
-   * Advances time to midnight, then to 8 AM next day.
-   * Daily rent ($100) is automatically deducted by GameManager.
+   * Daily rent ($100) is applied during the transition.
    */
   public endDay(): void {
-    // Advance to next day at 08:00 without directly mutating world state.
-    // (24 - timeOfDay) brings us to midnight; +8 brings us to 08:00 next day.
-    const timeOfDay = this.gameManager.getWorldState().timeOfDay;
-    const hoursToNextMorning = (24 - timeOfDay) + 8;
-    this.advanceTime(hoursToNextMorning);
+    this.gameManager.endDay();
   }
 }

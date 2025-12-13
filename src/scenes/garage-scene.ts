@@ -15,6 +15,8 @@ export class GarageScene extends Phaser.Scene {
   private uiManager!: UIManager;
   private timeSystem!: TimeSystem;
 
+  private autoEndDayOnEnter: boolean = false;
+
   private inventoryButton?: HTMLButtonElement;
   private currentView: 'menu' | 'inventory' = 'menu';
 
@@ -54,6 +56,10 @@ export class GarageScene extends Phaser.Scene {
     super({ key: 'GarageScene' });
   }
 
+  init(data?: { autoEndDay?: boolean }): void {
+    this.autoEndDayOnEnter = Boolean(data?.autoEndDay);
+  }
+
   create(): void {
     console.log('Garage Scene: Loaded');
 
@@ -65,6 +71,12 @@ export class GarageScene extends Phaser.Scene {
     this.setupBackground();
     this.setupUI();
     this.setupEventListeners();
+
+    if (this.autoEndDayOnEnter) {
+      // Reset the flag to avoid re-triggering if the scene is reused.
+      this.autoEndDayOnEnter = false;
+      this.endDay();
+    }
   }
 
   private setupBackground(): void {
@@ -94,6 +106,7 @@ export class GarageScene extends Phaser.Scene {
     const hud = this.uiManager.createHUD({
       money: player.money,
       prestige: player.prestige,
+      skills: player.skills,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
@@ -180,6 +193,7 @@ export class GarageScene extends Phaser.Scene {
     const hud = this.uiManager.createHUD({
       money: player.money,
       prestige: player.prestige,
+      skills: player.skills,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
@@ -384,7 +398,7 @@ export class GarageScene extends Phaser.Scene {
 
     this.uiManager.showModal(
       'Day Ended',
-      `Day ${world.day - 1} complete!\nDaily Rent Paid: $100\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
+      `Welcome to Day ${world.day}!\nDaily Rent Paid: $100\n\nMoney: $${player.money.toLocaleString()}\nCars: ${player.inventory.length}`,
       [
         {
           text: 'Continue',

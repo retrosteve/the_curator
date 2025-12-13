@@ -85,7 +85,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Daily Costs:**
   - **Daily Rent:** $100 (paid during the Next Day transition).
   - If `money < 0` after rent: the game continues.
-  - **Debt cap:** allow debt down to **-$500**.
+  - **Debt cap:** allow debt down to **-$500** (applies to both spending and daily rent).
 - **Market Trends (Future):** Periodic modifiers can shift prices by category (e.g., seasonal demand affecting convertibles).
 
 ### Rival System (AI)
@@ -129,7 +129,7 @@ As the player levels up, they improve three core tools:
 - **Player actions:**
   - Bid (+$100)
   - Power Bid (+$500, reduces Rival Patience)
-  - Stall (reduces Rival Patience)
+  - Stall (Tongue 2+, limited uses per auction = Tongue level; reduces Rival Patience)
   - **Kick Tires** (reduces Rival Budget; requires 'Eye' skill)
 - **Rival AI:**
   - If `currentBid > budget`: quit.
@@ -139,6 +139,9 @@ As the player levels up, they improve three core tools:
 ### Auction Notes (Implementation-Friendly)
 - The player cannot bid above their available `money`.
 - Treat the Auction "stress" concept as operating on `patience` (i.e., actions that add stress reduce `patience`) so the Rival data model stays minimal.
+
+### Encounter Rule
+- If a Rival is present at a location, the encounter is an Auction (regardless of which node you visited).
 
 ## Restoration Logic (Specialists)
 - **Cheap Charlie:** Low Cost / High Speed / Risk of Value Drop.

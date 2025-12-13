@@ -34,19 +34,21 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 - Three explorable locations:
   - **Joe's Scrapyard** (Travel: 1 hour) - Find project cars
   - **Classic Car Dealership** (Travel: 1 hour) - Browse inventory
-  - **Weekend Auction House** (Travel: 1 hour) - May trigger an auction
+  - **Weekend Auction House** (Travel: 1 hour)
 - Time costs follow the rules:
   - **Travel:** 1 hour
   - **Inspect (solo negotiation):** 30 mins
   - **Auction:** 2 hours
-- Random encounters
+- Random encounters:
+  - If a rival is present, the encounter becomes an **Auction** (from any location).
+  - If no rival is present, the encounter is a **Negotiation**.
 
 ### ✅ Auction Scene
 Turn-based bidding battles against AI rivals:
 - **Bid** (+$100) - Standard bid
 - **Power Bid** (+$500, -20 Rival Patience) - Aggressive bid
 - **Kick Tires** (-$500 Rival Budget, requires Eye skill) - Undercut their spending power
-- **Stall** (-20 Rival Patience) - Psychological warfare
+- **Stall** (Tongue 2+, limited uses per auction = Tongue level, -20 Rival Patience) - Psychological warfare
 - **Quit** - Walk away
 
 Rivals have unique:
@@ -81,7 +83,7 @@ npm run preview
 
 - **This README** is the canonical, human-facing overview (how to run, core loop, mechanics).
 - For strict architecture constraints (used by tooling/agents), see [.github/instructions/ARCHITECTURE.instructions.md](.github/instructions/ARCHITECTURE.instructions.md).
-- For game design rules (core loop, data shapes, auction logic), see [.github/instructions/GAME_DESIGN.instructions.md](.github/instructions/GAME_DESIGN.instructions.md).
+- For game design rules (core loop, data shapes, auction logic), see [.github/instructions/game-design.instructions.md](.github/instructions/game-design.instructions.md).
 - For contributor/agent workflow conventions, see [.github/copilot-instructions.md](.github/copilot-instructions.md).
 
 ## How to Play
@@ -106,8 +108,9 @@ npm run preview
   - **History** - Barn Find, Rust, Modified, etc.
 
 ### Restoration
-- Cost = `conditionGain × baseValue × 0.01`
-- Time = `conditionGain × 0.5 hours`
+- Two restoration services are available (time is a major cost):
+  - **Cheap Charlie (Minor Service):** +10 condition, 4 hours, low cost, small risk
+  - **The Artisan (Major Overhaul):** +30 condition, 8 hours, high cost
 - Max condition: 100
 
 ### Rival AI Strategies
@@ -160,7 +163,6 @@ For strict architecture constraints, see
   x: width * 0.8,
   y: height * 0.5,
   type: 'scrapyard',
-  timeCost: 4,
   color: 0x654321,
 }
 ```

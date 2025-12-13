@@ -178,6 +178,7 @@ export class MapScene extends Phaser.Scene {
     const hud = this.uiManager.createHUD({
       money: player.money,
       prestige: player.prestige,
+      skills: player.skills,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
@@ -197,12 +198,18 @@ export class MapScene extends Phaser.Scene {
     this.uiManager.append(backBtn);
   }
 
+  private goToGarageAndAutoEndDay(): void {
+    this.scene.start('GarageScene', { autoEndDay: true });
+  }
+
   private visitNode(node: MapNode): void {
     const requiredHours = TRAVEL_HOURS;
 
     const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);
     if (block) {
-      this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
+      this.uiManager.showModal(block.title, block.message, [
+        { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+      ]);
       return;
     }
 
@@ -220,26 +227,41 @@ export class MapScene extends Phaser.Scene {
     const car = getRandomCar();
     const hasRival = Math.random() > 0.5; // 50% chance of rival
 
-    if (hasRival && node.type === 'auction') {
+    if (hasRival) {
       // Auction consumes additional time
       const block = this.timeSystem.getTimeBlockModal(AUCTION_HOURS, 'an auction');
       if (block) {
-        this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
+        this.uiManager.showModal(block.title, block.message, [
+          { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+        ]);
         return;
       }
-
-      this.timeSystem.advanceTime(AUCTION_HOURS);
 
       // Auction with rival
       const rival = getRandomRival();
       const interest = calculateRivalInterest(rival, car.tags);
-      
-      this.scene.start('AuctionScene', { car, rival, interest });
+
+      // Explain why we're switching to an auction encounter.
+      this.uiManager.showModal(
+        'Rival Spotted',
+        `You arrive at ${node.name} and find ${rival.name} eyeing the same car.\n\nA bidding war begins for:\n${car.name}`,
+        [
+          {
+            text: 'Start Auction',
+            onClick: () => {
+              this.timeSystem.advanceTime(AUCTION_HOURS);
+              this.scene.start('AuctionScene', { car, rival, interest });
+            },
+          },
+        ]
+      );
     } else {
       // Negotiation consumes inspection time
       const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, 'inspecting this car');
       if (block) {
-        this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
+        this.uiManager.showModal(block.title, block.message, [
+          { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+        ]);
         return;
       }
 

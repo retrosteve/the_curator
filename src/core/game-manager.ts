@@ -27,6 +27,11 @@ export interface WorldState {
   currentLocation: string;
 }
 
+const DAY_START_HOUR = 8;
+const DAY_END_HOUR = 20;
+const DAILY_RENT = 100;
+const DEBT_CAP = -500;
+
 /**
  * GameManager - Central singleton for managing game state.
  * Single source of truth for player and world state.
@@ -56,7 +61,7 @@ export class GameManager {
     // Initialize world state
     this.world = {
       day: 1,
-      timeOfDay: 8, // Start at 8 AM
+      timeOfDay: DAY_START_HOUR, // Start at 8 AM
       currentLocation: 'garage',
     };
   }
@@ -103,12 +108,27 @@ export class GameManager {
    * @returns True if transaction succeeded, false if it would exceed debt cap
    */
   public spendMoney(amount: number): boolean {
-    if (this.player.money - amount >= -500) {
+    if (this.player.money - amount >= DEBT_CAP) {
       this.player.money -= amount;
       eventBus.emit('money-changed', this.player.money);
       return true;
     }
     return false;
+  }
+
+  /**
+   * Apply daily rent while respecting the debt cap.
+   * @returns True if rent was fully paid, false if clamped by debt cap
+   */
+  private applyDailyRent(): boolean {
+    const next = this.player.money - DAILY_RENT;
+    const clamped = Math.max(DEBT_CAP, next);
+    const fullyPaid = clamped === next;
+
+    this.player.money = clamped;
+    eventBus.emit('money-changed', this.player.money);
+
+    return fullyPaid;
   }
 
   /**
@@ -166,20 +186,33 @@ export class GameManager {
    */
   public advanceTime(hours: number): void {
     this.world.timeOfDay += hours;
-    
-    // If time exceeds 24 hours, advance to next day
-    while (this.world.timeOfDay >= 24) {
-      this.world.timeOfDay -= 24;
-      this.world.day += 1;
-      
-      // Daily Rent: $100
-      this.player.money -= 100;
-      eventBus.emit('money-changed', this.player.money);
-      
-      eventBus.emit('day-changed', this.world.day);
-    }
-    
+
+    // Game design: actions should be blocked from pushing time past 20:00.
+    // Still clamp to a sensible range defensively.
+    if (this.world.timeOfDay < 0) this.world.timeOfDay = 0;
+    if (this.world.timeOfDay > 24) this.world.timeOfDay = 24;
+
     eventBus.emit('time-changed', this.world.timeOfDay);
+  }
+
+  /**
+   * End the current day and start the next day at 08:00.
+   * Applies daily rent ($100) and enforces the debt cap (-$500).
+   */
+  public endDay(): void {
+    this.world.day += 1;
+    this.world.timeOfDay = DAY_START_HOUR;
+
+    this.applyDailyRent();
+    eventBus.emit('day-changed', this.world.day);
+    eventBus.emit('time-changed', this.world.timeOfDay);
+  }
+
+  /**
+   * Check if an action of the given duration can complete before 20:00.
+   */
+  public canCompleteAction(requiredHours: number): boolean {
+    return this.world.timeOfDay + requiredHours <= DAY_END_HOUR;
   }
 
   /**
@@ -223,7 +256,7 @@ export class GameManager {
 
     this.world = {
       day: 1,
-      timeOfDay: 8,
+      timeOfDay: DAY_START_HOUR,
       currentLocation: 'garage',
     };
 

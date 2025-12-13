@@ -21,6 +21,8 @@ export class AuctionScene extends Phaser.Scene {
   private rivalAI!: RivalAI;
   private currentBid: number = 0;
 
+  private stallUsesThisAuction: number = 0;
+
   private readonly handleMoneyChanged = (money: number): void => {
     this.uiManager.updateHUD({ money });
   };
@@ -45,6 +47,9 @@ export class AuctionScene extends Phaser.Scene {
   private static readonly KICK_TIRES_BUDGET_REDUCTION = 500;
   private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = 2;
 
+  // Stall action constants
+  private static readonly REQUIRED_TONGUE_LEVEL_FOR_STALL = 2;
+
   constructor() {
     super({ key: 'AuctionScene' });
   }
@@ -54,6 +59,7 @@ export class AuctionScene extends Phaser.Scene {
     this.rival = data.rival;
     this.rivalAI = new RivalAI(data.rival, data.interest);
     this.currentBid = Math.floor(calculateCarValue(this.car) * 0.5);
+    this.stallUsesThisAuction = 0;
   }
 
   create(): void {
@@ -108,6 +114,7 @@ export class AuctionScene extends Phaser.Scene {
     const hud = this.uiManager.createHUD({
       money: player.money,
       prestige: player.prestige,
+      skills: player.skills,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,
@@ -201,11 +208,24 @@ export class AuctionScene extends Phaser.Scene {
     );
     buttonContainer.appendChild(kickTiresBtn);
 
+    const maxStalls = player.skills.tongue;
+    const stallsRemaining = Math.max(0, maxStalls - this.stallUsesThisAuction);
     const stallBtn = this.uiManager.createButton(
-      'Stall (Rival Patience -20)',
+      `Stall (Tongue 2+) (Uses left: ${stallsRemaining}) (Rival Patience -20)`,
       () => this.playerStall(),
       { width: '100%', backgroundColor: '#9C27B0' }
     );
+
+    if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL || stallsRemaining <= 0) {
+      stallBtn.disabled = true;
+      stallBtn.style.opacity = '0.6';
+      if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
+        stallBtn.textContent = `Stall (Requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+)`;
+      } else {
+        stallBtn.textContent = 'Stall (No uses left this auction)';
+      }
+    }
+
     buttonContainer.appendChild(stallBtn);
 
     const quitBtn = this.uiManager.createButton(
@@ -270,12 +290,33 @@ export class AuctionScene extends Phaser.Scene {
   }
 
   private playerStall(): void {
+    const tongue = this.gameManager.getPlayerState().skills.tongue;
+    if (tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
+      this.uiManager.showModal(
+        'Requires Skill',
+        `Stall requires Tongue level ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL} (you have ${tongue}).`,
+        [{ text: 'OK', onClick: () => {} }]
+      );
+      return;
+    }
+
+    if (this.stallUsesThisAuction >= tongue) {
+      this.uiManager.showModal(
+        'No More Stalling',
+        `You've used Stall ${this.stallUsesThisAuction}/${tongue} times in this auction.`,
+        [{ text: 'OK', onClick: () => {} }]
+      );
+      return;
+    }
+
+    this.stallUsesThisAuction += 1;
     this.rivalAI.onPlayerStall();
     
     if (this.rivalAI.getPatience() <= 0) {
       this.endAuction(true, `${this.rival.name} lost patience and quit!`);
     } else {
-      this.setupUI();
+      // Stalling pressures the rival but hands them the turn.
+      this.rivalTurn();
     }
   }
 

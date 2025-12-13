@@ -32,6 +32,18 @@ These instructions make AI agents immediately productive in this Phaser + DOM hy
 ## Contribution Guidelines
 - Update architecture or design docs when introducing code changes.
 
+## Docs Drift Checklist
+When you change behavior (rules, costs, flows) update the docs in the same PR.
+
+- If you change game rules, timing, encounters, economy, or progression:
+	- Update `.github/instructions/game-design.instructions.md` to match.
+- If the change affects how the game plays or how to run it:
+	- Update `README.md` (it is the human-facing overview).
+- If the change affects structure, scene flow, or UI layering:
+	- Update `.github/instructions/architecture.instructions.md`.
+- Quick self-check before finishing:
+	- Search for stale numbers/strings (e.g., time costs, rent, skill gates) and fix mismatches.
+
 ## TypeScript Guidelines
 - Type declaration files: https://www.typescriptlang.org/docs/handbook/declaration-files/do-s-and-don-ts.html
 - JSDoc supported types: https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html

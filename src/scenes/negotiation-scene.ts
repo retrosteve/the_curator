@@ -107,6 +107,7 @@ export class NegotiationScene extends Phaser.Scene {
     const hud = this.uiManager.createHUD({
       money: player.money,
       prestige: player.prestige,
+      skills: player.skills,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
       location: world.currentLocation,

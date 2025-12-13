@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
+import { TimeSystem } from '@/systems/time-system';
 import { Car, calculateCarValue } from '@/data/car-database';
 import { Rival } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
+import { eventBus } from '@/core/event-bus';
 
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
@@ -13,10 +15,31 @@ import { RivalAI } from '@/systems/rival-ai';
 export class AuctionScene extends Phaser.Scene {
   private gameManager!: GameManager;
   private uiManager!: UIManager;
+  private timeSystem!: TimeSystem;
   private car!: Car;
   private rival!: Rival;
   private rivalAI!: RivalAI;
   private currentBid: number = 0;
+
+  private readonly handleMoneyChanged = (money: number): void => {
+    this.uiManager.updateHUD({ money });
+  };
+
+  private readonly handlePrestigeChanged = (prestige: number): void => {
+    this.uiManager.updateHUD({ prestige });
+  };
+
+  private readonly handleTimeChanged = (_timeOfDay: number): void => {
+    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
+  };
+
+  private readonly handleDayChanged = (day: number): void => {
+    this.uiManager.updateHUD({ day });
+  };
+
+  private readonly handleLocationChanged = (location: string): void => {
+    this.uiManager.updateHUD({ location });
+  };
 
   // Kick Tires action constants
   private static readonly KICK_TIRES_BUDGET_REDUCTION = 500;
@@ -37,10 +60,29 @@ export class AuctionScene extends Phaser.Scene {
     console.log('Auction Scene: Loaded');
 
     this.gameManager = GameManager.getInstance();
+    this.gameManager.setLocation('auction');
     this.uiManager = new UIManager();
+    this.timeSystem = new TimeSystem();
 
     this.setupBackground();
     this.setupUI();
+    this.setupEventListeners();
+  }
+
+  private setupEventListeners(): void {
+    eventBus.on('money-changed', this.handleMoneyChanged);
+    eventBus.on('prestige-changed', this.handlePrestigeChanged);
+    eventBus.on('time-changed', this.handleTimeChanged);
+    eventBus.on('day-changed', this.handleDayChanged);
+    eventBus.on('location-changed', this.handleLocationChanged);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      eventBus.off('money-changed', this.handleMoneyChanged);
+      eventBus.off('prestige-changed', this.handlePrestigeChanged);
+      eventBus.off('time-changed', this.handleTimeChanged);
+      eventBus.off('day-changed', this.handleDayChanged);
+      eventBus.off('location-changed', this.handleLocationChanged);
+    });
   }
 
   private setupBackground(): void {
@@ -59,6 +101,18 @@ export class AuctionScene extends Phaser.Scene {
 
   private setupUI(): void {
     this.uiManager.clear();
+
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+
+    const hud = this.uiManager.createHUD({
+      money: player.money,
+      prestige: player.prestige,
+      day: world.day,
+      time: this.timeSystem.getFormattedTime(),
+      location: world.currentLocation,
+    });
+    this.uiManager.append(hud);
 
     const panel = this.uiManager.createPanel({
       position: 'absolute',
@@ -112,7 +166,6 @@ export class AuctionScene extends Phaser.Scene {
     panel.appendChild(rivalInfo);
 
     // Player info
-    const player = this.gameManager.getPlayerState();
     const playerInfo = this.uiManager.createText(
       `Your Money: $${player.money.toLocaleString()}`,
       { textAlign: 'center', marginBottom: '20px' }

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
-import { getRandomCar, Car } from '@/data/car-database';
+import { getRandomCar } from '@/data/car-database';
 import { getRandomRival, calculateRivalInterest } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
 
@@ -40,12 +40,20 @@ export class MapScene extends Phaser.Scene {
     this.uiManager.updateHUD({ money });
   };
 
+  private readonly handlePrestigeChanged = (prestige: number): void => {
+    this.uiManager.updateHUD({ prestige });
+  };
+
   private readonly handleTimeChanged = (_timeOfDay: number): void => {
     this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
   };
 
   private readonly handleDayChanged = (day: number): void => {
     this.uiManager.updateHUD({ day });
+  };
+
+  private readonly handleLocationChanged = (location: string): void => {
+    this.uiManager.updateHUD({ location });
   };
 
   constructor() {
@@ -56,6 +64,7 @@ export class MapScene extends Phaser.Scene {
     console.log('Map Scene: Loaded');
 
     this.gameManager = GameManager.getInstance();
+    this.gameManager.setLocation('map');
     this.uiManager = new UIManager();
     this.timeSystem = new TimeSystem();
 
@@ -67,13 +76,17 @@ export class MapScene extends Phaser.Scene {
 
   private setupEventListeners(): void {
     eventBus.on('money-changed', this.handleMoneyChanged);
+    eventBus.on('prestige-changed', this.handlePrestigeChanged);
     eventBus.on('time-changed', this.handleTimeChanged);
     eventBus.on('day-changed', this.handleDayChanged);
+    eventBus.on('location-changed', this.handleLocationChanged);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       eventBus.off('money-changed', this.handleMoneyChanged);
+      eventBus.off('prestige-changed', this.handlePrestigeChanged);
       eventBus.off('time-changed', this.handleTimeChanged);
       eventBus.off('day-changed', this.handleDayChanged);
+      eventBus.off('location-changed', this.handleLocationChanged);
     });
   }
 
@@ -164,8 +177,10 @@ export class MapScene extends Phaser.Scene {
     // Create HUD
     const hud = this.uiManager.createHUD({
       money: player.money,
+      prestige: player.prestige,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
+      location: world.currentLocation,
     });
     this.uiManager.append(hud);
 
@@ -185,28 +200,17 @@ export class MapScene extends Phaser.Scene {
   private visitNode(node: MapNode): void {
     const requiredHours = TRAVEL_HOURS;
 
-    // Check if player has enough time
-    if (!this.timeSystem.hasEnoughTime(requiredHours)) {
-      const currentTime = this.timeSystem.getFormattedTime();
-      const hoursLeft = this.timeSystem.getTimeRemainingInDay();
-      
-      let message = '';
-      if (hoursLeft === 0) {
-        message = `It's ${currentTime} - the business day has ended.\n\nReturn to the garage to end your day.`;
-      } else {
-        message = `You only have ${hoursLeft.toFixed(1)} hour${hoursLeft !== 1 ? 's' : ''} left today, but visiting ${node.name} requires ${requiredHours} hour${requiredHours !== 1 ? 's' : ''}.\n\nReturn to the garage to end your day.`;
-      }
-      
-      this.uiManager.showModal(
-        'Day Ending Soon',
-        message,
-        [{ text: 'OK', onClick: () => {} }]
-      );
+    const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);
+    if (block) {
+      this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
       return;
     }
 
     // Advance time
     this.timeSystem.advanceTime(requiredHours);
+
+    // Update current location for downstream systems/UI
+    this.gameManager.setLocation(node.type);
 
     // Generate encounter based on node type
     this.generateEncounter(node);
@@ -218,12 +222,9 @@ export class MapScene extends Phaser.Scene {
 
     if (hasRival && node.type === 'auction') {
       // Auction consumes additional time
-      if (!this.timeSystem.hasEnoughTime(AUCTION_HOURS)) {
-        this.uiManager.showModal(
-          'Not Enough Time',
-          "You don't have enough time today for an auction. Consider ending the day.",
-          [{ text: 'OK', onClick: () => {} }]
-        );
+      const block = this.timeSystem.getTimeBlockModal(AUCTION_HOURS, 'an auction');
+      if (block) {
+        this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
         return;
       }
 
@@ -236,12 +237,9 @@ export class MapScene extends Phaser.Scene {
       this.scene.start('AuctionScene', { car, rival, interest });
     } else {
       // Negotiation consumes inspection time
-      if (!this.timeSystem.hasEnoughTime(INSPECT_HOURS)) {
-        this.uiManager.showModal(
-          'Not Enough Time',
-          "You don't have enough time today to inspect this car. Consider ending the day.",
-          [{ text: 'OK', onClick: () => {} }]
-        );
+      const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, 'inspecting this car');
+      if (block) {
+        this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
         return;
       }
 

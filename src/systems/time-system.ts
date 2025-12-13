@@ -57,7 +57,8 @@ export class TimeSystem {
    * @returns Hours remaining until 8 PM
    */
   public getTimeRemainingInDay(): number {
-    return 20 - this.gameManager.getWorldState().timeOfDay;
+    const remaining = 20 - this.gameManager.getWorldState().timeOfDay;
+    return Math.max(0, remaining);
   }
 
   /**
@@ -67,6 +68,35 @@ export class TimeSystem {
    */
   public hasEnoughTime(requiredHours: number): boolean {
     return this.getTimeRemainingInDay() >= requiredHours;
+  }
+
+  /**
+   * Build a consistent modal title/message when an action would exceed business hours.
+   * Returns null when enough time remains.
+   */
+  public getTimeBlockModal(
+    requiredHours: number,
+    actionLabel: string
+  ): { title: string; message: string } | null {
+    const hoursLeft = this.getTimeRemainingInDay();
+    if (hoursLeft >= requiredHours) return null;
+
+    const currentTime = this.getFormattedTime();
+
+    if (hoursLeft === 0) {
+      return {
+        title: 'Day Ending Soon',
+        message: `It's ${currentTime} - the business day has ended.\n\nReturn to the garage to end your day.`,
+      };
+    }
+
+    const hoursLeftLabel = `${hoursLeft.toFixed(1)} hour${hoursLeft !== 1 ? 's' : ''}`;
+    const requiredLabel = `${requiredHours} hour${requiredHours !== 1 ? 's' : ''}`;
+
+    return {
+      title: 'Day Ending Soon',
+      message: `You only have ${hoursLeftLabel} left today, but ${actionLabel} requires ${requiredLabel}.\n\nReturn to the garage to end your day.`,
+    };
   }
 
   /**

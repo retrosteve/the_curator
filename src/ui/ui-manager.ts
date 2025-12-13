@@ -7,6 +7,16 @@
 export class UIManager {
   private container: HTMLElement;
 
+  private static formatLocationLabel(location: string): string {
+    const normalized = location.replace(/[_-]+/g, ' ').trim();
+    if (!normalized) return '';
+
+    return normalized
+      .split(/\s+/g)
+      .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+      .join(' ');
+  }
+
   constructor() {
     const overlay = document.getElementById('ui-overlay');
     if (!overlay) {
@@ -64,7 +74,19 @@ export class UIManager {
       button.style.transform = 'scale(1)';
     };
 
-    button.onclick = onClick;
+    // Prevent Phaser's global input listeners from also receiving clicks that
+    // are meant for DOM UI elements (can make modals feel like they "don't work").
+    const stop = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    button.addEventListener('pointerdown', stop);
+    button.addEventListener('pointerup', stop);
+    button.addEventListener('click', (event) => {
+      stop(event);
+      onClick();
+    });
 
     return button;
   }
@@ -170,6 +192,33 @@ export class UIManager {
     message: string,
     buttons: { text: string; onClick: () => void }[]
   ): HTMLDivElement {
+    const stop = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    // Full-screen backdrop that captures pointer events everywhere.
+    // Without this, areas outside the modal allow events through to the Phaser canvas.
+    const backdrop = document.createElement('div');
+    backdrop.className = 'game-modal-backdrop';
+    Object.assign(backdrop.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      zIndex: '999',
+      backgroundColor: 'transparent',
+      pointerEvents: 'auto',
+    });
+
+    // Block all interactions from reaching Phaser while a modal is open.
+    ['pointerdown', 'pointerup', 'pointermove', 'click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'touchstart', 'touchend', 'touchmove'].forEach(
+      (eventName) => {
+        backdrop.addEventListener(eventName, stop, { capture: true });
+      }
+    );
+
     const modal = document.createElement('div');
     modal.className = 'game-modal';
     
@@ -210,6 +259,7 @@ export class UIManager {
       const button = this.createButton(btn.text, () => {
         btn.onClick();
         this.remove(modal);
+        this.remove(backdrop);
       });
       buttonContainer.appendChild(button);
     });
@@ -218,6 +268,7 @@ export class UIManager {
     modal.appendChild(text);
     modal.appendChild(buttonContainer);
 
+    this.append(backdrop);
     this.append(modal);
     return modal;
   }
@@ -233,6 +284,7 @@ export class UIManager {
     prestige?: number;
     day: number;
     time: string;
+    location?: string;
   }): HTMLDivElement {
     const hud = document.createElement('div');
     hud.id = 'game-hud';
@@ -252,9 +304,10 @@ export class UIManager {
 
     hud.innerHTML = `
       <div data-hud="money">💰 Money: $${data.money.toLocaleString()}</div>
-      ${data.prestige !== undefined ? `<div data-hud="prestige">Prestige: ${data.prestige}</div>` : ''}
+      ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
       <div data-hud="day">📅 Day: ${data.day}</div>
       <div data-hud="time">🕐 Time: ${data.time}</div>
+      ${data.location !== undefined ? `<div data-hud="location">📍 Location: ${UIManager.formatLocationLabel(data.location)}</div>` : ''}
     `;
 
     return hud;
@@ -270,6 +323,7 @@ export class UIManager {
     prestige?: number;
     day?: number;
     time?: string;
+    location?: string;
   }): void {
     const hud = document.getElementById('game-hud');
     if (!hud) return;
@@ -278,18 +332,22 @@ export class UIManager {
     const prestigeEl = hud.querySelector<HTMLDivElement>('[data-hud="prestige"]');
     const dayEl = hud.querySelector<HTMLDivElement>('[data-hud="day"]');
     const timeEl = hud.querySelector<HTMLDivElement>('[data-hud="time"]');
+    const locationEl = hud.querySelector<HTMLDivElement>('[data-hud="location"]');
 
     if (data.money !== undefined && moneyEl) {
       moneyEl.textContent = `💰 Money: $${data.money.toLocaleString()}`;
     }
     if (data.prestige !== undefined && prestigeEl) {
-      prestigeEl.textContent = `Prestige: ${data.prestige}`;
+      prestigeEl.textContent = `🏆 Prestige: ${data.prestige}`;
     }
     if (data.day !== undefined && dayEl) {
       dayEl.textContent = `📅 Day: ${data.day}`;
     }
     if (data.time !== undefined && timeEl) {
       timeEl.textContent = `🕐 Time: ${data.time}`;
+    }
+    if (data.location !== undefined && locationEl) {
+      locationEl.textContent = `📍 Location: ${UIManager.formatLocationLabel(data.location)}`;
     }
   }
 }

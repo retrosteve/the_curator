@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
+import { TimeSystem } from '@/systems/time-system';
 import { Car, calculateCarValue } from '@/data/car-database';
-import { Economy } from '@/systems/economy';
+import { eventBus } from '@/core/event-bus';
 
 /**
  * Negotiation Scene - PvE encounter with a seller.
@@ -13,11 +14,31 @@ import { Economy } from '@/systems/economy';
 export class NegotiationScene extends Phaser.Scene {
   private gameManager!: GameManager;
   private uiManager!: UIManager;
+  private timeSystem!: TimeSystem;
   private car!: Car;
   private askingPrice: number = 0;
   private lowestPrice: number = 0;
   private negotiationCount: number = 0;
-  private isDealSealed: boolean = false;
+
+  private readonly handleMoneyChanged = (money: number): void => {
+    this.uiManager.updateHUD({ money });
+  };
+
+  private readonly handlePrestigeChanged = (prestige: number): void => {
+    this.uiManager.updateHUD({ prestige });
+  };
+
+  private readonly handleTimeChanged = (_timeOfDay: number): void => {
+    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
+  };
+
+  private readonly handleDayChanged = (day: number): void => {
+    this.uiManager.updateHUD({ day });
+  };
+
+  private readonly handleLocationChanged = (location: string): void => {
+    this.uiManager.updateHUD({ location });
+  };
 
   constructor() {
     super({ key: 'NegotiationScene' });
@@ -31,17 +52,35 @@ export class NegotiationScene extends Phaser.Scene {
     // Seller won't go below 90% of value
     this.lowestPrice = Math.floor(value * 0.9);
     this.negotiationCount = 0;
-    this.isDealSealed = false;
   }
 
   create(): void {
     console.log('Negotiation Scene: Loaded');
 
     this.gameManager = GameManager.getInstance();
+    this.gameManager.setLocation('negotiation');
     this.uiManager = new UIManager();
+    this.timeSystem = new TimeSystem();
 
     this.setupBackground();
     this.setupUI();
+    this.setupEventListeners();
+  }
+
+  private setupEventListeners(): void {
+    eventBus.on('money-changed', this.handleMoneyChanged);
+    eventBus.on('prestige-changed', this.handlePrestigeChanged);
+    eventBus.on('time-changed', this.handleTimeChanged);
+    eventBus.on('day-changed', this.handleDayChanged);
+    eventBus.on('location-changed', this.handleLocationChanged);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      eventBus.off('money-changed', this.handleMoneyChanged);
+      eventBus.off('prestige-changed', this.handlePrestigeChanged);
+      eventBus.off('time-changed', this.handleTimeChanged);
+      eventBus.off('day-changed', this.handleDayChanged);
+      eventBus.off('location-changed', this.handleLocationChanged);
+    });
   }
 
   private setupBackground(): void {
@@ -63,6 +102,16 @@ export class NegotiationScene extends Phaser.Scene {
     this.uiManager.clear();
 
     const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+
+    const hud = this.uiManager.createHUD({
+      money: player.money,
+      prestige: player.prestige,
+      day: world.day,
+      time: this.timeSystem.getFormattedTime(),
+      location: world.currentLocation,
+    });
+    this.uiManager.append(hud);
     
     // Car Info Panel
     const infoPanel = this.uiManager.createPanel({
@@ -140,7 +189,11 @@ export class NegotiationScene extends Phaser.Scene {
     const maxNegotiations = player.skills.tongue; // Level 1 = 1 attempt, Level 5 = 5 attempts
 
     if (this.negotiationCount >= maxNegotiations) {
-      alert("Seller refuses to negotiate further.");
+      this.uiManager.showModal(
+        'No More Haggling',
+        'The seller refuses to negotiate further.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
       return;
     }
 
@@ -164,21 +217,32 @@ export class NegotiationScene extends Phaser.Scene {
     const player = this.gameManager.getPlayerState();
 
     if (player.money < this.askingPrice) {
-      alert("You cannot afford this car!");
+      this.uiManager.showModal(
+        'Insufficient Funds',
+        "You can't afford this car.",
+        [{ text: 'OK', onClick: () => {} }]
+      );
       return;
     }
 
     if (this.gameManager.getPlayerState().inventory.length >= this.gameManager.getPlayerState().garageSlots) {
        // Check garage capacity
-       alert("Garage Full! You must sell your current car first.");
+       this.uiManager.showModal(
+         'Garage Full',
+         'Garage Full - Sell or Scrap current car first.',
+         [{ text: 'OK', onClick: () => {} }]
+       );
        return;
     }
 
     this.gameManager.spendMoney(this.askingPrice);
     this.gameManager.addCar(this.car);
-    
-    alert(`Purchased ${this.car.name} for $${this.askingPrice.toLocaleString()}!`);
-    this.handleLeave();
+
+    this.uiManager.showModal(
+      'Purchase Complete',
+      `Purchased ${this.car.name} for $${this.askingPrice.toLocaleString()}!`,
+      [{ text: 'Continue', onClick: () => this.handleLeave() }]
+    );
   }
 
   private handleLeave(): void {

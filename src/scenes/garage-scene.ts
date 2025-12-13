@@ -3,7 +3,7 @@ import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { eventBus } from '@/core/event-bus';
-import { Economy } from '@/systems/economy';
+import { Economy } from '@/systems/Economy';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -36,6 +36,10 @@ export class GarageScene extends Phaser.Scene {
     this.uiManager.updateHUD({ day });
   };
 
+  private readonly handleLocationChanged = (location: string): void => {
+    this.uiManager.updateHUD({ location });
+  };
+
   private readonly handleInventoryChanged = (): void => {
     if (this.inventoryButton) {
       this.inventoryButton.textContent = `View Inventory (${this.gameManager.getPlayerState().inventory.length} cars)`;
@@ -54,6 +58,7 @@ export class GarageScene extends Phaser.Scene {
     console.log('Garage Scene: Loaded');
 
     this.gameManager = GameManager.getInstance();
+    this.gameManager.setLocation('garage');
     this.uiManager = new UIManager();
     this.timeSystem = new TimeSystem();
 
@@ -91,6 +96,7 @@ export class GarageScene extends Phaser.Scene {
       prestige: player.prestige,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
+      location: world.currentLocation,
     });
     this.uiManager.append(hud);
 
@@ -151,6 +157,7 @@ export class GarageScene extends Phaser.Scene {
     eventBus.on('prestige-changed', this.handlePrestigeChanged);
     eventBus.on('time-changed', this.handleTimeChanged);
     eventBus.on('day-changed', this.handleDayChanged);
+    eventBus.on('location-changed', this.handleLocationChanged);
     eventBus.on('inventory-changed', this.handleInventoryChanged);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -158,6 +165,7 @@ export class GarageScene extends Phaser.Scene {
       eventBus.off('prestige-changed', this.handlePrestigeChanged);
       eventBus.off('time-changed', this.handleTimeChanged);
       eventBus.off('day-changed', this.handleDayChanged);
+      eventBus.off('location-changed', this.handleLocationChanged);
       eventBus.off('inventory-changed', this.handleInventoryChanged);
     });
   }
@@ -174,6 +182,7 @@ export class GarageScene extends Phaser.Scene {
       prestige: player.prestige,
       day: world.day,
       time: this.timeSystem.getFormattedTime(),
+      location: world.currentLocation,
     });
     this.uiManager.append(hud);
 
@@ -262,7 +271,11 @@ export class GarageScene extends Phaser.Scene {
     if (!car) return;
 
     if (car.condition >= 100) {
-      alert("Car is already in perfect condition!");
+      this.uiManager.showModal(
+        'Already Restored',
+        'This car is already in perfect condition.',
+        [{ text: 'OK', onClick: () => {} }]
+      );
       return;
     }
 
@@ -270,14 +283,26 @@ export class GarageScene extends Phaser.Scene {
     const modalOptions = options.map(opt => ({
       text: `${opt.name} ($${opt.cost.toLocaleString()} | ${opt.time}h) - ${opt.description} ${opt.risk ? `[WARNING: ${opt.risk}]` : ''}`,
       onClick: () => {
+        const block = this.timeSystem.getTimeBlockModal(opt.time, `restoring ${car.name}`);
+        if (block) {
+          this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
+          return;
+        }
         if (this.gameManager.spendMoney(opt.cost)) {
           this.timeSystem.advanceTime(opt.time);
           const result = Economy.performRestoration(car, opt);
           this.gameManager.updateCar(result.car);
-          alert(result.message);
-          this.showInventory();
+          this.uiManager.showModal(
+            'Restoration Result',
+            result.message,
+            [{ text: 'OK', onClick: () => this.showInventory() }]
+          );
         } else {
-          alert('Not enough money!');
+          this.uiManager.showModal(
+            'Not Enough Money',
+            "You don't have enough money for that service.",
+            [{ text: 'OK', onClick: () => {} }]
+          );
         }
       }
     }));

@@ -283,11 +283,9 @@ export class AuctionScene extends BaseGameScene {
   }
 
   private endAuction(playerWon: boolean, message: string): void {
-    // Tutorial triggers
+    // Tutorial trigger for loss (happens immediately)
     if (this.tutorialManager.isCurrentStep('first_flip') && !playerWon) {
       this.tutorialManager.advanceStep('first_loss');
-    } else if (this.tutorialManager.isCurrentStep('redemption') && playerWon) {
-      this.tutorialManager.advanceStep('complete');
     }
 
     if (playerWon) {
@@ -315,13 +313,25 @@ export class AuctionScene extends BaseGameScene {
         const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.auction;
         const leveledUp = this.gameManager.addSkillXP('tongue', tongueXPGain);
         
+        // Tutorial: Show completion message AFTER auction win modal is dismissed
+        const isTutorialComplete = this.tutorialManager.isCurrentStep('redemption');
+        
         this.uiManager.showModal(
           'You Won!',
           `${message}\n\nYou bought ${this.car.name} for ${formatCurrency(this.currentBid)}!${leveledUp ? '\n\n🎉 Your Tongue skill leveled up!' : ''}`,
           [
             {
               text: 'Continue',
-              onClick: () => this.scene.start('MapScene'),
+              onClick: () => {
+                if (isTutorialComplete) {
+                  // Advance tutorial to complete AFTER dismissing win modal
+                  this.tutorialManager.advanceStep('complete');
+                  // Small delay to ensure tutorial dialogue appears before scene transition
+                  setTimeout(() => this.scene.start('MapScene'), 100);
+                } else {
+                  this.scene.start('MapScene');
+                }
+              },
             },
           ]
         );

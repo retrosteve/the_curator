@@ -575,6 +575,9 @@ export class GameManager {
    */
   public reset(): void {
     this.initializeDefaultState();
+    // Reset tutorial state for new game
+    const tutorialManager = TutorialManager.getInstance();
+    tutorialManager.reset();
     this.emitAllStateEvents();
   }
 

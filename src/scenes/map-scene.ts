@@ -76,10 +76,18 @@ export class MapScene extends BaseGameScene {
     // Regular map nodes
     this.nodes = [
       {
+        id: 'garage',
+        name: 'Your Garage',
+        x: width * 0.5,
+        y: height * 0.15,
+        type: 'scrapyard', // Use scrapyard type to avoid special handling
+        color: 0x2ecc71,
+      },
+      {
         id: 'scrapyard_1',
         name: "Joe's Scrapyard",
         x: width * 0.25,
-        y: height * 0.3,
+        y: height * 0.4,
         type: 'scrapyard',
         color: 0x8b4513,
       },
@@ -87,7 +95,7 @@ export class MapScene extends BaseGameScene {
         id: 'dealership_1',
         name: 'Classic Car Dealership',
         x: width * 0.75,
-        y: height * 0.3,
+        y: height * 0.4,
         type: 'dealership',
         color: 0x4169e1,
       },
@@ -95,7 +103,7 @@ export class MapScene extends BaseGameScene {
         id: 'auction_1',
         name: 'Weekend Auction House',
         x: width * 0.5,
-        y: height * 0.6,
+        y: height * 0.7,
         type: 'auction',
         color: 0xffd700,
       },
@@ -117,11 +125,19 @@ export class MapScene extends BaseGameScene {
 
     this.nodes.forEach((node) => {
       // Determine if this node will have a rival (before visit)
-      const hasRival = node.type !== 'special' && Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+      // Garage never has rivals
+      const hasRival = node.id !== 'garage' && node.type !== 'special' && Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
       
       // Draw node circle
       const circle = this.add.circle(node.x, node.y, 40, node.color);
       circle.setInteractive({ useHandCursor: true });
+      
+      // Add home icon for garage
+      if (node.id === 'garage') {
+        this.add.text(node.x, node.y, '🏠', {
+          fontSize: '32px',
+        }).setOrigin(0.5);
+      }
       
       // Add rival indicator if rival present
       if (hasRival) {
@@ -142,13 +158,15 @@ export class MapScene extends BaseGameScene {
         wordWrap: { width: 150 },
       }).setOrigin(0.5);
 
-      // Add AP cost (use special event AP cost if available)
-      const apCost = (node as any).specialEvent?.apCost || GAME_CONFIG.timeCosts.travelAP;
-      this.add.text(node.x, node.y + 35, `${apCost} AP`, {
-        fontSize: '18px',
-        color: '#fff',
-        fontStyle: 'bold',
-      }).setOrigin(0.5);
+      // Add AP cost (use special event AP cost if available, garage is free)
+      if (node.id !== 'garage') {
+        const apCost = (node as any).specialEvent?.apCost || GAME_CONFIG.timeCosts.travelAP;
+        this.add.text(node.x, node.y + 35, `${apCost} AP`, {
+          fontSize: '18px',
+          color: '#fff',
+          fontStyle: 'bold',
+        }).setOrigin(0.5);
+      }
 
       // Click handler
       circle.on('pointerdown', () => this.visitNode(node));
@@ -166,23 +184,15 @@ export class MapScene extends BaseGameScene {
 
   private setupUI(): void {
     this.resetUIWithHUD();
-
-    // Back to garage button
-    const backBtn = this.uiManager.createButton(
-      'Back to Garage',
-      () => this.scene.start('GarageScene'),
-      {
-        style: {
-          position: 'absolute',
-          bottom: '20px',
-          right: '20px',
-        }
-      }
-    );
-    this.uiManager.append(backBtn);
   }
 
   private visitNode(node: MapNode): void {
+    // Garage is free to return to and doesn't trigger encounters
+    if (node.id === 'garage') {
+      this.scene.start('GarageScene');
+      return;
+    }
+
     // Special events have custom AP costs, regular nodes use travel AP
     const requiredAP = node.specialEvent?.apCost ?? GAME_CONFIG.timeCosts.travelAP;
 

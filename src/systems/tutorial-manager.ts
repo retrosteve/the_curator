@@ -41,8 +41,15 @@ export class TutorialManager {
   /**
    * Start the tutorial from the beginning.
    * Sets state to active and shows intro dialogue.
+   * Does nothing if tutorial has already been started or completed.
    */
   public startTutorial(): void {
+    // Prevent restarting if already active or completed
+    if (this.isActive || this.currentStep !== 'intro') {
+      console.log('Tutorial already started or completed, skipping restart');
+      return;
+    }
+    
     this.isActive = true;
     this.currentStep = 'intro';
     console.log('Tutorial started');
@@ -70,7 +77,7 @@ export class TutorialManager {
       case 'first_visit_scrapyard':
         this.showDialogue(
           "Uncle Ray",
-          "Now click the 'Go to Map' button, then click on 'Joe's Scrapyard' to find your first car. Traveling costs 1 Action Point."
+          "Now click the 'Explore Map' button, then click on 'Joe's Scrapyard' to find your first car. Traveling costs 1 Action Point."
         );
         break;
       
@@ -210,5 +217,16 @@ export class TutorialManager {
     this.currentStep = 'complete';
     this.hideTutorialDialogue();
     console.log('Tutorial completed');
+  }
+
+  /**
+   * Reset tutorial to initial state.
+   * Called when starting a new game.
+   */
+  public reset(): void {
+    this.currentStep = 'intro';
+    this.isActive = false;
+    this.hideTutorialDialogue();
+    console.log('Tutorial reset to initial state');
   }
 }

@@ -133,9 +133,9 @@ export class GarageScene extends BaseGameScene {
     // Button container
     const buttonContainer = this.uiManager.createButtonContainer();
 
-    // Go to Map button (primary action)
+    // Explore Map button (primary action)
     const mapBtn = this.uiManager.createButton(
-      'Go to Map',
+      'Explore Map',
       () => this.goToMap(),
       { style: { width: '100%' } }
     );
@@ -353,11 +353,11 @@ export class GarageScene extends BaseGameScene {
         return;
       }
       
-      // Start tutorial for new players (day 1, no cars, no prestige)
+      // Start tutorial for new players (day 1, no cars, no prestige, tutorial not started yet)
       const player = this.gameManager.getPlayerState();
       const world = this.gameManager.getWorldState();
       
-      if (world.day === 1 && player.inventory.length === 0 && player.prestige === 0) {
+      if (world.day === 1 && player.inventory.length === 0 && player.prestige === 0 && !this.tutorialManager.isTutorialActive()) {
         this.tutorialManager.startTutorial();
       }
     } catch (error) {
@@ -474,7 +474,7 @@ export class GarageScene extends BaseGameScene {
                       setTimeout(() => {
                         this.tutorialManager.showDialogueWithCallback(
                           'Uncle Ray',
-                          `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Go to Map" to find another opportunity - but this time, you'll face competition from other collectors!`,
+                          `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map" to find another opportunity - but this time, you'll face competition from other collectors!`,
                           () => this.setupUI()
                         );
                       }, 300);

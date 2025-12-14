@@ -51,7 +51,16 @@ export const GAME_CONFIG = {
   },
 
   economy: {
-    dailyRent: 100,
+    dailyRent: 100, // Base rent for 1 slot
+    
+    // Rent scales with garage slots to add progression challenge
+    rentByGarageSlots: {
+      1: 100,
+      2: 200,
+      3: 400,
+      4: 800,
+      5: 1600,
+    },
 
     // Emergency cash injection (MVP). Repayment not implemented.
     bankLoan: {

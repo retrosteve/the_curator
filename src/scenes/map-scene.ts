@@ -64,12 +64,18 @@ export class MapScene extends BaseGameScene {
   private setupEventListeners(): void {
     this.setupCommonEventListeners();
     eventBus.on('network-levelup', this.handleNetworkLevelUp);
+    eventBus.on('xp-gained', this.handleXPGained);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       eventBus.off('network-levelup', this.handleNetworkLevelUp);
+      eventBus.off('xp-gained', this.handleXPGained);
       this.cleanupDashboard();
     });
   }
+
+  private readonly handleXPGained = (data: { skill: 'eye' | 'tongue' | 'network'; amount: number }): void => {
+    this.uiManager.showXPGain(data.skill, data.amount);
+  };
 
   private createDashboard(): void {
     // Build location data

@@ -312,6 +312,7 @@ export class AuctionScene extends BaseGameScene {
         // Award Tongue XP for winning an auction
         const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.auction;
         const leveledUp = this.gameManager.addSkillXP('tongue', tongueXPGain);
+        this.uiManager.showXPGain('tongue', tongueXPGain);
         
         // Tutorial: Show completion message AFTER auction win modal is dismissed
         const isTutorialComplete = this.tutorialManager.isCurrentStep('redemption');

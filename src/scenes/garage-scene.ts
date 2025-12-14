@@ -972,8 +972,8 @@ export class GarageScene extends BaseGameScene {
     panel.appendChild(statsText);
 
     const infoText = this.uiManager.createText(
-      'Cars with 80%+ condition can be displayed. Go to Inventory to add/remove cars from display.',
-      { textAlign: 'center', fontSize: '14px', color: '#95a5a6', marginBottom: '20px' }
+      'Quality Tiers: Good (80-89%) = +1/day | Excellent (90-99%) = +2/day | Perfect (100%) = +3/day',
+      { textAlign: 'center', fontSize: '13px', color: '#95a5a6', marginBottom: '20px' }
     );
     panel.appendChild(infoText);
 
@@ -985,7 +985,26 @@ export class GarageScene extends BaseGameScene {
       panel.appendChild(emptyText);
     } else {
       museumCars.forEach((car) => {
+        const qualityTier = this.gameManager.getMuseumQualityTier(car.condition);
         const carPanel = this.createCarCard(car, 'museum', () => this.showMuseum());
+        
+        // Add quality tier badge to card
+        const tierBadge = document.createElement('div');
+        tierBadge.style.cssText = `
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: ${qualityTier.color};
+          color: #fff;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          font-weight: bold;
+        `;
+        tierBadge.textContent = `${qualityTier.tier}: +${qualityTier.prestigePerDay}/day`;
+        carPanel.style.position = 'relative';
+        carPanel.appendChild(tierBadge);
+        
         panel.appendChild(carPanel);
       });
     }

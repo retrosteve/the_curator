@@ -93,6 +93,70 @@ export class UIManager {
   }
 
   /**
+   * Show XP gain toast notification (e.g., '+10 Eye XP').
+   * Toast appears at top-right and fades out.
+   */
+  public showXPGain(skill: 'eye' | 'tongue' | 'network', amount: number): void {
+    const skillIcons = { eye: '👁️', tongue: '💬', network: '🌐' };
+    const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
+    const skillColors = { eye: '#3498db', tongue: '#9b59b6', network: '#e67e22' };
+    
+    const toast = document.createElement('div');
+    toast.textContent = `${skillIcons[skill]} +${amount} ${skillNames[skill]} XP`;
+    toast.style.cssText = `
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      padding: 12px 20px;
+      background: ${skillColors[skill]};
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      pointer-events: none;
+      z-index: 10000;
+      animation: slideInFadeOut 2s ease-out forwards;
+    `;
+    
+    // Add CSS animation if not already present
+    if (!document.getElementById('xpToastAnimation')) {
+      const style = document.createElement('style');
+      style.id = 'xpToastAnimation';
+      style.textContent = `
+        @keyframes slideInFadeOut {
+          0% {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+          15% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          85% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(toast);
+    
+    // Remove element after animation
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 2000);
+  }
+
+  /**
    * Clear all UI elements from the overlay.
    * Should be called when transitioning between UI states or scenes.
    * Preserves tutorial dialogues which persist across scenes.

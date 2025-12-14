@@ -155,8 +155,14 @@ export class GameManager {
     eventBus.emit('money-changed', this.player.money);
   }
 
+  /**
+   * Get current daily rent based on garage slots.
+   * Rent scales with capacity: 1 slot = $100, 2 = $200, 3 = $400, 4 = $800, 5 = $1600
+   */
   public getDailyRent(): number {
-    return DAILY_RENT;
+    const slots = this.player.garageSlots;
+    const rentConfig = GAME_CONFIG.economy.rentByGarageSlots as Record<number, number>;
+    return rentConfig[slots] || DAILY_RENT;
   }
 
   public getBankLoanAmount(): number {
@@ -199,9 +205,10 @@ export class GameManager {
    * @returns The amount paid.
    */
   private applyDailyRent(): number {
-    this.player.money -= DAILY_RENT;
+    const rent = this.getDailyRent();
+    this.player.money -= rent;
     eventBus.emit('money-changed', this.player.money);
-    return DAILY_RENT;
+    return rent;
   }
 
   /**
@@ -244,14 +251,26 @@ export class GameManager {
 
   /**
    * Calculate daily prestige bonus from museum cars.
+   * Quality tiers: 80-89% = 1 prestige, 90-99% = 2 prestige, 100% = 3 prestige
    * @returns Number of prestige points earned from museum
    */
   private calculateMuseumPrestigeBonus(): number {
     // Only count cars actively displayed in museum
     const museumCars = this.getMuseumCars();
 
-    // 1 prestige per museum car per day
-    return museumCars.length;
+    // Calculate prestige based on quality tiers
+    let totalPrestige = 0;
+    for (const car of museumCars) {
+      if (car.condition >= 100) {
+        totalPrestige += 3; // Perfect condition
+      } else if (car.condition >= 90) {
+        totalPrestige += 2; // Excellent condition
+      } else {
+        totalPrestige += 1; // Good condition (80-89%)
+      }
+    }
+
+    return totalPrestige;
   }
 
   /**
@@ -327,6 +346,21 @@ export class GameManager {
   }
 
   /**
+   * Get the quality tier for a museum car.
+   * @param condition - Car's condition percentage
+   * @returns Object with tier name and prestige per day
+   */
+  public getMuseumQualityTier(condition: number): { tier: string; prestigePerDay: number; color: string } {
+    if (condition >= 100) {
+      return { tier: 'Perfect', prestigePerDay: 3, color: '#f39c12' };
+    } else if (condition >= 90) {
+      return { tier: 'Excellent', prestigePerDay: 2, color: '#3498db' };
+    } else {
+      return { tier: 'Good', prestigePerDay: 1, color: '#95a5a6' };
+    }
+  }
+
+  /**
    * Remove car from inventory by ID.
    * @param carId - The unique ID of the car to remove
    * @returns True if car was found and removed, false otherwise
@@ -353,11 +387,12 @@ export class GameManager {
 
   /**
    * End the current day and start the next day with fresh AP.
-   * Applies daily rent (DAILY_RENT). If rent cannot be paid, the player is bankrupt.
+   * Applies daily rent (based on garage slots). If rent cannot be paid, the player is bankrupt.
    */
   public endDay(): EndDayResult {
-    if (this.player.money < DAILY_RENT) {
-      return { bankrupt: true, requiredRent: DAILY_RENT };
+    const rent = this.getDailyRent();
+    if (this.player.money < rent) {
+      return { bankrupt: true, requiredRent: rent };
     }
 
     this.world.day += 1;
@@ -471,6 +506,9 @@ export class GameManager {
     // Award Network XP for discovering new location
     const networkXPGain = GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation;
     const leveledUp = this.addSkillXP('network', networkXPGain);
+    
+    // Emit event for UI feedback
+    eventBus.emit('xp-gained', { skill: 'network', amount: networkXPGain });
     
     if (leveledUp) {
       eventBus.emit('network-levelup', this.player.skills.network as any);

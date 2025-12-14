@@ -228,3 +228,65 @@ p {
 ::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(135deg, #90caf9, #64b5f6);
 }
+
+/* Tutorial Dialogue Backdrop */
+.tutorial-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9998;
+  pointer-events: auto;
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Tutorial Dialogue Styles */
+.tutorial-dialogue {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 600px;
+  width: calc(100% - 40px);
+  background: linear-gradient(145deg, rgba(40, 30, 10, 0.98), rgba(60, 45, 20, 0.98));
+  border: 3px solid rgba(243, 156, 18, 0.6);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 40px rgba(243, 156, 18, 0.4),
+              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+  pointer-events: auto;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.tutorial-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid rgba(243, 156, 18, 0.3);
+}

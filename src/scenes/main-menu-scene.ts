@@ -20,7 +20,7 @@ export class MainMenuScene extends Phaser.Scene {
     console.log('Main Menu Scene: Loaded');
 
     this.gameManager = GameManager.getInstance();
-    this.uiManager = new UIManager();
+    this.uiManager = UIManager.getInstance();
     this.hasSavedGame = this.checkForSavedGame();
 
     this.setupBackground();

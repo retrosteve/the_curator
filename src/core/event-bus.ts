@@ -12,7 +12,6 @@ export type GameEvents = {
   'time-changed': number;
   'day-changed': number;
   'location-changed': string;
-  'show-dialogue': { speaker: string; text: string };
   'victory': any; // VictoryResult from GameManager
   'tutorial-complete': void;
   'skill-levelup': { skill: string; level: number };

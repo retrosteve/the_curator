@@ -212,11 +212,6 @@ export class MapScene extends BaseGameScene {
       }, 100);
     }
 
-    // Tutorial trigger: first inspect
-    if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_visit_scrapyard') {
-      this.tutorialManager.advanceStep('first_inspect');
-    }
-
     // Generate encounter based on node type
     this.generateEncounter(node);
   }
@@ -234,7 +229,7 @@ export class MapScene extends BaseGameScene {
       const step = this.tutorialManager.getCurrentStep();
       
       // Force Rusty Sedan for first inspection/buy
-      if (step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
+      if (step === 'first_visit_scrapyard' || step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
         const car = getCarById('tutorial_rusty_sedan') || getRandomCar();
         this.scene.start('NegotiationScene', { car });
         return;

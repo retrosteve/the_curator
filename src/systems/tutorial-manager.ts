@@ -1,4 +1,4 @@
-import { eventBus } from '@/core/event-bus';
+import { UIManager } from '@/ui/ui-manager';
 
 /**
  * Tutorial step identifiers.
@@ -19,13 +19,17 @@ export type TutorialStep =
  * TutorialManager - Singleton managing tutorial progression.
  * Tracks tutorial state and triggers appropriate dialogue/guidance.
  * Tutorial follows the script defined in docs/game-design.md.
+ * Tutorial dialogues use a dedicated UI system separate from game modals.
  */
 export class TutorialManager {
   private static instance: TutorialManager;
   private currentStep: TutorialStep = 'intro';
   private isActive: boolean = false;
+  private uiManager: UIManager;
 
-  private constructor() {}
+  private constructor() {
+    this.uiManager = UIManager.getInstance();
+  }
 
   public static getInstance(): TutorialManager {
     if (!TutorialManager.instance) {
@@ -42,8 +46,12 @@ export class TutorialManager {
     this.isActive = true;
     this.currentStep = 'intro';
     console.log('Tutorial started');
-    // Trigger intro dialogue
-    this.showDialogue("Uncle Ray", "Welcome to the garage, kid. It's a dump, but it's ours. Let's get you started in the car collecting business.");
+    // Trigger intro dialogue with callback to advance to next step
+    this.showDialogueWithCallback(
+      "Uncle Ray", 
+      "Welcome to the garage, kid. It's a dump, but it's ours. Let's get you started in the car collecting business.",
+      () => this.advanceStep('first_visit_scrapyard')
+    );
   }
 
   /**
@@ -76,14 +84,14 @@ export class TutorialManager {
       case 'first_buy':
         this.showDialogue(
           "Uncle Ray",
-          "Good purchase! Now return to the garage (click 'Return to Garage') so we can restore it."
+          "Good purchase! Click 'Inventory' in the garage to see your new car, then restore it to increase its value."
         );
         break;
       
       case 'first_restore':
         this.showDialogue(
           "Uncle Ray",
-          "In your inventory, select the car and choose 'Cheap Charlie's Quick Fix'. It's fast and cheap. Perform a Minor Service to improve its condition - this will take 4 hours."
+          "Great! The car's condition improved. Now let's flip it for profit - an NPC buyer is interested and will make you an offer."
         );
         break;
       
@@ -122,13 +130,22 @@ export class TutorialManager {
 
   /**
    * Show tutorial dialogue to the player.
-   * Emits show-dialogue event for UI to handle.
+   * Displays in dedicated tutorial UI separate from game modals.
    * @param speaker - Name of the character speaking
    * @param text - Dialogue text to display
    */
   private showDialogue(speaker: string, text: string): void {
-    // Emit event for UI to handle
-    eventBus.emit('show-dialogue', { speaker, text });
+    this.uiManager.showTutorialDialogue(speaker, text);
+  }
+
+  /**
+   * Show tutorial dialogue with a callback when dismissed.
+   * @param speaker - Name of the character speaking
+   * @param text - Dialogue text to display
+   * @param onDismiss - Callback to execute when dialogue is dismissed
+   */
+  private showDialogueWithCallback(speaker: string, text: string, onDismiss: () => void): void {
+    this.uiManager.showTutorialDialogue(speaker, text, onDismiss);
   }
 
   /**
@@ -179,15 +196,10 @@ export class TutorialManager {
   }
 
   /**
-   * Show a tutorial modal with specified content.
-   * Helper method to reduce UI duplication across scenes.
-   * @param title - Modal title
-   * @param message - Modal message content
-   * @param buttonText - Text for the action button (default: 'OK')
+   * Hide the current tutorial dialogue.
    */
-  public showTutorialModal(title: string, message: string, buttonText: string = 'OK'): void {
-    if (!this.isActive) return;
-    eventBus.emit('show-tutorial-modal', { title, message, buttonText });
+  public hideTutorialDialogue(): void {
+    this.uiManager.hideTutorialDialogue();
   }
 
   /**
@@ -196,6 +208,7 @@ export class TutorialManager {
   public completeTutorial(): void {
     this.isActive = false;
     this.currentStep = 'complete';
+    this.hideTutorialDialogue();
     console.log('Tutorial completed');
   }
 }

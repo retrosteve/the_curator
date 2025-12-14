@@ -6,9 +6,13 @@ import { Car } from '@/data/car-database';
  * Creates and manages DOM elements for menus, buttons, HUD, and modals.
  * All interactive UI is rendered via DOM, not Phaser Text objects.
  * Container uses pointer-events:none; individual elements use pointer-events:auto.
+ * Singleton pattern ensures consistent UI state across scenes.
  */
 export class UIManager {
+  private static instance: UIManager;
   private container: HTMLElement;
+  private tutorialDialogueElement: HTMLElement | null = null;
+  private tutorialBackdropElement: HTMLElement | null = null;
 
   private static formatLocationLabel(location: string): string {
     const normalized = location.replace(/[_-]+/g, ' ').trim();
@@ -20,12 +24,19 @@ export class UIManager {
       .join(' ');
   }
 
-  constructor() {
+  private constructor() {
     const overlay = document.getElementById('ui-overlay');
     if (!overlay) {
       throw new Error('UI overlay container not found');
     }
     this.container = overlay;
+  }
+
+  public static getInstance(): UIManager {
+    if (!UIManager.instance) {
+      UIManager.instance = new UIManager();
+    }
+    return UIManager.instance;
   }
 
   /**
@@ -557,5 +568,87 @@ export class UIManager {
         onClick: onCancel || (() => {}),
       },
     ]);
+  }
+
+  /**
+   * Show a tutorial dialogue with character portrait.
+   * Tutorial dialogues are styled differently and positioned at the bottom
+   * to avoid conflicts with game modals.
+   * @param speaker - Name of the character speaking (e.g., "Uncle Ray", "Sterling Vance")
+   * @param text - Dialogue text to display
+   * @param onDismiss - Optional callback when dialogue is dismissed
+   */
+  public showTutorialDialogue(speaker: string, text: string, onDismiss?: () => void): void {
+    // Remove existing tutorial dialogue if present
+    this.hideTutorialDialogue();
+
+    // Create backdrop to block interaction
+    const backdrop = document.createElement('div');
+    backdrop.className = 'tutorial-backdrop';
+    this.tutorialBackdropElement = backdrop;
+    this.container.appendChild(backdrop);
+
+    const dialogue = document.createElement('div');
+    dialogue.className = 'tutorial-dialogue';
+    dialogue.id = 'tutorial-dialogue';
+
+    const header = document.createElement('div');
+    header.className = 'tutorial-header';
+    
+    const speakerName = document.createElement('h3');
+    speakerName.textContent = speaker;
+    speakerName.style.margin = '0';
+    speakerName.style.fontSize = '20px';
+    speakerName.style.color = '#f39c12';
+    speakerName.style.fontFamily = 'Orbitron, sans-serif';
+    
+    header.appendChild(speakerName);
+    dialogue.appendChild(header);
+
+    const content = document.createElement('p');
+    content.textContent = text;
+    content.style.margin = '12px 0 0 0';
+    content.style.fontSize = '16px';
+    content.style.lineHeight = '1.6';
+    content.style.color = '#e0e6ed';
+    content.style.fontFamily = 'Rajdhani, sans-serif';
+    content.style.whiteSpace = 'pre-line';
+    
+    dialogue.appendChild(content);
+
+    const dismissBtn = this.createButton(
+      'Got it',
+      () => {
+        this.hideTutorialDialogue();
+        if (onDismiss) {
+          onDismiss();
+        }
+      },
+      { 
+        variant: 'info',
+        style: { 
+          marginTop: '16px',
+          width: '100%'
+        } 
+      }
+    );
+    dialogue.appendChild(dismissBtn);
+
+    this.tutorialDialogueElement = dialogue;
+    this.container.appendChild(dialogue);
+  }
+
+  /**
+   * Hide the currently displayed tutorial dialogue.
+   */
+  public hideTutorialDialogue(): void {
+    if (this.tutorialBackdropElement) {
+      this.tutorialBackdropElement.remove();
+      this.tutorialBackdropElement = null;
+    }
+    if (this.tutorialDialogueElement) {
+      this.tutorialDialogueElement.remove();
+      this.tutorialDialogueElement = null;
+    }
   }
 }

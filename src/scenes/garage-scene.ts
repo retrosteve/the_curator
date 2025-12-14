@@ -405,17 +405,6 @@ export class GarageScene extends BaseGameScene {
         const carPanel = this.createCarCard(car, 'inventory', () => this.showInventory());
         panel.appendChild(carPanel);
       });
-
-      // Tutorial guidance: first car in inventory (show after cards are rendered)
-      if (this.tutorialManager.isCurrentStep('first_buy')) {
-        setTimeout(() => {
-          this.uiManager.showModal(
-            'Your First Car!',
-            'Click the "Restore" button on your car below to improve its condition. Choose a service - higher quality costs more but gives better results. This will advance time.',
-            [{ text: 'Got it', onClick: () => {} }]
-          );
-        }, 100);
-      }
     }
 
     const backBtn = this.uiManager.createButton(
@@ -458,17 +447,17 @@ export class GarageScene extends BaseGameScene {
           const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
           this.gameManager.updateCar(result.car);
           
-          // Tutorial trigger: first restore
-          if (isTutorialFirstRestore) {
-            this.tutorialManager.advanceStep('first_restore');
-          }
-          
           this.uiManager.showModal(
             'Restoration Result',
             result.message,
             [{
               text: 'OK',
               onClick: () => {
+                // Tutorial trigger: advance to first_restore AFTER seeing result
+                if (isTutorialFirstRestore) {
+                  this.tutorialManager.advanceStep('first_restore');
+                }
+                
                 // Tutorial: Auto-sell the first car after restoration
                 if (this.tutorialManager.isCurrentStep('first_restore')) {
                   this.showInventory();
@@ -633,11 +622,6 @@ export class GarageScene extends BaseGameScene {
 
   private goToMap(): void {
     try {
-      // Tutorial trigger: first visit to scrapyard
-      if (this.tutorialManager && this.tutorialManager.isCurrentStep('intro')) {
-        this.tutorialManager.advanceStep('first_visit_scrapyard');
-      }
-      
       this.scene.start('MapScene');
     } catch (error) {
       console.error('Error going to map:', error);

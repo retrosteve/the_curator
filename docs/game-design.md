@@ -199,6 +199,15 @@ As the player levels up, they improve three core tools:
 - **Cheap Charlie:** Low Cost / High Speed / Risk of Value Drop.
 - **The Artisan:** High Cost / Low Speed / Value Multiplier.
 
+### Restoration UI
+- **Card-Based Selection:** Players choose specialists via an interactive card layout showing:
+  - Specialist name and description
+  - Cost (money) and AP cost
+  - Expected condition gain
+  - **Profit Preview:** Estimated profit/loss and ROI percentage calculated before committing
+  - Risk warnings (if applicable, e.g., Cheap Charlie's potential value loss)
+- **Informed Decision-Making:** The profit preview simulates the restoration outcome and compares future sale value against current value minus restoration costs, helping players choose the most profitable specialist.
+
 ### Restoration Abstraction
 - Do **not** implement individual parts (Tires/Engine/Paint) as separate
   systems.

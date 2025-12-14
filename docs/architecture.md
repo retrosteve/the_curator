@@ -18,6 +18,7 @@ This document covers implementation constraints; gameplay rules and tuning live 
 - The overlay root is `#ui-overlay` and the Phaser canvas container is `#phaser-game`.
 - Keep the overlay container `pointer-events: none`; set interactive children to `pointer-events: auto`.
 - Tutorial dialogues are rendered via `UIManager.showTutorialDialogue()` and styled with `.tutorial-dialogue` CSS class.
+- **Custom Modals:** Complex UIs (e.g., restoration specialist selection) use dedicated modal methods (e.g., `UIManager.showRestorationModal()`) with custom layouts instead of generic button-based modals for better UX.
 
 ## Scenes & Transitions
 - Scenes live under `src/scenes/`.

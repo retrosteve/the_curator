@@ -69,17 +69,16 @@ export class AuctionScene extends BaseGameScene {
     });
 
     // Car info
-    const carHeading = this.uiManager.createHeading(this.car.name, 2, {
-      textAlign: 'center',
-      color: '#ffd700',
+    const carPanel = this.uiManager.createCarInfoPanel(this.car, {
+      showValue: true,
+      titleColor: '#ffd700',
+      style: {
+        marginBottom: '20px',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        border: '1px solid #ffd700'
+      }
     });
-    panel.appendChild(carHeading);
-
-    const carInfo = this.uiManager.createText(
-      `Condition: ${this.car.condition}/100 | Base Value: ${formatCurrency(this.car.baseValue)}`,
-      { textAlign: 'center', marginBottom: '20px' }
-    );
-    panel.appendChild(carInfo);
+    panel.appendChild(carPanel);
 
     // Current bid
     const bidHeading = this.uiManager.createHeading(

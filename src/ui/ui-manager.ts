@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/utils/format';
+import { Car } from '@/data/car-database';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -340,6 +341,61 @@ export class UIManager {
     this.append(backdrop);
     this.append(modal);
     return modal;
+  }
+
+  /**
+   * Create a standardized car info panel.
+   * @param car - The car to display
+   * @param options - Configuration options
+   * @returns Configured panel element
+   */
+  public createCarInfoPanel(car: Car, options?: {
+    showValue?: boolean;
+    customValueText?: string;
+    showCondition?: boolean;
+    showTags?: boolean;
+    style?: Partial<CSSStyleDeclaration>;
+    titleColor?: string;
+  }): HTMLDivElement {
+    const panel = this.createPanel({
+      textAlign: 'center',
+      ...options?.style
+    });
+
+    const title = this.createHeading(car.name, 2, {
+      color: options?.titleColor || '#ecf0f1',
+      marginBottom: '10px'
+    });
+    panel.appendChild(title);
+
+    const details: string[] = [];
+    if (options?.showCondition !== false) {
+      details.push(`Condition: ${car.condition}/100`);
+    }
+    
+    if (options?.customValueText) {
+      details.push(options.customValueText);
+    } else if (options?.showValue) {
+       details.push(`Base Value: ${formatCurrency(car.baseValue)}`);
+    }
+
+    if (details.length > 0) {
+      const infoText = this.createText(details.join(' | '), {
+        marginBottom: '10px',
+        fontSize: '16px'
+      });
+      panel.appendChild(infoText);
+    }
+
+    if (options?.showTags !== false && car.tags && car.tags.length > 0) {
+       const tagsText = this.createText(`Tags: ${car.tags.join(', ')}`, {
+         color: '#bdc3c7',
+         fontSize: '14px'
+       });
+       panel.appendChild(tagsText);
+    }
+
+    return panel;
   }
 
   /**

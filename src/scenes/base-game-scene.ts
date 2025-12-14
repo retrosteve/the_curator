@@ -38,6 +38,14 @@ export abstract class BaseGameScene extends Phaser.Scene {
     this.uiManager.updateHUD({ location });
   };
 
+  protected readonly handleShowDialogue = (data: { speaker: string; text: string }): void => {
+    try {
+      this.uiManager.showModal(data.speaker, data.text, [{ text: 'OK', onClick: () => {} }]);
+    } catch (error) {
+      console.error('Error showing tutorial dialogue:', error);
+    }
+  };
+
   /**
    * Initialize common managers used by all gameplay scenes.
    * Call this in your scene's create() method before setupBackground() and setupUI().
@@ -62,6 +70,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.on('time-changed', this.handleTimeChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
+    eventBus.on('show-dialogue', this.handleShowDialogue);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupCommonEventListeners();
@@ -78,6 +87,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('time-changed', this.handleTimeChanged);
     eventBus.off('day-changed', this.handleDayChanged);
     eventBus.off('location-changed', this.handleLocationChanged);
+    eventBus.off('show-dialogue', this.handleShowDialogue);
     
     // Clear cached HUD on cleanup
     this.clearCachedHUD();

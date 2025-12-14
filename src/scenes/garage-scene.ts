@@ -35,17 +35,6 @@ export class GarageScene extends BaseGameScene {
     }
   };
 
-  private readonly handleShowDialogue = (data: { speaker: string; text: string }): void => {
-    try {
-      this.uiManager.showModal(data.speaker, data.text, [{ text: 'OK', onClick: () => {
-        // Tutorial dialogue acknowledged - no automatic advancement here
-        // Tutorial will advance based on player actions (visit scrapyard, inspect, buy, etc.)
-      }}]);
-    } catch (error) {
-      console.error('Error showing tutorial dialogue:', error);
-    }
-  };
-
   private readonly handleVictory = (victoryResult: any): void => {
     const { prestige, unicorns, museumCars, skillLevel } = victoryResult;
     
@@ -223,7 +212,6 @@ export class GarageScene extends BaseGameScene {
     
     this.setupCommonEventListeners();
     eventBus.on('inventory-changed', this.handleInventoryChanged);
-    eventBus.on('show-dialogue', this.handleShowDialogue);
     eventBus.on('victory', this.handleVictory);
     eventBus.on('tutorial-complete', this.handleTutorialComplete);
 
@@ -234,7 +222,6 @@ export class GarageScene extends BaseGameScene {
 
   private cleanupEventListeners(): void {
     eventBus.off('inventory-changed', this.handleInventoryChanged);
-    eventBus.off('show-dialogue', this.handleShowDialogue);
     eventBus.off('victory', this.handleVictory);
     eventBus.off('tutorial-complete', this.handleTutorialComplete);
   }

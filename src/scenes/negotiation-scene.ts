@@ -72,40 +72,33 @@ export class NegotiationScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
     
     // Car Info Panel
-    const infoPanel = this.uiManager.createPanel({
-      position: 'absolute',
-      top: '100px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      width: '600px',
-      textAlign: 'center',
+    const infoPanel = this.uiManager.createCarInfoPanel(this.car, {
+      showValue: false,
+      style: {
+        position: 'absolute',
+        top: '100px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '600px',
+      }
     });
 
-    const title = document.createElement('h2');
-    title.textContent = this.car.name;
-    title.style.color = '#ecf0f1';
-    infoPanel.appendChild(title);
-
-    const priceTag = document.createElement('div');
+    // Asking Price (Dynamic)
+    const priceTag = this.uiManager.createText(`Asking Price: ${formatCurrency(this.askingPrice)}`, {
+      fontSize: '24px',
+      color: '#f1c40f',
+      margin: '20px 0',
+      textAlign: 'center'
+    });
     priceTag.id = 'asking-price';
-    priceTag.textContent = `Asking Price: ${formatCurrency(this.askingPrice)}`;
-    priceTag.style.fontSize = '24px';
-    priceTag.style.color = '#f1c40f';
-    priceTag.style.margin = '20px 0';
-    infoPanel.appendChild(priceTag);
-
-    const details = document.createElement('div');
-    details.innerHTML = `
-      <p>Condition: ${this.car.condition}/100</p>
-      <p>Tags: ${this.car.tags.join(', ')}</p>
-    `;
-    details.style.color = '#bdc3c7';
-    infoPanel.appendChild(details);
+    // Insert price after title (first child is title)
+    infoPanel.insertBefore(priceTag, infoPanel.children[1]);
 
     // Hidden details (Eye Skill)
     if (player.skills.eye >= 2 && this.car.history && this.car.history.length > 0) {
-      const history = document.createElement('div');
-      history.innerHTML = `<p style="color: #e74c3c">History: ${this.car.history.join(', ')}</p>`;
+      const history = this.uiManager.createText(`History: ${this.car.history.join(', ')}`, {
+        color: '#e74c3c'
+      });
       infoPanel.appendChild(history);
     }
 
@@ -123,16 +116,26 @@ export class NegotiationScene extends BaseGameScene {
 
     // Special Event Info
     if (this.specialEvent) {
-      const eventInfo = document.createElement('div');
-      eventInfo.innerHTML = `
-        <p style="color: #f39c12; font-weight: bold;">Special Event: ${this.specialEvent.name}</p>
-        <p style="color: #bdc3c7; font-style: italic;">${this.specialEvent.description}</p>
-      `;
-      eventInfo.style.marginTop = '20px';
-      eventInfo.style.padding = '10px';
-      eventInfo.style.backgroundColor = 'rgba(243, 156, 18, 0.1)';
-      eventInfo.style.borderRadius = '5px';
-      infoPanel.appendChild(eventInfo);
+      const eventPanel = this.uiManager.createPanel({
+        marginTop: '20px',
+        padding: '10px',
+        backgroundColor: 'rgba(243, 156, 18, 0.1)',
+        borderRadius: '5px'
+      });
+      
+      const eventName = this.uiManager.createText(`Special Event: ${this.specialEvent.name}`, {
+        color: '#f39c12',
+        fontWeight: 'bold'
+      });
+      
+      const eventDesc = this.uiManager.createText(this.specialEvent.description, {
+        color: '#bdc3c7',
+        fontStyle: 'italic'
+      });
+      
+      eventPanel.appendChild(eventName);
+      eventPanel.appendChild(eventDesc);
+      infoPanel.appendChild(eventPanel);
     }
 
     this.uiManager.append(infoPanel);
@@ -233,7 +236,8 @@ export class NegotiationScene extends BaseGameScene {
     }
 
     // Tutorial trigger: first buy
-      if (this.tutorialManager.isCurrentStep('first_inspect')) {
+    if (this.tutorialManager.isCurrentStep('first_inspect')) {
+      this.tutorialManager.advanceStep('first_buy');
     }
 
     // Apply special event rewards

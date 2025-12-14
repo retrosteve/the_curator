@@ -161,6 +161,23 @@ export class UIManager {
   }
 
   /**
+   * Create a styled button container with flex layout.
+   * Standard container for vertically stacked buttons.
+   * @param style - Optional CSS style overrides
+   * @returns Configured div element for buttons
+   */
+  public createButtonContainer(style?: Partial<CSSStyleDeclaration>): HTMLDivElement {
+    const container = document.createElement('div');
+    Object.assign(container.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      ...style,
+    });
+    return container;
+  }
+
+  /**
    * Append element to the UI overlay container.
    * @param element - Element to add to the overlay
    */
@@ -177,6 +194,55 @@ export class UIManager {
     if (this.container.contains(element)) {
       this.container.removeChild(element);
     }
+  }
+
+  /**
+   * Show a skill level-up modal with standardized formatting.
+   * @param skill - The skill that leveled up ('eye' | 'tongue' | 'network')
+   * @param level - The new skill level
+   * @param description - Optional description of new abilities unlocked
+   */
+  public showSkillLevelUpModal(
+    skill: 'eye' | 'tongue' | 'network',
+    level: number,
+    description?: string
+  ): void {
+    const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
+    const skillName = skillNames[skill];
+    const defaultDescriptions = {
+      eye: 'You can now spot more details when inspecting cars.',
+      tongue: 'You can now haggle more effectively.',
+      network: 'Your network has expanded, revealing new opportunities.',
+    };
+    const message = description || defaultDescriptions[skill];
+    
+    this.showModal(
+      `${skillName} Skill Level Up!`,
+      `Your ${skillName} skill improved to level ${level}!\n\n${message}`,
+      [{ text: 'Excellent!', onClick: () => {} }]
+    );
+  }
+
+  /**
+   * Show a garage full modal with standardized formatting.
+   */
+  public showGarageFullModal(): void {
+    this.showModal(
+      'Garage Full',
+      'Garage Full - Sell or Scrap current car first.',
+      [{ text: 'OK', onClick: () => {} }]
+    );
+  }
+
+  /**
+   * Show an insufficient funds modal with standardized formatting.
+   */
+  public showInsufficientFundsModal(): void {
+    this.showModal(
+      'Not Enough Money',
+      "You don't have enough money for this purchase.",
+      [{ text: 'OK', onClick: () => {} }]
+    );
   }
 
   /**

@@ -50,10 +50,10 @@ export class NegotiationScene extends BaseGameScene {
       bottomColor: 0x27ae60,
     });
     this.setupUI();
-    this.setupEventListeners();
+    this.setupCommonEventListeners();
 
     // Tutorial guidance: first inspect
-    if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_inspect') {
+    if (this.tutorialManager.isCurrentStep('first_inspect')) {
       setTimeout(() => {
         this.uiManager.showModal(
           'Your First Car Inspection',
@@ -62,10 +62,6 @@ export class NegotiationScene extends BaseGameScene {
         );
       }, 500); // Small delay to let UI render first
     }
-  }
-
-  private setupEventListeners(): void {
-    this.setupCommonEventListeners();
   }
 
 
@@ -120,10 +116,10 @@ export class NegotiationScene extends BaseGameScene {
     const leveledUp = this.gameManager.addSkillXP('eye', eyeXPGain);
     if (leveledUp) {
       const progress = this.gameManager.getSkillProgress('eye');
-      this.uiManager.showModal(
-        'Skill Level Up!',
-        `Your Eye skill improved to level ${progress.level}! You can now spot more details when inspecting cars.`,
-        [{ text: 'Nice!', onClick: () => {} }]
+      this.uiManager.showSkillLevelUpModal(
+        'eye',
+        progress.level,
+        'You can now spot more details when inspecting cars.'
       );
     }
 
@@ -195,10 +191,10 @@ export class NegotiationScene extends BaseGameScene {
     if (leveledUp) {
       const progress = this.gameManager.getSkillProgress('tongue');
       setTimeout(() => {
-        this.uiManager.showModal(
-          'Skill Level Up!',
-          `Your Tongue skill improved to level ${progress.level}! You can now haggle more effectively.`,
-          [{ text: 'Excellent!', onClick: () => {} }]
+        this.uiManager.showSkillLevelUpModal(
+          'tongue',
+          progress.level,
+          'You can now haggle more effectively.'
         );
       }, 100);
     }
@@ -218,30 +214,23 @@ export class NegotiationScene extends BaseGameScene {
   }
 
   private handleBuy(): void {
-    if (this.gameManager.getPlayerState().inventory.length >= this.gameManager.getPlayerState().garageSlots) {
+    const player = this.gameManager.getPlayerState();
+    
+    if (player.inventory.length >= player.garageSlots) {
        // Check garage capacity
-       this.uiManager.showModal(
-         'Garage Full',
-         'Garage Full - Sell or Scrap current car first.',
-         [{ text: 'OK', onClick: () => {} }]
-       );
+       this.uiManager.showGarageFullModal();
        return;
     }
 
     if (!this.gameManager.spendMoney(this.askingPrice)) {
-      this.uiManager.showModal(
-        'Not Enough Money',
-        "You don't have enough money to buy this car.",
-        [{ text: 'OK', onClick: () => {} }]
-      );
+      this.uiManager.showInsufficientFundsModal();
       return;
     }
 
     this.gameManager.addCar(this.car);
 
     // Tutorial trigger: first buy
-    if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_inspect') {
-      this.tutorialManager.advanceStep('first_buy');
+      if (this.tutorialManager.isCurrentStep('first_inspect')) {
     }
 
     // Apply special event rewards

@@ -9,6 +9,24 @@ import { GAME_CONFIG } from '@/config/game-config';
 export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 
 /**
+ * Get human-readable tier name from tier number.
+ * @param tier - The tier number (1, 2, or 3)
+ * @returns Human-readable tier name
+ */
+export function getTierName(tier: 1 | 2 | 3): string {
+  switch (tier) {
+    case 1:
+      return 'Tycoon';
+    case 2:
+      return 'Enthusiast';
+    case 3:
+      return 'Scrapper';
+    default:
+      return 'Unknown';
+  }
+}
+
+/**
  * Rival data structure.
  * Tiers: 1=Tycoon (late-game, hardest), 2=Enthusiast (mid-game), 3=Scrapper (early-game, easiest)
  * Note: Tier numbering is intentionally inverted from difficulty.

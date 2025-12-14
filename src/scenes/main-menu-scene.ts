@@ -77,11 +77,7 @@ export class MainMenuScene extends Phaser.Scene {
     container.appendChild(subtitle);
 
     // Button container
-    const buttonContainer = document.createElement('div');
-    Object.assign(buttonContainer.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '15px',
+    const buttonContainer = this.uiManager.createButtonContainer({
       alignItems: 'center',
       marginTop: '40px',
     });

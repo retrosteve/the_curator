@@ -117,22 +117,9 @@ export class GarageScene extends BaseGameScene {
     this.currentView = 'menu';
 
     const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
 
     // Create HUD
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
 
     // Create main menu panel
@@ -158,12 +145,7 @@ export class GarageScene extends BaseGameScene {
     menuPanel.appendChild(garageStatus);
 
     // Button container
-    const buttonContainer = document.createElement('div');
-    Object.assign(buttonContainer.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-    });
+    const buttonContainer = this.uiManager.createButtonContainer();
 
     // Go to Map button (primary action)
     const mapBtn = this.uiManager.createButton(
@@ -283,23 +265,10 @@ export class GarageScene extends BaseGameScene {
     this.uiManager.clear();
     this.currentView = 'inventory';
 
-    const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
-
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
+
+    const player = this.gameManager.getPlayerState();
 
     const panel = this.uiManager.createPanel({
       position: 'absolute',
@@ -324,7 +293,7 @@ export class GarageScene extends BaseGameScene {
       panel.appendChild(emptyText);
     } else {
       // Tutorial guidance: first car in inventory
-      if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_buy') {
+      if (this.tutorialManager.isCurrentStep('first_buy')) {
         setTimeout(() => {
           this.uiManager.showModal(
             'Your First Car!',
@@ -348,10 +317,7 @@ export class GarageScene extends BaseGameScene {
           `Value: $${Economy.getSalePrice(car, this.gameManager).toLocaleString()}`
         );
 
-        const buttonContainer = document.createElement('div');
-        Object.assign(buttonContainer.style, {
-          display: 'flex',
-          gap: '10px',
+        const buttonContainer = this.uiManager.createButtonContainer({
           marginTop: '10px',
           flexWrap: 'wrap',
         });
@@ -458,7 +424,7 @@ export class GarageScene extends BaseGameScene {
           this.timeSystem.advanceTime(opt.time);
           
           // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
-          const isTutorialFirstRestore = this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_buy';
+          const isTutorialFirstRestore = this.tutorialManager.isCurrentStep('first_buy');
           const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
           this.gameManager.updateCar(result.car);
           
@@ -474,7 +440,7 @@ export class GarageScene extends BaseGameScene {
               text: 'OK',
               onClick: () => {
                 // Tutorial: Auto-sell the first car after restoration
-                if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_restore') {
+                if (this.tutorialManager.isCurrentStep('first_restore')) {
                   this.showInventory();
                   // Auto-trigger the sale
                   setTimeout(() => {
@@ -511,11 +477,7 @@ export class GarageScene extends BaseGameScene {
             }]
           );
         } else {
-          this.uiManager.showModal(
-            'Not Enough Money',
-            "You don't have enough money for that service.",
-            [{ text: 'OK', onClick: () => {} }]
-          );
+          this.uiManager.showInsufficientFundsModal();
         }
       }
     }));
@@ -549,7 +511,7 @@ export class GarageScene extends BaseGameScene {
             this.gameManager.removeCar(carId);
             
             // Tutorial trigger: first flip
-            if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_restore') {
+            if (this.tutorialManager.isCurrentStep('first_restore')) {
               this.tutorialManager.advanceStep('first_flip');
             }
             
@@ -615,7 +577,7 @@ export class GarageScene extends BaseGameScene {
   private goToMap(): void {
     try {
       // Tutorial trigger: first visit to scrapyard
-      if (this.tutorialManager && this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'intro') {
+      if (this.tutorialManager && this.tutorialManager.isCurrentStep('intro')) {
         this.tutorialManager.advanceStep('first_visit_scrapyard');
       }
       
@@ -690,7 +652,6 @@ export class GarageScene extends BaseGameScene {
     const result = this.timeSystem.endDay();
 
     if (result.bankrupt) {
-      // Defensive: this should be prevented by the rent pre-check above.
       this.uiManager.showModal(
         'Bankrupt',
         `You can't pay today's rent ($${result.requiredRent.toLocaleString()}).\n\nGame Over.`,
@@ -867,24 +828,10 @@ export class GarageScene extends BaseGameScene {
     this.uiManager.clear();
     this.currentView = 'museum';
 
-    const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
     const museumCars = this.getMuseumCars();
     const prestigeBonus = this.getMuseumPrestigeBonus();
 
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
 
     const panel = this.uiManager.createPanel({
@@ -976,21 +923,7 @@ export class GarageScene extends BaseGameScene {
     this.uiManager.clear();
 
     const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
-
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
 
     const panel = this.uiManager.createPanel({

@@ -44,6 +44,7 @@ const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
 
 const SAVE_KEY = 'theCuratorSave';
+const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second
 
 /**
  * Saved game data structure.
@@ -85,6 +86,7 @@ export class GameManager {
   private world!: WorldState;
   private marketSystem: MarketFluctuationSystem;
   private specialEventsSystem: SpecialEventsSystem;
+  private saveDebounceTimer: number | null = null;
 
   private constructor() {
     this.marketSystem = MarketFluctuationSystem.getInstance();
@@ -237,7 +239,7 @@ export class GameManager {
     this.player.prestige -= cost;
     this.player.garageSlots += 1;
     eventBus.emit('prestige-changed', this.player.prestige);
-    this.save(); // Auto-save on upgrade
+    this.debouncedSave(); // Auto-save on upgrade
     return true;
   }
 
@@ -261,7 +263,7 @@ export class GameManager {
   public addCar(car: Car): void {
     this.player.inventory.push(car);
     eventBus.emit('inventory-changed', this.player.inventory);
-    this.save(); // Auto-save on inventory change
+    this.debouncedSave(); // Auto-save on inventory change
   }
 
   /**
@@ -275,7 +277,7 @@ export class GameManager {
 
     this.player.inventory[index] = updatedCar;
     eventBus.emit('inventory-changed', this.player.inventory);
-    this.save(); // Auto-save on car update
+    this.debouncedSave(); // Auto-save on car update
     return true;
   }
 
@@ -297,7 +299,7 @@ export class GameManager {
 
     car.displayInMuseum = !car.displayInMuseum;
     eventBus.emit('inventory-changed', this.player.inventory);
-    this.save(); // Auto-save on museum status change
+    this.debouncedSave(); // Auto-save on museum status change
 
     const action = car.displayInMuseum ? 'added to' : 'removed from';
     return { success: true, message: `${car.name} ${action} museum display` };
@@ -330,7 +332,7 @@ export class GameManager {
     if (index !== -1) {
       this.player.inventory.splice(index, 1);
       eventBus.emit('inventory-changed', this.player.inventory);
-      this.save(); // Auto-save on inventory change
+      this.debouncedSave(); // Auto-save on inventory change
       return true;
     }
     return false;
@@ -386,7 +388,7 @@ export class GameManager {
     eventBus.emit('day-changed', this.world.day);
     eventBus.emit('time-changed', this.world.timeOfDay);
 
-    this.save(); // Auto-save on day end
+    this.save(); // Immediate save on day end (critical checkpoint)
     return { bankrupt: false, rentPaid };
   }
 
@@ -432,7 +434,7 @@ export class GameManager {
       this.player.skills[skill] += 1;
       this.player.skillXP[skill] = 0; // Reset XP for next level
       eventBus.emit('skill-levelup', { skill, level: this.player.skills[skill] });
-      this.save(); // Auto-save on level-up
+      this.debouncedSave(); // Auto-save on level-up
       return true;
     }
 
@@ -582,6 +584,20 @@ export class GameManager {
     eventBus.emit('day-changed', this.world.day);
     eventBus.emit('time-changed', this.world.timeOfDay);
     eventBus.emit('location-changed', this.world.currentLocation);
+  }
+
+  /**
+   * Schedule a debounced save.
+   * Multiple calls within the debounce window will result in a single save.
+   */
+  private debouncedSave(): void {
+    if (this.saveDebounceTimer !== null) {
+      clearTimeout(this.saveDebounceTimer);
+    }
+    this.saveDebounceTimer = window.setTimeout(() => {
+      this.save();
+      this.saveDebounceTimer = null;
+    }, SAVE_DEBOUNCE_MS);
   }
 
   /**

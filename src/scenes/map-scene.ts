@@ -19,11 +19,6 @@ interface MapNode {
   specialEvent?: any; // For special event nodes
 }
 
-// Time costs for different map actions (in hours)
-const TRAVEL_HOURS = GAME_CONFIG.timeCosts.travelHours;
-const INSPECT_HOURS = GAME_CONFIG.timeCosts.inspectHours;
-const AUCTION_HOURS = GAME_CONFIG.timeCosts.auctionHours;
-
 /**
  * Map Scene - Player explores locations and finds cars.
  * Displays clickable nodes representing different locations.
@@ -42,11 +37,7 @@ export class MapScene extends BaseGameScene {
     
     const message = abilities[level as keyof typeof abilities] || 'Your Network has improved!';
     
-    this.uiManager.showModal(
-      'Network Skill Level Up!',
-      `Your Network skill improved to level ${level}!\n\n${message}`,
-      [{ text: 'Excellent!', onClick: () => {} }]
-    );
+    this.uiManager.showSkillLevelUpModal('network', level, message);
   };
 
   constructor() {
@@ -135,7 +126,7 @@ export class MapScene extends BaseGameScene {
       }).setOrigin(0.5);
 
       // Add time cost (use special event time cost if available)
-      const timeCost = (node as any).specialEvent?.timeCost || TRAVEL_HOURS;
+      const timeCost = (node as any).specialEvent?.timeCost || GAME_CONFIG.timeCosts.travelHours;
       this.add.text(node.x, node.y, `${timeCost}h`, {
         fontSize: '18px',
         color: '#fff',
@@ -177,7 +168,7 @@ export class MapScene extends BaseGameScene {
   }
 
   private visitNode(node: MapNode): void {
-    const timeCost = (node as any).specialEvent?.timeCost || TRAVEL_HOURS;
+    const timeCost = (node as any).specialEvent?.timeCost || GAME_CONFIG.timeCosts.travelHours;
     const requiredHours = timeCost;
 
     const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
-import { Car, calculateCarValue } from '@/data/car-database';
-import { Rival } from '@/data/rival-database';
+import { Car, calculateCarValue, getCarById } from '@/data/car-database';
+import { Rival, getTierName, getRivalById, calculateRivalInterest } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 
@@ -51,10 +51,6 @@ export class AuctionScene extends BaseGameScene {
       titleColor: '#ffd700',
     });
     this.setupUI();
-    this.setupEventListeners();
-  }
-
-  private setupEventListeners(): void {
     this.setupCommonEventListeners();
   }
 
@@ -62,6 +58,7 @@ export class AuctionScene extends BaseGameScene {
   private setupUI(): void {
     this.uiManager.clear();
 
+    const player = this.gameManager.getPlayerState();
     const hud = this.createStandardHUD();
     this.uiManager.append(hud);
 
@@ -105,7 +102,7 @@ export class AuctionScene extends BaseGameScene {
       { fontWeight: 'bold' }
     );
     const rivalTier = this.uiManager.createText(
-      `Tier: ${this.getTierName(this.rival.tier)}`,
+      `Tier: ${getTierName(this.rival.tier)}`,
       { fontSize: '14px', color: '#ccc' }
     );
     const rivalPatience = this.uiManager.createText(
@@ -129,12 +126,7 @@ export class AuctionScene extends BaseGameScene {
     panel.appendChild(playerInfo);
 
     // Action buttons
-    const buttonContainer = document.createElement('div');
-    Object.assign(buttonContainer.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-    });
+    const buttonContainer = this.uiManager.createButtonContainer();
 
     const bidBtn = this.uiManager.createButton(
       `Bid +$${AuctionScene.BID_INCREMENT.toLocaleString()}`,
@@ -194,11 +186,7 @@ export class AuctionScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
 
     if (player.money < newBid) {
-      this.uiManager.showModal(
-        'Not Enough Money',
-        "You don't have enough money for this bid.",
-        [{ text: 'OK', onClick: () => {} }]
-      );
+      this.uiManager.showInsufficientFundsModal();
       return;
     }
 
@@ -217,11 +205,11 @@ export class AuctionScene extends BaseGameScene {
   }
 
   private playerKickTires(): void {
-    const eye = this.gameManager.getPlayerState().skills.eye;
-    if (eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
+    const player = this.gameManager.getPlayerState();
+    if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
       this.uiManager.showModal(
         'Requires Skill',
-        `Kick Tires requires Eye level ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES} (you have ${eye}).`,
+        `Kick Tires requires Eye level ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES} (you have ${player.skills.eye}).`,
         [{ text: 'OK', onClick: () => {} }]
       );
       return;
@@ -239,7 +227,8 @@ export class AuctionScene extends BaseGameScene {
   }
 
   private playerStall(): void {
-    const tongue = this.gameManager.getPlayerState().skills.tongue;
+    const player = this.gameManager.getPlayerState();
+    const tongue = player.skills.tongue;
     if (tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
       this.uiManager.showModal(
         'Requires Skill',
@@ -298,22 +287,17 @@ export class AuctionScene extends BaseGameScene {
 
   private endAuction(playerWon: boolean, message: string): void {
     // Tutorial triggers
-    if (this.tutorialManager.isTutorialActive()) {
-      const currentStep = this.tutorialManager.getCurrentStep();
-      
-      // Lost to Sterling Vance in first_flip
-      if (!playerWon && currentStep === 'first_flip') {
-        this.tutorialManager.advanceStep('first_loss');
-      }
-      // Won redemption battle against Scrapyard Joe
-      else if (playerWon && currentStep === 'redemption') {
-        this.tutorialManager.advanceStep('complete');
-      }
+    if (this.tutorialManager.isCurrentStep('first_flip') && !playerWon) {
+      this.tutorialManager.advanceStep('first_loss');
+    } else if (this.tutorialManager.isCurrentStep('redemption') && playerWon) {
+      this.tutorialManager.advanceStep('complete');
     }
 
     if (playerWon) {
+      const player = this.gameManager.getPlayerState();
+      
       // Check garage capacity
-      if (this.gameManager.getPlayerState().inventory.length >= this.gameManager.getPlayerState().garageSlots) {
+      if (player.inventory.length >= player.garageSlots) {
         this.uiManager.showModal(
           'Garage Full!',
           `You won the auction, but your garage is full!\n\nYou are forced to forfeit the car.`,
@@ -347,7 +331,7 @@ export class AuctionScene extends BaseGameScene {
       }
     } else {
       // Tutorial: After losing to Sterling Vance, immediately encounter Scrapyard Joe at the same sale
-      if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_loss') {
+      if (this.tutorialManager.isCurrentStep('first_loss')) {
         this.uiManager.showModal(
           'Auction Lost',
           message + '\n\nSterling drives away with a smug grin...',
@@ -363,7 +347,7 @@ export class AuctionScene extends BaseGameScene {
                     const boxywagon = getCarById('tutorial_boxy_wagon');
                     const scrappyJoe = getRivalById('scrapyard_joe');
                     if (boxywagon && scrappyJoe) {
-                      const interest = this.calculateRivalInterest(scrappyJoe, boxywagon.tags);
+                      const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
                       this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
                     }
                   }, 100);
@@ -389,43 +373,4 @@ export class AuctionScene extends BaseGameScene {
     }
   }
 
-  /**
-   * Calculate rival interest level based on their wishlist tags.
-   * @param rival - The rival
-   * @param carTags - The car's tags
-   * @returns Interest multiplier (1.0 to 2.0)
-   */
-  private calculateRivalInterest(rival: Rival, carTags: string[]): number {
-    const matchingTags = carTags.filter(tag => rival.wishlist.includes(tag));
-    return matchingTags.length > 0 ? 1.5 : 1.0;
-  }
-
-  /**
-   * Calculate rival interest level based on their wishlist tags.
-   * @param rival - The rival
-   * @param carTags - The car's tags
-   * @returns Interest multiplier (1.0 to 2.0)
-   */
-  private calculateRivalInterest(rival: Rival, carTags: string[]): number {
-    const matchingTags = carTags.filter(tag => rival.wishlist.includes(tag));
-    return matchingTags.length > 0 ? 1.5 : 1.0;
-  }
-
-  /**
-   * Get human-readable tier name from tier number.
-   * @param tier - The tier number (1, 2, or 3)
-   * @returns Human-readable tier name
-   */
-  private getTierName(tier: 1 | 2 | 3): string {
-    switch (tier) {
-      case 1:
-        return 'Tycoon';
-      case 2:
-        return 'Enthusiast';
-      case 3:
-        return 'Scrapper';
-      default:
-        return 'Unknown';
-    }
-  }
 }

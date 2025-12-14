@@ -142,14 +142,4 @@ export class Economy {
   ): number {
     return salePrice - purchasePrice - restorationCost;
   }
-
-  /**
-   * Generate a random market modifier representing demand fluctuation.
-   * @returns Random value between GAME_CONFIG.economy.market.modifierMin and modifierMax
-   */
-  public static getMarketModifier(): number {
-    const min = GAME_CONFIG.economy.market.modifierMin;
-    const max = GAME_CONFIG.economy.market.modifierMax;
-    return min + Math.random() * (max - min);
-  }
 }

@@ -148,6 +148,16 @@ export class TutorialManager {
   }
 
   /**
+   * Check if the tutorial is active and on a specific step.
+   * Convenience method to reduce boilerplate in scenes.
+   * @param step - The tutorial step to check
+   * @returns True if tutorial is active and on the specified step
+   */
+  public isCurrentStep(step: TutorialStep): boolean {
+    return this.isActive && this.currentStep === step;
+  }
+
+  /**
    * Get tutorial state for saving.
    * @returns Object with tutorial state
    */
@@ -166,6 +176,18 @@ export class TutorialManager {
     this.currentStep = state.currentStep;
     this.isActive = state.isActive;
     console.log(`Tutorial state loaded: step=${state.currentStep}, active=${state.isActive}`);
+  }
+
+  /**
+   * Show a tutorial modal with specified content.
+   * Helper method to reduce UI duplication across scenes.
+   * @param title - Modal title
+   * @param message - Modal message content
+   * @param buttonText - Text for the action button (default: 'OK')
+   */
+  public showTutorialModal(title: string, message: string, buttonText: string = 'OK'): void {
+    if (!this.isActive) return;
+    eventBus.emit('show-tutorial-modal', { title, message, buttonText });
   }
 
   /**

@@ -40,6 +40,59 @@ export class UIManager {
   }
 
   /**
+   * Show floating money text animation (e.g., '+$2,500' when selling).
+   * Text floats upward and fades out.
+   */
+  public showFloatingMoney(amount: number, isPositive: boolean = true): void {
+    const floatingText = document.createElement('div');
+    const symbol = isPositive ? '+' : '-';
+    const color = isPositive ? '#2ecc71' : '#e74c3c';
+    
+    floatingText.textContent = `${symbol}${formatCurrency(Math.abs(amount))}`;
+    floatingText.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: bold;
+      color: ${color};
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+      pointer-events: none;
+      z-index: 10000;
+      animation: floatUp 1.5s ease-out forwards;
+    `;
+    
+    // Add CSS animation if not already present
+    if (!document.getElementById('floatingMoneyAnimation')) {
+      const style = document.createElement('style');
+      style.id = 'floatingMoneyAnimation';
+      style.textContent = `
+        @keyframes floatUp {
+          0% {
+            opacity: 1;
+            transform: translate(-50%, -50%) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) translateY(-100px);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(floatingText);
+    
+    // Remove element after animation
+    setTimeout(() => {
+      if (floatingText.parentNode) {
+        floatingText.parentNode.removeChild(floatingText);
+      }
+    }, 1500);
+  }
+
+  /**
    * Clear all UI elements from the overlay.
    * Should be called when transitioning between UI states or scenes.
    * Preserves tutorial dialogues which persist across scenes.

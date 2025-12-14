@@ -29,6 +29,44 @@ export class TutorialManager {
 
   private constructor() {
     this.uiManager = UIManager.getInstance();
+    this.setupKeyboardListener();
+  }
+
+  /**
+   * Setup ESC key listener to skip tutorial.
+   */
+  private setupKeyboardListener(): void {
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.isActive && this.currentStep !== 'complete') {
+        this.showSkipTutorialPrompt();
+      }
+    });
+  }
+
+  /**
+   * Show prompt to confirm skipping tutorial.
+   */
+  private showSkipTutorialPrompt(): void {
+    const existingModal = document.querySelector('.modal-backdrop');
+    if (existingModal) return; // Don't show if modal already open
+
+    this.uiManager.showModal(
+      'Skip Tutorial?',
+      'Are you sure you want to skip the tutorial? You can always replay it by starting a new game.',
+      [
+        {
+          text: 'Skip Tutorial',
+          onClick: () => {
+            this.completeTutorial();
+            console.log('Tutorial skipped by user');
+          },
+        },
+        {
+          text: 'Continue Tutorial',
+          onClick: () => {},
+        },
+      ]
+    );
   }
 
   public static getInstance(): TutorialManager {

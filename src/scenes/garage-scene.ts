@@ -130,6 +130,50 @@ export class GarageScene extends BaseGameScene {
     );
     menuPanel.appendChild(garageStatus);
 
+    // Skill XP Progress Bars
+    const skillsPanel = document.createElement('div');
+    skillsPanel.style.cssText = 'margin: 15px 0; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;';
+    
+    const skillsHeading = this.uiManager.createText('Skills', { fontWeight: 'bold', marginBottom: '8px' });
+    skillsPanel.appendChild(skillsHeading);
+
+    const skills: Array<'eye' | 'tongue' | 'network'> = ['eye', 'tongue', 'network'];
+    const skillNames = { eye: '👁 Eye', tongue: '💬 Tongue', network: '🌐 Network' };
+    
+    skills.forEach(skill => {
+      const progress = this.gameManager.getSkillProgress(skill);
+      const isMaxLevel = progress.level >= 5;
+      
+      const skillRow = document.createElement('div');
+      skillRow.style.cssText = 'margin-bottom: 8px;';
+      
+      // Skill label with level and XP
+      const label = document.createElement('div');
+      label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;';
+      label.innerHTML = `
+        <span>${skillNames[skill]} Lvl ${progress.level}</span>
+        <span>${isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`}</span>
+      `;
+      skillRow.appendChild(label);
+      
+      // Progress bar
+      if (!isMaxLevel) {
+        const progressBar = document.createElement('div');
+        progressBar.style.cssText = 'width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden;';
+        
+        const progressFill = document.createElement('div');
+        const percentage = (progress.current / progress.required) * 100;
+        progressFill.style.cssText = `width: ${percentage}%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: width 0.3s ease;`;
+        
+        progressBar.appendChild(progressFill);
+        skillRow.appendChild(progressBar);
+      }
+      
+      skillsPanel.appendChild(skillRow);
+    });
+    
+    menuPanel.appendChild(skillsPanel);
+
     // Button container
     const buttonContainer = this.uiManager.createButtonContainer();
 
@@ -516,6 +560,7 @@ export class GarageScene extends BaseGameScene {
       () => {
         this.gameManager.addMoney(salePrice);
         this.gameManager.removeCar(carId);
+        this.uiManager.showFloatingMoney(salePrice, true);
         
         // Tutorial trigger: first flip
         if (this.tutorialManager.isCurrentStep('first_restore')) {
@@ -533,20 +578,51 @@ export class GarageScene extends BaseGameScene {
     const victoryResult = this.gameManager.checkVictory();
     const { prestige, unicorns, museumCars, skillLevel } = victoryResult;
 
-    const checkMark = (met: boolean) => met ? '✓' : '✗';
-    
-    const message = 
-      `${checkMark(prestige.met)} Prestige: ${formatNumber(prestige.current)} / ${formatNumber(prestige.required)}\n` +
-      `${checkMark(unicorns.met)} Unicorn Cars in Museum: ${unicorns.current} / ${unicorns.required}\n` +
-      `${checkMark(museumCars.met)} Total Museum Cars (80%+): ${museumCars.current} / ${museumCars.required}\n` +
-      `${checkMark(skillLevel.met)} Max Skill Level: ${skillLevel.current} / ${skillLevel.required}\n\n` +
-      (victoryResult.hasWon 
-        ? '🎉 All conditions met! End the day to claim victory!' 
-        : 'Keep building your collection to achieve victory!');
+    // Create custom modal content with progress bars
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = 'padding: 10px;';
+
+    const createProgressRow = (label: string, current: number, required: number, met: boolean) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'margin-bottom: 15px;';
+      
+      const labelDiv = document.createElement('div');
+      labelDiv.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold;';
+      labelDiv.innerHTML = `
+        <span>${met ? '✅' : '⬜'} ${label}</span>
+        <span>${current} / ${required}</span>
+      `;
+      row.appendChild(labelDiv);
+      
+      const progressBar = document.createElement('div');
+      progressBar.style.cssText = 'width: 100%; height: 20px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden;';
+      
+      const progressFill = document.createElement('div');
+      const percentage = Math.min((current / required) * 100, 100);
+      const color = met ? '#2ecc71' : (percentage >= 75 ? '#f39c12' : '#3498db');
+      progressFill.style.cssText = `width: ${percentage}%; height: 100%; background: ${color}; transition: width 0.5s ease;`;
+      
+      progressBar.appendChild(progressFill);
+      row.appendChild(progressBar);
+      
+      return row;
+    };
+
+    modalContent.appendChild(createProgressRow('Prestige', prestige.current, prestige.required, prestige.met));
+    modalContent.appendChild(createProgressRow('Unicorns in Museum', unicorns.current, unicorns.required, unicorns.met));
+    modalContent.appendChild(createProgressRow('Museum Cars (80%+)', museumCars.current, museumCars.required, museumCars.met));
+    modalContent.appendChild(createProgressRow('Max Skill Level', skillLevel.current, skillLevel.required, skillLevel.met));
+
+    const statusText = document.createElement('div');
+    statusText.style.cssText = `margin-top: 20px; text-align: center; font-weight: bold; font-size: 16px; color: ${victoryResult.hasWon ? '#2ecc71' : '#f39c12'};`;
+    statusText.textContent = victoryResult.hasWon 
+      ? '🎉 ALL CONDITIONS MET! End the day to claim victory!' 
+      : 'Keep building your collection to achieve victory!';
+    modalContent.appendChild(statusText);
 
     this.uiManager.showModal(
-      'Victory Progress',
-      message,
+      '🏆 Victory Progress',
+      modalContent.outerHTML,
       [{ text: 'Close', onClick: () => {} }]
     );
   }
@@ -563,6 +639,7 @@ export class GarageScene extends BaseGameScene {
       () => {
         this.gameManager.addMoney(salePrice);
         this.gameManager.removeCar(carId);
+        this.uiManager.showFloatingMoney(salePrice, true);
         this.showInventory();
       },
       () => this.showInventory(),

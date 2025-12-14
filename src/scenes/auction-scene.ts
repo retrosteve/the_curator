@@ -102,16 +102,63 @@ export class AuctionScene extends BaseGameScene {
       `Tier: ${getTierName(this.rival.tier)}`,
       { fontSize: '14px', color: '#ccc' }
     );
-    const rivalPatience = this.uiManager.createText(
-      `Patience: ${this.rivalAI.getPatience()}/100`
+
+    // Patience bar with color coding and status
+    const patience = this.rivalAI.getPatience();
+    const patiencePercent = Math.max(0, Math.min(100, patience));
+    let patienceColor = '#4CAF50'; // Green
+    let patienceStatus = '';
+    
+    if (patience <= 0) {
+      patienceColor = '#000';
+      patienceStatus = ' 💥 BREAKING!';
+    } else if (patience < 20) {
+      patienceColor = '#f44336';
+      patienceStatus = ' ⚠️ About to quit!';
+    } else if (patience < 30) {
+      patienceColor = '#ff9800';
+      patienceStatus = ' 😰 Sweating...';
+    } else if (patience < 50) {
+      patienceColor = '#FFC107';
+      patienceStatus = ' 😤 Getting annoyed';
+    }
+
+    const patienceLabel = this.uiManager.createText(
+      `Patience: ${patience}/100${patienceStatus}`,
+      { marginBottom: '8px', fontWeight: 'bold' }
     );
+    rivalInfo.appendChild(patienceLabel);
+
+    // Patience progress bar
+    const patienceBarContainer = document.createElement('div');
+    Object.assign(patienceBarContainer.style, {
+      width: '100%',
+      height: '20px',
+      backgroundColor: 'rgba(0,0,0,0.3)',
+      borderRadius: '10px',
+      overflow: 'hidden',
+      marginBottom: '12px',
+      border: '2px solid rgba(255,255,255,0.2)',
+    });
+
+    const patienceBarFill = document.createElement('div');
+    Object.assign(patienceBarFill.style, {
+      width: `${patiencePercent}%`,
+      height: '100%',
+      backgroundColor: patienceColor,
+      transition: 'all 0.3s ease',
+      boxShadow: `0 0 10px ${patienceColor}`,
+    });
+
+    patienceBarContainer.appendChild(patienceBarFill);
+    rivalInfo.appendChild(patienceBarContainer);
+
     const rivalBudget = this.uiManager.createText(
       `Budget: ${formatCurrency(this.rivalAI.getBudget())}`
     );
 
     rivalInfo.appendChild(rivalName);
     rivalInfo.appendChild(rivalTier);
-    rivalInfo.appendChild(rivalPatience);
     rivalInfo.appendChild(rivalBudget);
     panel.appendChild(rivalInfo);
 
@@ -267,10 +314,22 @@ export class AuctionScene extends BaseGameScene {
     } else {
       this.currentBid += decision.bidAmount;
       
+      // Add flavor text based on rival's patience level
+      const patience = this.rivalAI.getPatience();
+      let flavorText = '';
+      
+      if (patience < 20) {
+        flavorText = '\n\n"This is my FINAL offer!"';
+      } else if (patience < 30) {
+        flavorText = '\n\n"I\'m getting tired of this..."';
+      } else if (patience < 50) {
+        flavorText = '\n\n"You\'re really pushing it."';
+      }
+      
       setTimeout(() => {
         this.uiManager.showModal(
           'Rival Bids!',
-          `${this.rival.name} raised the bid by ${formatCurrency(decision.bidAmount)}!\n\nNew bid: ${formatCurrency(this.currentBid)}`,
+          `${this.rival.name} raised the bid by ${formatCurrency(decision.bidAmount)}!\n\nNew bid: ${formatCurrency(this.currentBid)}${flavorText}`,
           [
             {
               text: 'Continue',

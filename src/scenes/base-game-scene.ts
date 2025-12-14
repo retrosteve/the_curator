@@ -134,6 +134,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
     const victoryResult = this.gameManager.checkVictory();
+    const museumIncome = this.gameManager.getMuseumIncomeInfo();
 
     this.cachedHUD = this.uiManager.createHUD({
       money: player.money,
@@ -147,6 +148,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
         total: player.garageSlots,
       },
       market: this.gameManager.getMarketDescription(),
+      museumIncome: museumIncome.carCount > 0 ? museumIncome : undefined,
       victoryProgress: {
         museumCars: victoryResult.museumCars,
         onClickProgress: () => {

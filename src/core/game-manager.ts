@@ -361,6 +361,39 @@ export class GameManager {
   }
 
   /**
+   * Get museum income information for display.
+   * @returns Object with total daily prestige, car count, and breakdown by quality
+   */
+  public getMuseumIncomeInfo(): {
+    totalPerDay: number;
+    carCount: number;
+    breakdown: { good: number; excellent: number; perfect: number };
+  } {
+    const museumCars = this.getMuseumCars();
+    const breakdown = { good: 0, excellent: 0, perfect: 0 };
+    let totalPerDay = 0;
+
+    for (const car of museumCars) {
+      if (car.condition >= 100) {
+        breakdown.perfect += 1;
+        totalPerDay += 3;
+      } else if (car.condition >= 90) {
+        breakdown.excellent += 1;
+        totalPerDay += 2;
+      } else {
+        breakdown.good += 1;
+        totalPerDay += 1;
+      }
+    }
+
+    return {
+      totalPerDay,
+      carCount: museumCars.length,
+      breakdown,
+    };
+  }
+
+  /**
    * Remove car from inventory by ID.
    * @param carId - The unique ID of the car to remove
    * @returns True if car was found and removed, false otherwise

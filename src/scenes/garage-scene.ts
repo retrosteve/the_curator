@@ -230,6 +230,14 @@ export class GarageScene extends BaseGameScene {
     );
     buttonContainer.appendChild(victoryBtn);
 
+    // Skills Reference button
+    const skillsRefBtn = this.uiManager.createButton(
+      '📚 Skills Reference',
+      () => this.showSkillsReference(),
+      { style: { width: '100%', backgroundColor: '#8e44ad' } }
+    );
+    buttonContainer.appendChild(skillsRefBtn);
+
     // Rival Info button
     const rivalInfoBtn = this.uiManager.createButton(
       '🏆 Rival Tiers',
@@ -640,6 +648,82 @@ export class GarageScene extends BaseGameScene {
       modalContent.outerHTML,
       [{ text: 'Close', onClick: () => {} }]
     );
+  }
+
+  /**
+   * Show skills reference panel with all abilities and progression info.
+   */
+  private showSkillsReference(): void {
+    const player = this.gameManager.getPlayerState();
+
+    const skillsData = {
+      eye: {
+        name: '👁 Eye (Inspection)',
+        color: '#3498db',
+        abilities: [
+          { level: 1, description: 'Basic inspection - see car condition' },
+          { level: 2, description: 'Reveal car history (Flooded, Rust, Mint)' },
+          { level: 3, description: 'Kick Tires in auctions (reduce rival budget)' },
+          { level: 4, description: 'See exact damage percentages' },
+          { level: 5, description: 'Appraisal mastery - predict market trends' },
+        ],
+      },
+      tongue: {
+        name: '💬 Tongue (Negotiation)',
+        color: '#9b59b6',
+        abilities: [
+          { level: 1, description: 'Basic haggling - minor price reduction' },
+          { level: 2, description: 'Improved haggling - better deals' },
+          { level: 3, description: 'Stall tactic in auctions (drain rival patience)' },
+          { level: 4, description: 'Master negotiator - significant discounts' },
+          { level: 5, description: 'Silver tongue - sellers trust you completely' },
+        ],
+      },
+      network: {
+        name: '🌐 Network (Connections)',
+        color: '#e67e22',
+        abilities: [
+          { level: 1, description: 'Access to basic dealerships' },
+          { level: 2, description: 'Spot special events more clearly' },
+          { level: 3, description: 'Access to exclusive private sales' },
+          { level: 4, description: 'See rival movements and locations' },
+          { level: 5, description: 'Underground deals and legendary cars' },
+        ],
+      },
+    };
+
+    let message = '';
+
+    (['eye', 'tongue', 'network'] as const).forEach((skill) => {
+      const data = skillsData[skill];
+      const currentLevel = player.skills[skill];
+      const progress = this.gameManager.getSkillProgress(skill);
+
+      message += `${data.name} - Level ${currentLevel}/5\n`;
+      if (currentLevel < 5) {
+        message += `Next level: ${progress.current}/${progress.required} XP\n`;
+      } else {
+        message += `✨ MAX LEVEL \n`;
+      }
+      message += `\n`;
+
+      data.abilities.forEach((ability) => {
+        const unlocked = currentLevel >= ability.level;
+        const isCurrent = currentLevel === ability.level - 1;
+        const icon = unlocked ? '🔓' : '🔒';
+        const style = unlocked ? '' : ' (locked)';
+        const nextIndicator = isCurrent ? ' 👈 NEXT' : '';
+
+        message += `  ${icon} Lvl ${ability.level}: ${ability.description}${style}${nextIndicator}\n`;
+      });
+      message += `\n`;
+    });
+
+    message += `\nEarn XP by:\n• Inspecting cars (+10 Eye XP)\n• Haggling (+5 Tongue XP)\n• Winning auctions (+15 Tongue XP)\n• Visiting new locations (+20 Network XP)`;
+
+    this.uiManager.showModal('📚 Skills Reference', message, [
+      { text: 'Close', onClick: () => {} },
+    ]);
   }
 
   private sellCarAsIs(carId: string): void {

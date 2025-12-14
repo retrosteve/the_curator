@@ -810,6 +810,10 @@ export class UIManager {
       total: number;
     };
     market?: string;
+    museumIncome?: {
+      totalPerDay: number;
+      carCount: number;
+    };
     victoryProgress?: {
       museumCars: { current: number; required: number };
       onClickProgress?: () => void;
@@ -837,6 +841,7 @@ export class UIManager {
     hud.innerHTML = `
       <div data-hud="money">💰 Money: ${formatCurrency(data.money)}</div>
       ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
+      ${data.museumIncome !== undefined && data.museumIncome.carCount > 0 ? `<div data-hud="museum-income" style="color: #f39c12; font-size: 13px;" title="Museum cars generate prestige daily based on condition quality">🏛️ Museum: +${data.museumIncome.totalPerDay} prestige/day (${data.museumIncome.carCount} cars)</div>` : ''}
       ${data.garage !== undefined ? `<div data-hud="garage">🏠 Garage: ${data.garage.used}/${data.garage.total}</div>` : ''}
       ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
       <div data-hud="day">📅 Day: ${data.day}</div>

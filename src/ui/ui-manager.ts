@@ -42,9 +42,23 @@ export class UIManager {
   /**
    * Clear all UI elements from the overlay.
    * Should be called when transitioning between UI states or scenes.
+   * Preserves tutorial dialogues which persist across scenes.
    */
   public clear(): void {
+    // Store tutorial elements temporarily
+    const tutorialBackdrop = this.tutorialBackdropElement;
+    const tutorialDialogue = this.tutorialDialogueElement;
+    
+    // Clear everything
     this.container.innerHTML = '';
+    
+    // Restore tutorial elements if they existed
+    if (tutorialBackdrop) {
+      this.container.appendChild(tutorialBackdrop);
+    }
+    if (tutorialDialogue) {
+      this.container.appendChild(tutorialDialogue);
+    }
   }
 
   /**

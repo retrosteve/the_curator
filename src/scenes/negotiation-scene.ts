@@ -260,8 +260,11 @@ export class NegotiationScene extends BaseGameScene {
           // Tutorial trigger: first buy - advance AFTER dismissing this modal
           if (this.tutorialManager.isCurrentStep('first_inspect')) {
             this.tutorialManager.advanceStep('first_buy');
+            // Small delay to ensure tutorial dialogue appears before scene transition
+            setTimeout(() => this.handleLeave(), 100);
+          } else {
+            this.handleLeave();
           }
-          this.handleLeave();
         }
       }]
     );

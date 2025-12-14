@@ -77,7 +77,7 @@ export class TutorialManager {
       case 'first_inspect':
         this.showDialogue(
           "Uncle Ray",
-          "This is a Rusty Sedan. Use your Eye skill to inspect it - look for issues like bald tires. If the price is right, buy it for around $1,500."
+          "You're now inspecting this Rusty Sedan. Your Eye skill (currently level 1) shows you the basics - condition is 30%, which is pretty rough. At higher levels, you'll see hidden damage details. The asking price should be under $400 for a car this beat up. Go ahead and accept if that matches."
         );
         break;
       

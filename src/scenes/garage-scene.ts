@@ -491,8 +491,8 @@ export class GarageScene extends BaseGameScene {
       // Simulate restoration result
       const simulatedCar = { ...car, condition: Math.min(100, car.condition + opt.conditionGain) };
       const futureValue = Economy.getSalePrice(simulatedCar, this.gameManager);
-      const profit = futureValue - currentValue - opt.cost;
-      const roi = ((profit / opt.cost) * 100).toFixed(0);
+      const valueIncrease = futureValue - currentValue;
+      const netProfit = valueIncrease - opt.cost;
       
       return {
         name: opt.name,
@@ -500,8 +500,8 @@ export class GarageScene extends BaseGameScene {
         apCost: opt.apCost,
         description: opt.description,
         conditionGain: opt.conditionGain,
-        profit,
-        roi,
+        valueIncrease,
+        netProfit,
         risk: opt.risk,
         onClick: () => {
           const block = this.timeSystem.getAPBlockModal(opt.apCost, `restoring ${car.name}`);
@@ -876,15 +876,47 @@ export class GarageScene extends BaseGameScene {
       return;
     }
 
+    const dayStats = this.gameManager.getDayStatsAndReset();
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
+    const museumIncome = this.gameManager.getMuseumIncomeInfo();
+    const marketDesc = this.gameManager.getMarketDescription();
+
+    // Build day summary
+    let summary = `🌃 Day ${world.day - 1} Complete\n\n`;
+    summary += `💼 ACTIVITY SUMMARY:\n`;
+    summary += `• Cars Acquired: ${dayStats.carsAcquired}\n`;
+    summary += `• Money Earned: ${formatCurrency(dayStats.moneyEarned)}\n`;
+    summary += `• Money Spent: ${formatCurrency(dayStats.moneySpent)}\n`;
+    summary += `• Rent Paid: ${formatCurrency(result.rentPaid)}\n`;
+    
+    const netMoney = dayStats.netMoney - result.rentPaid;
+    const netColor = netMoney >= 0 ? '+' : '';
+    summary += `• Net Income: ${netColor}${formatCurrency(netMoney)}\n\n`;
+    
+    if (museumIncome.carCount > 0) {
+      summary += `🏛️ MUSEUM EARNINGS:\n`;
+      summary += `• Prestige from Museum: +${museumIncome.totalPerDay}\n`;
+      if (dayStats.prestigeGained > museumIncome.totalPerDay) {
+        summary += `• Other Prestige Gained: +${dayStats.prestigeGained - museumIncome.totalPerDay}\n`;
+      }
+      summary += `• Total Prestige Gained: +${dayStats.prestigeGained}\n\n`;
+    } else if (dayStats.prestigeGained > 0) {
+      summary += `🏆 Prestige Gained: +${dayStats.prestigeGained}\n\n`;
+    }
+    
+    summary += `💰 Current Money: ${formatCurrency(player.money)}\n`;
+    summary += `🏆 Total Prestige: ${player.prestige}\n\n`;
+    summary += `🌅 DAY ${world.day} FORECAST:\n`;
+    summary += `• ${marketDesc}\n`;
+    summary += `• New opportunities await on the map`;
 
     this.uiManager.showModal(
-      'Day Ended',
-      `Welcome to Day ${world.day}!\nDaily Rent Paid: ${formatCurrency(result.rentPaid)}\n\nMoney: ${formatCurrency(player.money)}\nCars: ${player.inventory.length}`,
+      `🌃 End of Day ${world.day - 1}`,
+      summary,
       [
         {
-          text: 'Continue',
+          text: 'Start New Day',
           onClick: () => {
             this.setupUI();
             // Show morning briefing after day transition (skip during tutorial)

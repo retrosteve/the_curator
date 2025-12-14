@@ -418,8 +418,8 @@ export class UIManager {
       apCost: number;
       description: string;
       conditionGain: number;
-      profit: number;
-      roi: string;
+      valueIncrease: number;
+      netProfit: number;
       risk?: string;
       onClick: () => void;
     }>,
@@ -562,12 +562,22 @@ export class UIManager {
       });
       statsRow.appendChild(conditionGain);
 
-      const profitColor = opt.profit >= 0 ? '#2ecc71' : '#e74c3c';
-      const profitIcon = opt.profit >= 0 ? '🟢' : '🔴';
-      const profitStr = opt.profit >= 0 ? `+${formatCurrency(opt.profit)}` : formatCurrency(opt.profit);
+      // Value increase (always positive)
+      const valueInfo = document.createElement('div');
+      valueInfo.textContent = `💰 Value: +${formatCurrency(opt.valueIncrease)}`;
+      Object.assign(valueInfo.style, {
+        fontSize: '14px',
+        color: '#64b5f6',
+      });
+      statsRow.appendChild(valueInfo);
+      
+      // Net profit after costs
+      const profitColor = opt.netProfit >= 0 ? '#2ecc71' : '#e74c3c';
+      const profitIcon = opt.netProfit >= 0 ? '🟢' : '🔴';
+      const profitStr = opt.netProfit >= 0 ? `+${formatCurrency(opt.netProfit)}` : formatCurrency(opt.netProfit);
       
       const profitInfo = document.createElement('div');
-      profitInfo.textContent = `${profitIcon} Est. Profit: ${profitStr} (ROI: ${opt.roi}%)`;
+      profitInfo.textContent = `${profitIcon} Net: ${profitStr}`;
       Object.assign(profitInfo.style, {
         fontSize: '14px',
         color: profitColor,

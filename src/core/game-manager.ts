@@ -36,6 +36,12 @@ export interface WorldState {
   day: number;
   currentAP: number; // Remaining Action Points for today
   currentLocation: string;
+  dayStats: {
+    carsAcquired: number;
+    moneyEarned: number;
+    moneySpent: number;
+    prestigeGained: number;
+  };
 }
 
 const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
@@ -117,6 +123,12 @@ export class GameManager {
       day: 1,
       currentAP: MAX_AP,
       currentLocation: 'garage',
+      dayStats: {
+        carsAcquired: 0,
+        moneyEarned: 0,
+        moneySpent: 0,
+        prestigeGained: 0,
+      },
     };
   }
 
@@ -152,6 +164,9 @@ export class GameManager {
    */
   public addMoney(amount: number): void {
     this.player.money += amount;
+    if (amount > 0) {
+      this.world.dayStats.moneyEarned += amount;
+    }
     eventBus.emit('money-changed', this.player.money);
   }
 
@@ -196,6 +211,7 @@ export class GameManager {
     if (this.player.money < amount) return false;
 
     this.player.money -= amount;
+    this.world.dayStats.moneySpent += amount;
     eventBus.emit('money-changed', this.player.money);
     return true;
   }
@@ -284,6 +300,7 @@ export class GameManager {
       return false;
     }
     this.player.inventory.push(car);
+    this.world.dayStats.carsAcquired += 1;
     eventBus.emit('inventory-changed', this.player.inventory);
     this.debouncedSave(); // Auto-save on inventory change
     return true;
@@ -407,6 +424,31 @@ export class GameManager {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Get current day statistics and reset for next day.
+   * @returns Object with day stats before reset
+   */
+  public getDayStatsAndReset(): {
+    carsAcquired: number;
+    moneyEarned: number;
+    moneySpent: number;
+    prestigeGained: number;
+    netMoney: number;
+  } {
+    const stats = { ...this.world.dayStats };
+    const netMoney = stats.moneyEarned - stats.moneySpent;
+    
+    // Reset for next day
+    this.world.dayStats = {
+      carsAcquired: 0,
+      moneyEarned: 0,
+      moneySpent: 0,
+      prestigeGained: 0,
+    };
+    
+    return { ...stats, netMoney };
   }
 
   /**
@@ -723,6 +765,16 @@ export class GameManager {
         this.player.visitedLocations = new Set(['garage']);
       } else if (Array.isArray(this.player.visitedLocations)) {
         this.player.visitedLocations = new Set(this.player.visitedLocations as any);
+      }
+
+      // Backwards compatibility: add dayStats if missing
+      if (!this.world.dayStats) {
+        this.world.dayStats = {
+          carsAcquired: 0,
+          moneyEarned: 0,
+          moneySpent: 0,
+          prestigeGained: 0,
+        };
       }
 
       // Load market state if available (backwards compatibility)

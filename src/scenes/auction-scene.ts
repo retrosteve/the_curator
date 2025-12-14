@@ -421,12 +421,77 @@ export class AuctionScene extends BaseGameScene {
         message,
         [
           {
+            text: 'See Analysis',
+            onClick: () => this.showAuctionDebrief(),
+          },
+          {
             text: 'Continue',
             onClick: () => this.scene.start('MapScene'),
           },
         ]
       );
     }
+  }
+
+  /**
+   * Show detailed auction debrief with tactical analysis.
+   * Helps player understand what happened and learn tactics.
+   */
+  private showAuctionDebrief(): void {
+    const patience = this.rivalAI.getPatience();
+    const budget = this.rivalAI.getBudget();
+    const player = this.gameManager.getPlayerState();
+
+    let analysis = `📈 AUCTION ANALYSIS\n\n`;
+    analysis += `YOUR BID: ${formatCurrency(this.currentBid)}\n`;
+    analysis += `RIVAL BID: Won the auction\n\n`;
+    
+    analysis += `👤 RIVAL STATUS:\n`;
+    analysis += `• Patience Remaining: ${patience}/100\n`;
+    analysis += `• Budget Remaining: ${formatCurrency(budget)}\n\n`;
+    
+    // Tactical hints based on situation
+    analysis += `💡 TACTICAL INSIGHTS:\n`;
+    
+    if (patience > 50) {
+      analysis += `• Rival had high patience (${patience}%) - they were determined\n`;
+      analysis += `• Try 'Power Bid' or 'Stall' to drain patience faster\n`;
+    } else if (patience > 20) {
+      analysis += `• Rival was getting impatient (${patience}%) - you were close!\n`;
+      analysis += `• One more 'Stall' might have made them quit\n`;
+    } else {
+      analysis += `• Rival was nearly broken (${patience}% patience) - so close!\n`;
+      analysis += `• They were about to quit - you almost had them\n`;
+    }
+    
+    if (budget < this.currentBid * 1.5) {
+      analysis += `• Rival's budget was limited (${formatCurrency(budget)} left)\n`;
+      if (player.skills.eye >= 3) {
+        analysis += `• 'Kick Tires' could have forced them out of budget\n`;
+      } else {
+        analysis += `• Eye skill Lvl 3+ unlocks 'Kick Tires' to attack budget\n`;
+      }
+    }
+    
+    if (this.stallUsesThisAuction === 0 && player.skills.tongue >= 3) {
+      analysis += `• You didn't use 'Stall' - it drains ${GAME_CONFIG.auction.stallPatiencePenalty} patience\n`;
+    }
+    
+    analysis += `\n🔄 WHAT'S NEXT:\n`;
+    analysis += `• Return to map to find more opportunities\n`;
+    analysis += `• Each loss teaches you rival behavior\n`;
+    analysis += `• Level up skills to unlock new tactics`;
+
+    this.uiManager.showModal(
+      '📊 Auction Debrief',
+      analysis,
+      [
+        {
+          text: 'Back to Map',
+          onClick: () => this.scene.start('MapScene'),
+        },
+      ]
+    );
   }
 
 }

@@ -95,11 +95,13 @@ export class UIManager {
     panel.className = 'game-panel';
     
     Object.assign(panel.style, {
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      border: '2px solid #666',
-      borderRadius: '10px',
-      padding: '20px',
-      color: '#fff',
+      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.95), rgba(30, 30, 50, 0.95))',
+      border: '2px solid rgba(100, 200, 255, 0.3)',
+      borderRadius: '16px',
+      padding: '24px',
+      color: '#e0e6ed',
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      backdropFilter: 'blur(10px)',
       ...style,
     });
 
@@ -120,10 +122,11 @@ export class UIManager {
     p.textContent = text;
     
     Object.assign(p.style, {
-      margin: '10px 0',
-      fontSize: '14px',
-      color: '#fff',
-      ...style,
+      margin: '8px 0',
+      fontSize: '15px',
+      color: '#e0e6ed',
+      lineHeight: '1.6',
+      fontFamily: 'Rajdhani, sans-serif',      whiteSpace: 'pre-line',      ...style,
     });
 
     return p;
@@ -145,8 +148,11 @@ export class UIManager {
     heading.textContent = text;
     
     Object.assign(heading.style, {
-      margin: '10px 0',
-      color: '#fff',
+      margin: '0 0 16px 0',
+      color: '#64b5f6',
+      fontFamily: 'Orbitron, sans-serif',
+      fontWeight: '700',
+      textShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
       ...style,
     });
 
@@ -278,7 +284,8 @@ export class UIManager {
       width: '100vw',
       height: '100vh',
       zIndex: '999',
-      backgroundColor: 'transparent',
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: 'blur(8px)',
       pointerEvents: 'auto',
     });
 
@@ -297,14 +304,15 @@ export class UIManager {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      backgroundColor: 'rgba(0, 0, 0, 0.95)',
-      border: '3px solid #fff',
-      borderRadius: '10px',
-      padding: '30px',
+      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
+      border: '3px solid rgba(100, 200, 255, 0.4)',
+      borderRadius: '20px',
+      padding: '32px',
       minWidth: '400px',
       maxWidth: '600px',
       zIndex: '1000',
       pointerEvents: 'auto',
+      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
     });
 
     const heading = this.createHeading(title, 2, {
@@ -389,8 +397,9 @@ export class UIManager {
 
     if (options?.showTags !== false && car.tags && car.tags.length > 0) {
        const tagsText = this.createText(`Tags: ${car.tags.join(', ')}`, {
-         color: '#bdc3c7',
-         fontSize: '14px'
+         color: '#90caf9',
+         fontSize: '14px',
+         fontStyle: 'italic'
        });
        panel.appendChild(tagsText);
     }
@@ -428,13 +437,16 @@ export class UIManager {
       position: 'absolute',
       top: '20px',
       left: '20px',
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      border: '2px solid #666',
-      borderRadius: '8px',
-      padding: '15px',
-      color: '#fff',
-      fontSize: '16px',
-      fontFamily: 'monospace',
+      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.92), rgba(30, 30, 50, 0.92))',
+      border: '2px solid rgba(100, 200, 255, 0.3)',
+      borderRadius: '12px',
+      padding: '16px 20px',
+      color: '#e0e6ed',
+      fontSize: '15px',
+      fontFamily: 'Rajdhani, monospace',
+      fontWeight: '600',
+      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      backdropFilter: 'blur(10px)',
     });
 
     hud.innerHTML = `

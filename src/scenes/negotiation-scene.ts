@@ -235,11 +235,6 @@ export class NegotiationScene extends BaseGameScene {
       return;
     }
 
-    // Tutorial trigger: first buy
-    if (this.tutorialManager.isCurrentStep('first_inspect')) {
-      this.tutorialManager.advanceStep('first_buy');
-    }
-
     // Apply special event rewards
     let rewardMessage = '';
     if (this.specialEvent) {
@@ -259,18 +254,11 @@ export class NegotiationScene extends BaseGameScene {
       [{
         text: 'Continue',
         onClick: () => {
-          // Tutorial guidance after first purchase
-          if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_buy') {
-            setTimeout(() => {
-              this.uiManager.showModal(
-                'Next Step: Restoration',
-                'Great! Now head back to the garage (click the map location or use the HUD button) to restore your new car. Higher condition means higher sale value!',
-                [{ text: 'Got it', onClick: () => this.handleLeave() }]
-              );
-            }, 500);
-          } else {
-            this.handleLeave();
+          // Tutorial trigger: first buy - advance AFTER dismissing this modal
+          if (this.tutorialManager.isCurrentStep('first_inspect')) {
+            this.tutorialManager.advanceStep('first_buy');
           }
+          this.handleLeave();
         }
       }]
     );

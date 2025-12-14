@@ -401,21 +401,21 @@ export class GarageScene extends BaseGameScene {
       });
       panel.appendChild(emptyText);
     } else {
-      // Tutorial guidance: first car in inventory
+      player.inventory.forEach((car) => {
+        const carPanel = this.createCarCard(car, 'inventory', () => this.showInventory());
+        panel.appendChild(carPanel);
+      });
+
+      // Tutorial guidance: first car in inventory (show after cards are rendered)
       if (this.tutorialManager.isCurrentStep('first_buy')) {
         setTimeout(() => {
           this.uiManager.showModal(
             'Your First Car!',
             'Click the "Restore" button on your car below to improve its condition. Choose a service - higher quality costs more but gives better results. This will advance time.',
-            [{ text: 'Start Restoring', onClick: () => {} }]
+            [{ text: 'Got it', onClick: () => {} }]
           );
-        }, 500);
+        }, 100);
       }
-
-      player.inventory.forEach((car) => {
-        const carPanel = this.createCarCard(car, 'inventory', () => this.showInventory());
-        panel.appendChild(carPanel);
-      });
     }
 
     const backBtn = this.uiManager.createButton(

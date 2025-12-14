@@ -110,11 +110,11 @@ export abstract class BaseGameScene extends Phaser.Scene {
   ): void {
     const { width, height } = this.cameras.main;
     
-    const topColor = options?.topColor ?? 0x1a1a2e;
-    const bottomColor = options?.bottomColor ?? 0x16213e;
+    const topColor = options?.topColor ?? 0x0f0c29;
+    const bottomColor = options?.bottomColor ?? 0x24243e;
     const titleY = options?.titleY ?? 30;
-    const titleSize = options?.titleSize ?? '36px';
-    const titleColor = options?.titleColor ?? '#eee';
+    const titleSize = options?.titleSize ?? '48px';
+    const titleColor = options?.titleColor ?? '#64b5f6';
 
     const graphics = this.add.graphics();
     graphics.fillGradientStyle(topColor, topColor, bottomColor, bottomColor, 1);
@@ -123,6 +123,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     this.add.text(width / 2, titleY, title, {
       fontSize: titleSize,
       color: titleColor,
+      fontFamily: 'Orbitron',
       fontStyle: 'bold',
     }).setOrigin(0.5);
   }

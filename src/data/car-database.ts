@@ -405,8 +405,7 @@ export function calculateCarValue(car: Car): number {
     }
   }
   
-  const value = Math.floor(car.baseValue * conditionMultiplier * historyMultiplier);
-  return value;
+  return Math.floor(car.baseValue * conditionMultiplier * historyMultiplier);
 }
 
 /**

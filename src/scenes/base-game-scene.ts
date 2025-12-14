@@ -15,6 +15,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
   protected uiManager!: UIManager;
   protected timeSystem!: TimeSystem;
   protected tutorialManager!: TutorialManager;
+  protected cachedHUD?: HTMLElement; // Cache HUD to avoid recreation
 
   // Shared event handlers for HUD updates
   protected readonly handleMoneyChanged = (money: number): void => {
@@ -77,6 +78,9 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('time-changed', this.handleTimeChanged);
     eventBus.off('day-changed', this.handleDayChanged);
     eventBus.off('location-changed', this.handleLocationChanged);
+    
+    // Clear cached HUD on cleanup
+    this.clearCachedHUD();
   }
 
   /**
@@ -116,13 +120,20 @@ export abstract class BaseGameScene extends Phaser.Scene {
   /**
    * Create standard HUD with current game state.
    * Automatically gathers player, world, and market data.
+   * Uses cached HUD if available, otherwise creates new one.
+   * @param forceRecreate - Force recreation of HUD even if cached
    * @returns HUD element ready to be appended to UI overlay
    */
-  protected createStandardHUD(): HTMLElement {
+  protected createStandardHUD(forceRecreate: boolean = false): HTMLElement {
+    // Return cached HUD if available and not forcing recreation
+    if (this.cachedHUD && !forceRecreate) {
+      return this.cachedHUD;
+    }
+
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
 
-    return this.uiManager.createHUD({
+    this.cachedHUD = this.uiManager.createHUD({
       money: player.money,
       prestige: player.prestige,
       skills: player.skills,
@@ -135,5 +146,28 @@ export abstract class BaseGameScene extends Phaser.Scene {
       },
       market: this.gameManager.getMarketDescription(),
     });
+
+    return this.cachedHUD;
+  }
+
+  /**
+   * Clear cached HUD. Call this when scene is shutdown or HUD needs full recreation.
+   */
+  protected clearCachedHUD(): void {
+    this.cachedHUD = undefined;
+  }
+
+  /**
+   * Reset UI and append standard HUD.
+   * Convenience method that combines the common pattern:
+   * - Clear existing UI
+   - Create/reuse standard HUD
+   * - Append HUD to overlay
+   * Most scenes should call this at the start of setupUI().
+   */
+  protected resetUIWithHUD(): void {
+    this.uiManager.clear();
+    const hud = this.createStandardHUD();
+    this.uiManager.append(hud);
   }
 }

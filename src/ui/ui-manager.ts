@@ -1,3 +1,5 @@
+import { formatCurrency } from '@/utils/format';
+
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
  * Creates and manages DOM elements for menus, buttons, HUD, and modals.
@@ -37,42 +39,32 @@ export class UIManager {
    * Create a styled button element with hover effects.
    * @param text - Button label text
    * @param onClick - Click event handler
-   * @param style - Optional CSS style overrides
+   * @param options - Optional configuration
+   * @param options.variant - Button variant: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'special'
+   * @param options.style - Optional CSS style overrides
    * @returns Configured button element
    */
   public createButton(
     text: string,
     onClick: () => void,
-    style?: Partial<CSSStyleDeclaration>
+    options?: {
+      variant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'special';
+      style?: Partial<CSSStyleDeclaration>;
+    }
   ): HTMLButtonElement {
     const button = document.createElement('button');
     button.textContent = text;
     button.className = 'game-button';
     
-    // Apply default styles
-    Object.assign(button.style, {
-      padding: '10px 20px',
-      fontSize: '16px',
-      fontWeight: 'bold',
-      border: '2px solid #fff',
-      backgroundColor: '#333',
-      color: '#fff',
-      cursor: 'pointer',
-      borderRadius: '5px',
-      transition: 'all 0.2s',
-      pointerEvents: 'auto',
-      ...style,
-    });
-
-    button.onmouseenter = () => {
-      button.style.backgroundColor = '#555';
-      button.style.transform = 'scale(1.05)';
-    };
-
-    button.onmouseleave = () => {
-      button.style.backgroundColor = '#333';
-      button.style.transform = 'scale(1)';
-    };
+    // Add variant class if specified
+    if (options?.variant) {
+      button.classList.add(`btn-${options.variant}`);
+    }
+    
+    // Apply custom style overrides if provided
+    if (options?.style) {
+      Object.assign(button.style, options.style);
+    }
 
     // Prevent Phaser's global input listeners from also receiving clicks that
     // are meant for DOM UI elements (can make modals feel like they "don't work").
@@ -245,6 +237,17 @@ export class UIManager {
     );
   }
 
+
+
+  /**
+   * Show a time block warning modal (when action would exceed available time).
+   * @param title - Warning title
+   * @param message - Warning message
+   */
+  public showTimeBlockModal(title: string, message: string): void {
+    this.showModal(title, message, [{ text: 'OK', onClick: () => {} }]);
+  }
+
   /**
    * Show a modal dialog with title, message, and action buttons.
    * Modal auto-closes when any button is clicked.
@@ -379,7 +382,7 @@ export class UIManager {
     });
 
     hud.innerHTML = `
-      <div data-hud="money">💰 Money: $${data.money.toLocaleString()}</div>
+      <div data-hud="money">💰 Money: ${formatCurrency(data.money)}</div>
       ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
       ${data.garage !== undefined ? `<div data-hud="garage">🏠 Garage: ${data.garage.used}/${data.garage.total}</div>` : ''}
       ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
@@ -427,7 +430,7 @@ export class UIManager {
     const marketEl = hud.querySelector<HTMLDivElement>('[data-hud="market"]');
 
     if (data.money !== undefined && moneyEl) {
-      moneyEl.textContent = `💰 Money: $${data.money.toLocaleString()}`;
+      moneyEl.textContent = `💰 Money: ${formatCurrency(data.money)}`;
     }
     if (data.prestige !== undefined && prestigeEl) {
       prestigeEl.textContent = `🏆 Prestige: ${data.prestige}`;
@@ -450,5 +453,41 @@ export class UIManager {
     if (data.market !== undefined && marketEl) {
       marketEl.textContent = `📈 ${data.market}`;
     }
+  }
+
+  /**
+   * Show a confirmation modal with confirm/cancel buttons.
+   * Reusable pattern for all yes/no decisions.
+   * @param title - Modal title
+   * @param message - Confirmation message
+   * @param onConfirm - Callback when user confirms
+   * @param onCancel - Optional callback when user cancels (defaults to no-op)
+   * @param options - Optional configuration
+   * @param options.confirmText - Text for confirm button (default: "Confirm")
+   * @param options.confirmVariant - Button variant for confirm (default: "warning")
+   * @param options.cancelText - Text for cancel button (default: "Cancel")
+   */
+  public confirmAction(
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    onCancel?: () => void,
+    options?: {
+      confirmText?: string;
+      confirmVariant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'special';
+      cancelText?: string;
+    }
+  ): void {
+    this.showModal(title, message, [
+      {
+        text: options?.confirmText || 'Confirm',
+        onClick: onConfirm,
+        variant: options?.confirmVariant || 'warning',
+      } as any,
+      {
+        text: options?.cancelText || 'Cancel',
+        onClick: onCancel || (() => {}),
+      },
+    ]);
   }
 }

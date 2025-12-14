@@ -109,9 +109,6 @@ export class Economy {
       ...car,
       condition: Math.min(newCondition, conditionMax),
     };
-    
-    // Recalculate value
-    updatedCar.currentValue = calculateCarValue(updatedCar);
 
     return { car: updatedCar, success, message };
   }

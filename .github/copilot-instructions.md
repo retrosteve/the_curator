@@ -3,7 +3,7 @@
 These instructions make AI agents immediately productive in this Phaser + DOM hybrid project. Keep changes minimal, follow existing patterns, and reference the files noted here.
 
 ## Question the Design (Encouraged!)
-When working on implementation, you are encouraged to critically evaluate the design documents:
+When working on implementation, you are encouraged to critically evaluate the design documents (`.github/instructions/game-design.instructions.md` and '.github/instructions/architecture.instructions.md'):
 
 - **Ambiguities:** If a design rule is unclear, vague, or has missing details, point it out and propose clarification.
 - **Inconsistencies:** If you find contradictions between design docs or between docs and code, flag them.

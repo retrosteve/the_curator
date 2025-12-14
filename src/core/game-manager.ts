@@ -1,6 +1,5 @@
 import { Car } from '@/data/car-database';
 import { eventBus } from './event-bus';
-import { Economy } from '@/systems/economy';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { TutorialManager } from '@/systems/tutorial-manager';
@@ -257,13 +256,18 @@ export class GameManager {
 
   /**
    * Add car to inventory and emit inventory-changed event.
-   * Note: Does not check garage capacity; caller should verify before adding.
+   * Enforces garage capacity - returns false if garage is full.
    * @param car - The car to add to inventory
+   * @returns True if car was added, false if garage is full
    */
-  public addCar(car: Car): void {
+  public addCar(car: Car): boolean {
+    if (this.player.inventory.length >= this.player.garageSlots) {
+      return false;
+    }
     this.player.inventory.push(car);
     eventBus.emit('inventory-changed', this.player.inventory);
     this.debouncedSave(); // Auto-save on inventory change
+    return true;
   }
 
   /**
@@ -475,7 +479,7 @@ export class GameManager {
     const leveledUp = this.addSkillXP('network', networkXPGain);
     
     if (leveledUp) {
-      eventBus.emit('network-levelup', this.player.skills.network);
+      eventBus.emit('network-levelup', this.player.skills.network as any);
     }
 
     return true; // First visit
@@ -577,13 +581,7 @@ export class GameManager {
    */
   public reset(): void {
     this.initializeDefaultState();
-
-    eventBus.emit('money-changed', this.player.money);
-    eventBus.emit('prestige-changed', this.player.prestige);
-    eventBus.emit('inventory-changed', this.player.inventory);
-    eventBus.emit('day-changed', this.world.day);
-    eventBus.emit('time-changed', this.world.timeOfDay);
-    eventBus.emit('location-changed', this.world.currentLocation);
+    this.emitAllStateEvents();
   }
 
   /**
@@ -681,5 +679,19 @@ export class GameManager {
       console.error('Failed to load game:', error);
       return false;
     }
+  }
+
+  /**
+   * Emit all state-changed events.
+   * Useful after loading a save or resetting the game.
+   * Ensures UI is synchronized with current state.
+   */
+  public emitAllStateEvents(): void {
+    eventBus.emit('money-changed', this.player.money);
+    eventBus.emit('prestige-changed', this.player.prestige);
+    eventBus.emit('inventory-changed', this.player.inventory);
+    eventBus.emit('day-changed', this.world.day);
+    eventBus.emit('time-changed', this.world.timeOfDay);
+    eventBus.emit('location-changed', this.world.currentLocation);
   }
 }

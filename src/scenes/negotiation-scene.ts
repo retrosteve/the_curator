@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
+import { formatCurrency } from '@/utils/format';
 
 /**
  * Negotiation Scene - PvE encounter with a seller.
@@ -66,12 +67,9 @@ export class NegotiationScene extends BaseGameScene {
 
 
   private setupUI(): void {
-    this.uiManager.clear();
+    this.resetUIWithHUD();
 
     const player = this.gameManager.getPlayerState();
-
-    const hud = this.createStandardHUD();
-    this.uiManager.append(hud);
     
     // Car Info Panel
     const infoPanel = this.uiManager.createPanel({
@@ -90,7 +88,7 @@ export class NegotiationScene extends BaseGameScene {
 
     const priceTag = document.createElement('div');
     priceTag.id = 'asking-price';
-    priceTag.textContent = `Asking Price: $${this.askingPrice.toLocaleString()}`;
+    priceTag.textContent = `Asking Price: ${formatCurrency(this.askingPrice)}`;
     priceTag.style.fontSize = '24px';
     priceTag.style.color = '#f1c40f';
     priceTag.style.margin = '20px 0';
@@ -206,7 +204,7 @@ export class NegotiationScene extends BaseGameScene {
     // Update UI
     const priceTag = document.getElementById('asking-price');
     if (priceTag) {
-      priceTag.textContent = `Asking Price: $${this.askingPrice.toLocaleString()}`;
+      priceTag.textContent = `Asking Price: ${formatCurrency(this.askingPrice)}`;
     }
 
     // Refresh buttons
@@ -227,7 +225,12 @@ export class NegotiationScene extends BaseGameScene {
       return;
     }
 
-    this.gameManager.addCar(this.car);
+    if (!this.gameManager.addCar(this.car)) {
+      this.uiManager.showGarageFullModal();
+      // Refund the money since we couldn't add the car
+      this.gameManager.addMoney(this.askingPrice);
+      return;
+    }
 
     // Tutorial trigger: first buy
       if (this.tutorialManager.isCurrentStep('first_inspect')) {
@@ -238,7 +241,7 @@ export class NegotiationScene extends BaseGameScene {
     if (this.specialEvent) {
       if (this.specialEvent.reward.moneyBonus) {
         this.gameManager.addMoney(this.specialEvent.reward.moneyBonus);
-        rewardMessage += `\nBonus: +$${this.specialEvent.reward.moneyBonus.toLocaleString()}`;
+        rewardMessage += `\nBonus: +${formatCurrency(this.specialEvent.reward.moneyBonus)}`;
       }
       if (this.specialEvent.reward.prestigeBonus) {
         this.gameManager.addPrestige(this.specialEvent.reward.prestigeBonus);
@@ -248,7 +251,7 @@ export class NegotiationScene extends BaseGameScene {
 
     this.uiManager.showModal(
       'Purchase Complete',
-      `Purchased ${this.car.name} for $${this.askingPrice.toLocaleString()}!${rewardMessage}`,
+      `Purchased ${this.car.name} for ${formatCurrency(this.askingPrice)}!${rewardMessage}`,
       [{
         text: 'Continue',
         onClick: () => {

@@ -148,11 +148,7 @@ export class MapScene extends BaseGameScene {
   }
 
   private setupUI(): void {
-    this.uiManager.clear();
-
-    // Create HUD
-    const hud = this.createStandardHUD();
-    this.uiManager.append(hud);
+    this.resetUIWithHUD();
 
     // Back to garage button
     const backBtn = this.uiManager.createButton(
@@ -168,8 +164,8 @@ export class MapScene extends BaseGameScene {
   }
 
   private visitNode(node: MapNode): void {
-    const timeCost = (node as any).specialEvent?.timeCost || GAME_CONFIG.timeCosts.travelHours;
-    const requiredHours = timeCost;
+    // Special events have custom time costs, regular nodes use travel time
+    const requiredHours = node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelHours;
 
     const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);
     if (block) {

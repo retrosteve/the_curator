@@ -1,9 +1,9 @@
-import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
 import { Rival, getTierName, getRivalById, calculateRivalInterest } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
+import { formatCurrency } from '@/utils/format';
 
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
@@ -56,11 +56,9 @@ export class AuctionScene extends BaseGameScene {
 
 
   private setupUI(): void {
-    this.uiManager.clear();
+    this.resetUIWithHUD();
 
     const player = this.gameManager.getPlayerState();
-    const hud = this.createStandardHUD();
-    this.uiManager.append(hud);
 
     const panel = this.uiManager.createPanel({
       position: 'absolute',
@@ -78,14 +76,14 @@ export class AuctionScene extends BaseGameScene {
     panel.appendChild(carHeading);
 
     const carInfo = this.uiManager.createText(
-      `Condition: ${this.car.condition}/100 | Base Value: $${this.car.baseValue.toLocaleString()}`,
+      `Condition: ${this.car.condition}/100 | Base Value: ${formatCurrency(this.car.baseValue)}`,
       { textAlign: 'center', marginBottom: '20px' }
     );
     panel.appendChild(carInfo);
 
     // Current bid
     const bidHeading = this.uiManager.createHeading(
-      `Current Bid: $${this.currentBid.toLocaleString()}`,
+      `Current Bid: ${formatCurrency(this.currentBid)}`,
       3,
       { textAlign: 'center', color: '#4CAF50' }
     );
@@ -109,7 +107,7 @@ export class AuctionScene extends BaseGameScene {
       `Patience: ${this.rivalAI.getPatience()}/100`
     );
     const rivalBudget = this.uiManager.createText(
-      `Budget: $${this.rivalAI.getBudget().toLocaleString()}`
+      `Budget: ${formatCurrency(this.rivalAI.getBudget())}`
     );
 
     rivalInfo.appendChild(rivalName);
@@ -120,7 +118,7 @@ export class AuctionScene extends BaseGameScene {
 
     // Player info
     const playerInfo = this.uiManager.createText(
-      `Your Money: $${player.money.toLocaleString()}`,
+      `Your Money: ${formatCurrency(player.money)}`,
       { textAlign: 'center', marginBottom: '20px' }
     );
     panel.appendChild(playerInfo);
@@ -129,23 +127,23 @@ export class AuctionScene extends BaseGameScene {
     const buttonContainer = this.uiManager.createButtonContainer();
 
     const bidBtn = this.uiManager.createButton(
-      `Bid +$${AuctionScene.BID_INCREMENT.toLocaleString()}`,
+      `Bid +${formatCurrency(AuctionScene.BID_INCREMENT)}`,
       () => this.playerBid(AuctionScene.BID_INCREMENT),
-      { width: '100%', backgroundColor: '#2196F3' }
+      { variant: 'primary', style: { width: '100%' } }
     );
     buttonContainer.appendChild(bidBtn);
 
     const powerBidBtn = this.uiManager.createButton(
-      `Power Bid +$${AuctionScene.POWER_BID_INCREMENT.toLocaleString()} (Rival Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY})`,
+      `Power Bid +${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} (Rival Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY})`,
       () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
-      { width: '100%', backgroundColor: '#FF9800' }
+      { variant: 'warning', style: { width: '100%' } }
     );
     buttonContainer.appendChild(powerBidBtn);
 
     const kickTiresBtn = this.uiManager.createButton(
-      `Kick Tires (Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+) (Rival Budget -$${AuctionScene.KICK_TIRES_BUDGET_REDUCTION.toLocaleString()})`,
+      `Kick Tires (Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+) (Rival Budget -${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)})`,
       () => this.playerKickTires(),
-      { width: '100%', backgroundColor: '#607D8B' }
+      { variant: 'info', style: { width: '100%' } }
     );
     buttonContainer.appendChild(kickTiresBtn);
 
@@ -154,7 +152,7 @@ export class AuctionScene extends BaseGameScene {
     const stallBtn = this.uiManager.createButton(
       `Stall (Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+) (Uses left: ${stallsRemaining}) (Rival Patience -${AuctionScene.STALL_PATIENCE_PENALTY})`,
       () => this.playerStall(),
-      { width: '100%', backgroundColor: '#9C27B0' }
+      { variant: 'special', style: { width: '100%', backgroundColor: '#9C27B0' } }
     );
 
     if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL || stallsRemaining <= 0) {
@@ -172,7 +170,7 @@ export class AuctionScene extends BaseGameScene {
     const quitBtn = this.uiManager.createButton(
       'Quit Auction',
       () => this.playerQuit(),
-      { width: '100%', backgroundColor: '#f44336' }
+      { variant: 'danger', style: { width: '100%', backgroundColor: '#f44336' } }
     );
     buttonContainer.appendChild(quitBtn);
 
@@ -273,7 +271,7 @@ export class AuctionScene extends BaseGameScene {
       setTimeout(() => {
         this.uiManager.showModal(
           'Rival Bids!',
-          `${this.rival.name} raised the bid by $${decision.bidAmount}!\n\nNew bid: $${this.currentBid.toLocaleString()}`,
+          `${this.rival.name} raised the bid by ${formatCurrency(decision.bidAmount)}!\n\nNew bid: ${formatCurrency(this.currentBid)}`,
           [
             {
               text: 'Continue',
@@ -295,24 +293,24 @@ export class AuctionScene extends BaseGameScene {
 
     if (playerWon) {
       const player = this.gameManager.getPlayerState();
-      
-      // Check garage capacity
-      if (player.inventory.length >= player.garageSlots) {
-        this.uiManager.showModal(
-          'Garage Full!',
-          `You won the auction, but your garage is full!\n\nYou are forced to forfeit the car.`,
-          [
-            {
-              text: 'Continue',
-              onClick: () => this.scene.start('MapScene'),
-            },
-          ]
-        );
-        return;
-      }
 
       if (this.gameManager.spendMoney(this.currentBid)) {
-        this.gameManager.addCar(this.car);
+        if (!this.gameManager.addCar(this.car)) {
+          // Garage is full
+          this.uiManager.showModal(
+            'Garage Full!',
+            `You won the auction, but your garage is full!\n\nYou are forced to forfeit the car.`,
+            [
+              {
+                text: 'Continue',
+                onClick: () => this.scene.start('MapScene'),
+              },
+            ]
+          );
+          // Refund the money since we couldn't add the car
+          this.gameManager.addMoney(this.currentBid);
+          return;
+        }
         
         // Award Tongue XP for winning an auction
         const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.auction;
@@ -320,7 +318,7 @@ export class AuctionScene extends BaseGameScene {
         
         this.uiManager.showModal(
           'You Won!',
-          `${message}\n\nYou bought ${this.car.name} for $${this.currentBid.toLocaleString()}!${leveledUp ? '\n\n🎉 Your Tongue skill leveled up!' : ''}`,
+          `${message}\n\nYou bought ${this.car.name} for ${formatCurrency(this.currentBid)}!${leveledUp ? '\n\n🎉 Your Tongue skill leveled up!' : ''}`,
           [
             {
               text: 'Continue',

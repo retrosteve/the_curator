@@ -23,12 +23,13 @@ interface MapNode {
 }
 
 /**
- * Map Scene - Player explores locations and finds cars.
- * Displays clickable nodes representing different locations.
- * Each visit costs time and may result in auction (PvP) or negotiation (PvE).
+ * Map Scene - Dashboard/Command Center for location selection.
+ * Displays location cards with status information, rivals, and AP costs.
+ * Information-dense interface for making informed decisions about where to visit.
  */
 export class MapScene extends BaseGameScene {
   private nodes: MapNode[] = [];
+  private dashboardContainer: HTMLElement | null = null;
 
   private readonly handleNetworkLevelUp = (level: number): void => {
     const abilities = {
@@ -51,11 +52,11 @@ export class MapScene extends BaseGameScene {
     console.log('Map Scene: Loaded');
 
     this.initializeManagers('map');
-    this.setupBackground('THE MAP', {
+    this.setupBackground('OPERATIONS CENTER', {
       topColor: 0x1a1a2e,
       bottomColor: 0x16213e,
     });
-    this.createMapNodes();
+    this.createDashboard();
     this.setupUI();
     this.setupEventListeners();
   }
@@ -66,120 +67,330 @@ export class MapScene extends BaseGameScene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       eventBus.off('network-levelup', this.handleNetworkLevelUp);
+      this.cleanupDashboard();
     });
   }
 
-
-  private createMapNodes(): void {
-    const { width, height } = this.cameras.main;
-
-    // Regular map nodes
+  private createDashboard(): void {
+    // Build location data
     this.nodes = [
       {
         id: 'garage',
         name: 'Your Garage',
-        x: width * 0.5,
-        y: height * 0.15,
-        type: 'scrapyard', // Use scrapyard type to avoid special handling
+        x: 0,
+        y: 0,
+        type: 'scrapyard',
         color: 0x2ecc71,
       },
       {
         id: 'scrapyard_1',
         name: "Joe's Scrapyard",
-        x: width * 0.25,
-        y: height * 0.4,
+        x: 0,
+        y: 0,
         type: 'scrapyard',
         color: 0x8b4513,
       },
       {
         id: 'dealership_1',
         name: 'Classic Car Dealership',
-        x: width * 0.75,
-        y: height * 0.4,
+        x: 0,
+        y: 0,
         type: 'dealership',
         color: 0x4169e1,
       },
       {
         id: 'auction_1',
         name: 'Weekend Auction House',
-        x: width * 0.5,
-        y: height * 0.7,
+        x: 0,
+        y: 0,
         type: 'auction',
         color: 0xffd700,
       },
     ];
 
-    // Add special events as additional nodes
+    // Add special events
     const specialEvents = this.gameManager.getActiveSpecialEvents();
     specialEvents.forEach((event: any) => {
       this.nodes.push({
         id: event.id,
         name: event.name,
-        x: event.x,
-        y: event.y,
+        x: 0,
+        y: 0,
         type: 'special',
         color: event.color,
         specialEvent: event,
       });
     });
 
+    // Determine rival presence for each location
     this.nodes.forEach((node) => {
-      // Determine if this node will have a rival (before visit)
-      // Garage never has rivals
-      const hasRival = node.id !== 'garage' && node.type !== 'special' && Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
-      
-      // Draw node circle
-      const circle = this.add.circle(node.x, node.y, 40, node.color);
-      circle.setInteractive({ useHandCursor: true });
-      
-      // Add home icon for garage
-      if (node.id === 'garage') {
-        this.add.text(node.x, node.y, '🏠', {
-          fontSize: '32px',
-        }).setOrigin(0.5);
+      if (node.id !== 'garage' && node.type !== 'special') {
+        (node as any).hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
       }
-      
-      // Add rival indicator if rival present
-      if (hasRival) {
-        const rivalIndicator = this.add.text(node.x + 30, node.y - 30, '⚔️', {
-          fontSize: '24px',
-        }).setOrigin(0.5);
-        
-        // Store indicator for cleanup
-        (node as any).rivalIndicator = rivalIndicator;
-        (node as any).hasRival = true;
-      }
-
-      // Add label
-      this.add.text(node.x, node.y + 60, node.name, {
-        fontSize: '14px',
-        color: '#fff',
-        align: 'center',
-        wordWrap: { width: 150 },
-      }).setOrigin(0.5);
-
-      // Add AP cost (use special event AP cost if available, garage is free)
-      if (node.id !== 'garage') {
-        const apCost = (node as any).specialEvent?.apCost || GAME_CONFIG.timeCosts.travelAP;
-        this.add.text(node.x, node.y + 35, `${apCost} AP`, {
-          fontSize: '18px',
-          color: '#fff',
-          fontStyle: 'bold',
-        }).setOrigin(0.5);
-      }
-
-      // Click handler
-      circle.on('pointerdown', () => this.visitNode(node));
-      
-      // Hover effects
-      circle.on('pointerover', () => {
-        circle.setScale(1.1);
-      });
-      
-      circle.on('pointerout', () => {
-        circle.setScale(1);
-      });
     });
+
+    // Create DOM dashboard
+    this.dashboardContainer = document.createElement('div');
+    this.dashboardContainer.style.cssText = `
+      position: absolute;
+      top: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 1200px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      padding: 20px;
+      z-index: 10;
+    `;
+
+    // Create cards for each location
+    this.nodes.forEach((node) => {
+      const card = this.createLocationCard(node);
+      this.dashboardContainer!.appendChild(card);
+    });
+
+    document.body.appendChild(this.dashboardContainer);
+  }
+
+  private createLocationCard(node: MapNode): HTMLElement {
+    const card = document.createElement('div');
+    const isGarage = node.id === 'garage';
+    const hasRival = (node as any).hasRival;
+    const apCost = isGarage ? 0 : (node.specialEvent?.apCost ?? GAME_CONFIG.timeCosts.travelAP);
+    
+    // Get color as hex string
+    const hexColor = '#' + node.color.toString(16).padStart(6, '0');
+    
+    // Card styling with modern glass-morphism effect
+    card.style.cssText = `
+      background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    `;
+
+    // Add color accent bar
+    const accent = document.createElement('div');
+    accent.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: ${hexColor};
+    `;
+    card.appendChild(accent);
+
+    // Header with icon and name
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-left: 8px;
+    `;
+    
+    const icon = this.getLocationIcon(node);
+    const iconSpan = document.createElement('span');
+    iconSpan.textContent = icon;
+    iconSpan.style.cssText = 'font-size: 28px;';
+    
+    const name = document.createElement('div');
+    name.textContent = node.name;
+    name.style.cssText = `
+      font-size: 18px;
+      font-weight: bold;
+      color: #fff;
+      flex: 1;
+    `;
+    
+    header.appendChild(iconSpan);
+    header.appendChild(name);
+    card.appendChild(header);
+
+    // Description
+    const desc = document.createElement('div');
+    desc.textContent = this.getLocationDescription(node);
+    desc.style.cssText = `
+      color: rgba(255,255,255,0.7);
+      font-size: 13px;
+      margin-bottom: 12px;
+      padding-left: 8px;
+      line-height: 1.4;
+    `;
+    card.appendChild(desc);
+
+    // Status indicators
+    const statusBar = document.createElement('div');
+    statusBar.style.cssText = `
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+      padding-left: 8px;
+    `;
+
+    // AP cost badge
+    if (!isGarage) {
+      const apBadge = document.createElement('span');
+      apBadge.textContent = `⚡ ${apCost} AP`;
+      apBadge.style.cssText = `
+        background: rgba(255,215,0,0.2);
+        color: #ffd700;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      `;
+      statusBar.appendChild(apBadge);
+    } else {
+      const homeBadge = document.createElement('span');
+      homeBadge.textContent = 'FREE';
+      homeBadge.style.cssText = `
+        background: rgba(46,204,113,0.2);
+        color: #2ecc71;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      `;
+      statusBar.appendChild(homeBadge);
+    }
+
+    // Rival indicator
+    if (hasRival) {
+      const rivalBadge = document.createElement('span');
+      rivalBadge.textContent = '⚔️ RIVAL PRESENT';
+      rivalBadge.style.cssText = `
+        background: rgba(255,69,58,0.2);
+        color: #ff453a;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      `;
+      statusBar.appendChild(rivalBadge);
+    }
+
+    // Special event indicator
+    if (node.type === 'special') {
+      const specialBadge = document.createElement('span');
+      specialBadge.textContent = '✨ SPECIAL';
+      specialBadge.style.cssText = `
+        background: rgba(191,64,191,0.2);
+        color: #bf40bf;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      `;
+      statusBar.appendChild(specialBadge);
+    }
+
+    card.appendChild(statusBar);
+
+    // Visit button
+    const button = document.createElement('button');
+    button.textContent = isGarage ? 'Return Home' : 'Visit Location';
+    button.style.cssText = `
+      width: 100%;
+      padding: 10px;
+      background: ${hexColor};
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-top: 8px;
+    `;
+
+    button.addEventListener('mouseenter', () => {
+      button.style.transform = 'translateY(-2px)';
+      button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+    });
+
+    button.addEventListener('mouseleave', () => {
+      button.style.transform = 'translateY(0)';
+      button.style.boxShadow = 'none';
+    });
+
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.visitNode(node);
+    });
+
+    card.appendChild(button);
+
+    // Hover effect for entire card
+    card.addEventListener('mouseenter', () => {
+      card.style.transform = 'translateY(-4px)';
+      card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4)';
+      card.style.borderColor = 'rgba(255,255,255,0.4)';
+    });
+
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = 'translateY(0)';
+      card.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+      card.style.borderColor = 'rgba(255,255,255,0.2)';
+    });
+
+    // Click card to visit
+    card.addEventListener('click', () => {
+      this.visitNode(node);
+    });
+
+    return card;
+  }
+
+  private getLocationIcon(node: MapNode): string {
+    if (node.id === 'garage') return '🏠';
+    
+    switch (node.type) {
+      case 'scrapyard': return '🔧';
+      case 'dealership': return '🏪';
+      case 'auction': return '🔨';
+      case 'special': return '✨';
+      default: return '📍';
+    }
+  }
+
+  private getLocationDescription(node: MapNode): string {
+    if (node.id === 'garage') {
+      return 'Your home base. Manage inventory, restore cars, and end the day.';
+    }
+
+    if (node.specialEvent) {
+      return node.specialEvent.description || 'A unique opportunity has appeared!';
+    }
+
+    switch (node.type) {
+      case 'scrapyard':
+        return 'Rough diamonds in the rough. Low prices, questionable condition.';
+      case 'dealership':
+        return 'Higher quality inventory. Prices reflect the better condition.';
+      case 'auction':
+        return 'Competitive bidding. Face rivals for rare finds.';
+      default:
+        return 'An interesting location worth investigating.';
+    }
+  }
+
+  private cleanupDashboard(): void {
+    if (this.dashboardContainer && this.dashboardContainer.parentNode) {
+      this.dashboardContainer.parentNode.removeChild(this.dashboardContainer);
+      this.dashboardContainer = null;
+    }
   }
 
   private setupUI(): void {

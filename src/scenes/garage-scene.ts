@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
-import { Economy } from '@/systems/economy';
+import { Economy } from '@/systems/Economy';
 import { Car } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';

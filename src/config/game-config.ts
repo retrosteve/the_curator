@@ -143,7 +143,7 @@ export const GAME_CONFIG = {
 
     kickTires: {
       requiredEyeLevel: 2,
-      rivalBudgetReduction: 500,
+      rivalBudgetReduction: 300,
     },
 
     rivalBidIncrements: {

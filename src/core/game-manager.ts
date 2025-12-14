@@ -394,21 +394,21 @@ export class GameManager {
    * Get current market description for UI display.
    */
   public getMarketDescription(): string {
-    return this.marketSystem.getMarketDescription();
+    return this.marketSystem.getMarketDescription(this.world.day);
   }
 
   /**
    * Get detailed market info for a specific car.
    */
   public getCarMarketInfo(carTags: string[]): { modifier: number; factors: string[] } {
-    return this.marketSystem.getCarMarketInfo(carTags);
+    return this.marketSystem.getCarMarketInfo(carTags, this.world.day);
   }
 
   /**
    * Get market modifier for a car (used by economy system).
    */
   public getMarketModifier(carTags: string[]): number {
-    return this.marketSystem.getMarketModifier(carTags);
+    return this.marketSystem.getMarketModifier(carTags, this.world.day);
   }
 
   /**

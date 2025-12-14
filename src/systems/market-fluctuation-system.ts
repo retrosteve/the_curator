@@ -86,12 +86,14 @@ export class MarketFluctuationSystem {
 
   /**
    * Get current market modifier for a car based on its tags.
+   * @param carTags - Car tags to check against market conditions
+   * @param gameDay - Current game day for seasonal calculations
    */
-  public getMarketModifier(carTags: string[]): number {
+  public getMarketModifier(carTags: string[], gameDay?: number): number {
     let modifier = 1.0;
 
     // Apply seasonal modifier
-    const seasonalModifier = this.getSeasonalModifier(carTags);
+    const seasonalModifier = this.getSeasonalModifier(carTags, gameDay);
     modifier *= seasonalModifier;
 
     // Apply event modifier
@@ -105,9 +107,10 @@ export class MarketFluctuationSystem {
 
   /**
    * Get current market description for UI display.
+   * @param gameDay - Current game day for seasonal calculations
    */
-  public getMarketDescription(): string {
-    const season = this.getCurrentSeason();
+  public getMarketDescription(gameDay?: number): string {
+    const season = this.getCurrentSeason(gameDay);
     let description = `Season: ${season}`;
 
     if (this.currentEvent) {
@@ -119,15 +122,17 @@ export class MarketFluctuationSystem {
 
   /**
    * Get detailed market info for a specific car.
+   * @param carTags - Car tags to check
+   * @param gameDay - Current game day for seasonal calculations
    */
-  public getCarMarketInfo(carTags: string[]): { modifier: number; factors: string[] } {
+  public getCarMarketInfo(carTags: string[], gameDay?: number): { modifier: number; factors: string[] } {
     const factors: string[] = [];
     let modifier = 1.0;
 
     // Seasonal factor
-    const seasonalModifier = this.getSeasonalModifier(carTags);
+    const seasonalModifier = this.getSeasonalModifier(carTags, gameDay);
     if (seasonalModifier !== 1.0) {
-      const season = this.getCurrentSeason();
+      const season = this.getCurrentSeason(gameDay);
       factors.push(`${season}: ${this.formatModifier(seasonalModifier)}`);
       modifier *= seasonalModifier;
     }
@@ -145,21 +150,38 @@ export class MarketFluctuationSystem {
   }
 
   /**
-   * Get current season based on day of year (simplified).
+   * Get current season based on game day number.
+   * Uses day ranges defined in GAME_CONFIG.economy.market.seasonal.
+   * @param gameDay - Current game day (from GameManager)
    */
-  private getCurrentSeason(): string {
-    // For simplicity, we'll use a simple day-based calculation
-    // In a real game, you'd want actual date-based seasons
-    const dayOfYear = new Date().getDay(); // Simplified - using day of week as proxy
-    const seasons = ['Winter', 'Spring', 'Summer', 'Fall'];
-    return seasons[dayOfYear % 4];
+  private getCurrentSeason(gameDay?: number): string {
+    // If no gameDay provided, we can't determine season (fallback to 'Spring')
+    if (gameDay === undefined) return 'Spring';
+
+    const seasonalConfig = GAME_CONFIG.economy.market.seasonal;
+    
+    // Check each season's day range
+    // Winter wraps around year end (335-365 and 1-59)
+    if (gameDay >= seasonalConfig.winter.startDay || gameDay <= seasonalConfig.winter.endDay) {
+      return 'Winter';
+    } else if (gameDay >= seasonalConfig.spring.startDay && gameDay <= seasonalConfig.spring.endDay) {
+      return 'Spring';
+    } else if (gameDay >= seasonalConfig.summer.startDay && gameDay <= seasonalConfig.summer.endDay) {
+      return 'Summer';
+    } else if (gameDay >= seasonalConfig.fall.startDay && gameDay <= seasonalConfig.fall.endDay) {
+      return 'Fall';
+    }
+    
+    return 'Spring'; // Default fallback
   }
 
   /**
    * Get seasonal modifier for car tags.
+   * @param carTags - Car tags to check
+   * @param gameDay - Current game day for seasonal calculations
    */
-  private getSeasonalModifier(carTags: string[]): number {
-    const season = this.getCurrentSeason().toLowerCase();
+  private getSeasonalModifier(carTags: string[], gameDay?: number): number {
+    const season = this.getCurrentSeason(gameDay).toLowerCase();
     const seasonalConfigs = GAME_CONFIG.economy.market.seasonal;
     const seasonalConfig = seasonalConfigs[season as keyof typeof seasonalConfigs] as any;
 

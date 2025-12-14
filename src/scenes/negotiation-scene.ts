@@ -1,11 +1,7 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/game-manager';
-import { UIManager } from '@/ui/ui-manager';
-import { TimeSystem } from '@/systems/time-system';
+import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue } from '@/data/car-database';
-import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
-import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Negotiation Scene - PvE encounter with a seller.
@@ -13,36 +9,12 @@ import { TutorialManager } from '@/systems/tutorial-manager';
  * Haggle attempts limited by Tongue skill level.
  * Eye skill reveals hidden car history.
  */
-export class NegotiationScene extends Phaser.Scene {
-  private gameManager!: GameManager;
-  private uiManager!: UIManager;
-  private timeSystem!: TimeSystem;
-  private tutorialManager!: TutorialManager;
+export class NegotiationScene extends BaseGameScene {
   private car!: Car;
   private specialEvent?: any;
   private askingPrice: number = 0;
   private lowestPrice: number = 0;
   private negotiationCount: number = 0;
-
-  private readonly handleMoneyChanged = (money: number): void => {
-    this.uiManager.updateHUD({ money });
-  };
-
-  private readonly handlePrestigeChanged = (prestige: number): void => {
-    this.uiManager.updateHUD({ prestige });
-  };
-
-  private readonly handleTimeChanged = (_timeOfDay: number): void => {
-    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
-  };
-
-  private readonly handleDayChanged = (day: number): void => {
-    this.uiManager.updateHUD({ day });
-  };
-
-  private readonly handleLocationChanged = (location: string): void => {
-    this.uiManager.updateHUD({ location });
-  };
 
   constructor() {
     super({ key: 'NegotiationScene' });
@@ -71,13 +43,12 @@ export class NegotiationScene extends Phaser.Scene {
   create(): void {
     console.log('Negotiation Scene: Loaded');
 
-    this.gameManager = GameManager.getInstance();
-    this.gameManager.setLocation('negotiation');
-    this.uiManager = new UIManager();
-    this.timeSystem = new TimeSystem();
-    this.tutorialManager = TutorialManager.getInstance();
-
-    this.setupBackground();
+    this.initializeManagers('negotiation');
+    // Greenish/Neutral background for negotiation
+    this.setupBackground('NEGOTIATION', {
+      topColor: 0x2c3e50,
+      bottomColor: 0x27ae60,
+    });
     this.setupUI();
     this.setupEventListeners();
 
@@ -94,55 +65,16 @@ export class NegotiationScene extends Phaser.Scene {
   }
 
   private setupEventListeners(): void {
-    eventBus.on('money-changed', this.handleMoneyChanged);
-    eventBus.on('prestige-changed', this.handlePrestigeChanged);
-    eventBus.on('time-changed', this.handleTimeChanged);
-    eventBus.on('day-changed', this.handleDayChanged);
-    eventBus.on('location-changed', this.handleLocationChanged);
-
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      eventBus.off('money-changed', this.handleMoneyChanged);
-      eventBus.off('prestige-changed', this.handlePrestigeChanged);
-      eventBus.off('time-changed', this.handleTimeChanged);
-      eventBus.off('day-changed', this.handleDayChanged);
-      eventBus.off('location-changed', this.handleLocationChanged);
-    });
+    this.setupCommonEventListeners();
   }
 
-  private setupBackground(): void {
-    const { width, height } = this.cameras.main;
-    
-    const graphics = this.add.graphics();
-    // Greenish/Neutral background for negotiation
-    graphics.fillGradientStyle(0x2c3e50, 0x2c3e50, 0x27ae60, 0x27ae60, 1);
-    graphics.fillRect(0, 0, width, height);
-
-    this.add.text(width / 2, 30, 'NEGOTIATION', {
-      fontSize: '36px',
-      color: '#eee',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-  }
 
   private setupUI(): void {
     this.uiManager.clear();
 
     const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
 
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
     
     // Car Info Panel

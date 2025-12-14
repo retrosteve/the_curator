@@ -1,50 +1,21 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/game-manager';
-import { UIManager } from '@/ui/ui-manager';
-import { TimeSystem } from '@/systems/time-system';
-import { Car, calculateCarValue, getCarById } from '@/data/car-database';
-import { Rival, getRivalById } from '@/data/rival-database';
+import { BaseGameScene } from './base-game-scene';
+import { Car, calculateCarValue } from '@/data/car-database';
+import { Rival } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
-import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
-import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
  * Player uses various tactics (bid, power bid, stall, kick tires) to win the car.
  * Rival patience and budget determine when they quit.
  */
-export class AuctionScene extends Phaser.Scene {
-  private gameManager!: GameManager;
-  private uiManager!: UIManager;
-  private timeSystem!: TimeSystem;
-  private tutorialManager!: TutorialManager;
+export class AuctionScene extends BaseGameScene {
   private car!: Car;
   private rival!: Rival;
   private rivalAI!: RivalAI;
   private currentBid: number = 0;
-
   private stallUsesThisAuction: number = 0;
-
-  private readonly handleMoneyChanged = (money: number): void => {
-    this.uiManager.updateHUD({ money });
-  };
-
-  private readonly handlePrestigeChanged = (prestige: number): void => {
-    this.uiManager.updateHUD({ prestige });
-  };
-
-  private readonly handleTimeChanged = (_timeOfDay: number): void => {
-    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
-  };
-
-  private readonly handleDayChanged = (day: number): void => {
-    this.uiManager.updateHUD({ day });
-  };
-
-  private readonly handleLocationChanged = (location: string): void => {
-    this.uiManager.updateHUD({ location });
-  };
 
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
   private static readonly BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
@@ -72,66 +43,26 @@ export class AuctionScene extends Phaser.Scene {
   create(): void {
     console.log('Auction Scene: Loaded');
 
-    this.gameManager = GameManager.getInstance();
-    this.gameManager.setLocation('auction');
-    this.uiManager = new UIManager();
-    this.timeSystem = new TimeSystem();
-    this.tutorialManager = TutorialManager.getInstance();
-
-    this.setupBackground();
+    this.initializeManagers('auction');
+    this.setupBackground('AUCTION BATTLE!', {
+      topColor: 0x8b0000,
+      bottomColor: 0x4b0000,
+      titleSize: '42px',
+      titleColor: '#ffd700',
+    });
     this.setupUI();
     this.setupEventListeners();
   }
 
   private setupEventListeners(): void {
-    eventBus.on('money-changed', this.handleMoneyChanged);
-    eventBus.on('prestige-changed', this.handlePrestigeChanged);
-    eventBus.on('time-changed', this.handleTimeChanged);
-    eventBus.on('day-changed', this.handleDayChanged);
-    eventBus.on('location-changed', this.handleLocationChanged);
-
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      eventBus.off('money-changed', this.handleMoneyChanged);
-      eventBus.off('prestige-changed', this.handlePrestigeChanged);
-      eventBus.off('time-changed', this.handleTimeChanged);
-      eventBus.off('day-changed', this.handleDayChanged);
-      eventBus.off('location-changed', this.handleLocationChanged);
-    });
+    this.setupCommonEventListeners();
   }
 
-  private setupBackground(): void {
-    const { width, height } = this.cameras.main;
-    
-    const graphics = this.add.graphics();
-    graphics.fillGradientStyle(0x8b0000, 0x8b0000, 0x4b0000, 0x4b0000, 1);
-    graphics.fillRect(0, 0, width, height);
-
-    this.add.text(width / 2, 30, 'AUCTION BATTLE!', {
-      fontSize: '42px',
-      color: '#ffd700',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-  }
 
   private setupUI(): void {
     this.uiManager.clear();
 
-    const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
-
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
 
     const panel = this.uiManager.createPanel({

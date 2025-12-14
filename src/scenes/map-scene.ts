@@ -1,12 +1,9 @@
 import Phaser from 'phaser';
-import { GameManager } from '@/core/game-manager';
-import { UIManager } from '@/ui/ui-manager';
-import { TimeSystem } from '@/systems/time-system';
+import { BaseGameScene } from './base-game-scene';
 import { getRandomCar, getCarById } from '@/data/car-database';
 import { getRivalByTierProgression, calculateRivalInterest, getRivalById } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
-import { TutorialManager } from '@/systems/tutorial-manager';
 
 /**
  * Map Node configuration.
@@ -32,33 +29,8 @@ const AUCTION_HOURS = GAME_CONFIG.timeCosts.auctionHours;
  * Displays clickable nodes representing different locations.
  * Each visit costs time and may result in auction (PvP) or negotiation (PvE).
  */
-export class MapScene extends Phaser.Scene {
-  private gameManager!: GameManager;
-  private uiManager!: UIManager;
-  private timeSystem!: TimeSystem;
-  private tutorialManager!: TutorialManager;
+export class MapScene extends BaseGameScene {
   private nodes: MapNode[] = [];
-
-  // Event handler methods as arrow functions for proper 'this' binding
-  private readonly handleMoneyChanged = (money: number): void => {
-    this.uiManager.updateHUD({ money });
-  };
-
-  private readonly handlePrestigeChanged = (prestige: number): void => {
-    this.uiManager.updateHUD({ prestige });
-  };
-
-  private readonly handleTimeChanged = (_timeOfDay: number): void => {
-    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
-  };
-
-  private readonly handleDayChanged = (day: number): void => {
-    this.uiManager.updateHUD({ day });
-  };
-
-  private readonly handleLocationChanged = (location: string): void => {
-    this.uiManager.updateHUD({ location });
-  };
 
   private readonly handleNetworkLevelUp = (level: number): void => {
     const abilities = {
@@ -84,49 +56,25 @@ export class MapScene extends Phaser.Scene {
   create(): void {
     console.log('Map Scene: Loaded');
 
-    this.gameManager = GameManager.getInstance();
-    this.gameManager.setLocation('map');
-    this.uiManager = new UIManager();
-    this.timeSystem = new TimeSystem();
-    this.tutorialManager = TutorialManager.getInstance();
-
-    this.setupBackground();
+    this.initializeManagers('map');
+    this.setupBackground('THE MAP', {
+      topColor: 0x1a1a2e,
+      bottomColor: 0x16213e,
+    });
     this.createMapNodes();
     this.setupUI();
     this.setupEventListeners();
   }
 
   private setupEventListeners(): void {
-    eventBus.on('money-changed', this.handleMoneyChanged);
-    eventBus.on('prestige-changed', this.handlePrestigeChanged);
-    eventBus.on('time-changed', this.handleTimeChanged);
-    eventBus.on('day-changed', this.handleDayChanged);
-    eventBus.on('location-changed', this.handleLocationChanged);
+    this.setupCommonEventListeners();
     eventBus.on('network-levelup', this.handleNetworkLevelUp);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      eventBus.off('money-changed', this.handleMoneyChanged);
-      eventBus.off('prestige-changed', this.handlePrestigeChanged);
-      eventBus.off('time-changed', this.handleTimeChanged);
-      eventBus.off('day-changed', this.handleDayChanged);
-      eventBus.off('location-changed', this.handleLocationChanged);
       eventBus.off('network-levelup', this.handleNetworkLevelUp);
     });
   }
 
-  private setupBackground(): void {
-    const { width, height } = this.cameras.main;
-    
-    const graphics = this.add.graphics();
-    graphics.fillGradientStyle(0x1a1a2e, 0x1a1a2e, 0x16213e, 0x16213e, 1);
-    graphics.fillRect(0, 0, width, height);
-
-    this.add.text(width / 2, 30, 'THE MAP', {
-      fontSize: '36px',
-      color: '#eee',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-  }
 
   private createMapNodes(): void {
     const { width, height } = this.cameras.main;
@@ -211,23 +159,8 @@ export class MapScene extends Phaser.Scene {
   private setupUI(): void {
     this.uiManager.clear();
 
-    const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
-
     // Create HUD
-    const hud = this.uiManager.createHUD({
-      money: player.money,
-      prestige: player.prestige,
-      skills: player.skills,
-      day: world.day,
-      time: this.timeSystem.getFormattedTime(),
-      location: world.currentLocation,
-      garage: {
-        used: player.inventory.length,
-        total: player.garageSlots,
-      },
-      market: this.gameManager.getMarketDescription(),
-    });
+    const hud = this.createStandardHUD();
     this.uiManager.append(hud);
 
     // Back to garage button
@@ -243,10 +176,6 @@ export class MapScene extends Phaser.Scene {
     this.uiManager.append(backBtn);
   }
 
-  private goToGarageAndAutoEndDay(): void {
-    this.scene.start('GarageScene', { autoEndDay: true });
-  }
-
   private visitNode(node: MapNode): void {
     const timeCost = (node as any).specialEvent?.timeCost || TRAVEL_HOURS;
     const requiredHours = timeCost;
@@ -254,7 +183,7 @@ export class MapScene extends Phaser.Scene {
     const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);
     if (block) {
       this.uiManager.showModal(block.title, block.message, [
-        { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
       ]);
       return;
     }
@@ -342,7 +271,7 @@ export class MapScene extends Phaser.Scene {
       const block = this.timeSystem.getTimeBlockModal(AUCTION_HOURS, 'an auction');
       if (block) {
         this.uiManager.showModal(block.title, block.message, [
-          { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
         ]);
         return;
       }
@@ -371,7 +300,7 @@ export class MapScene extends Phaser.Scene {
       const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, 'inspecting this car');
       if (block) {
         this.uiManager.showModal(block.title, block.message, [
-          { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
         ]);
         return;
       }
@@ -402,7 +331,7 @@ export class MapScene extends Phaser.Scene {
     const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, `the ${specialEvent.name}`);
     if (block) {
       this.uiManager.showModal(block.title, block.message, [
-        { text: 'Go to Garage', onClick: () => this.goToGarageAndAutoEndDay() },
+        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
       ]);
       return;
     }

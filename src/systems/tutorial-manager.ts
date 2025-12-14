@@ -109,9 +109,10 @@ export class TutorialManager {
       case 'complete':
         this.showDialogue(
           "Uncle Ray",
-          "You did it! You've learned the basics: inspecting cars, restoring them, bidding strategically, and reading the competition. Now go build your collection!"
+          "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car museum! Remember: every car tells a story, and you're the curator."
         );
         this.isActive = false; // End tutorial
+        eventBus.emit('tutorial-complete'); // Emit completion event
         break;
       
       default:

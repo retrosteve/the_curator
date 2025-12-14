@@ -13,6 +13,7 @@ export class UIManager {
   private container: HTMLElement;
   private tutorialDialogueElement: HTMLElement | null = null;
   private tutorialBackdropElement: HTMLElement | null = null;
+  private activeToasts: HTMLElement[] = []; // Track active XP toasts for stacking
 
   private static formatLocationLabel(location: string): string {
     const normalized = location.replace(/[_-]+/g, ' ').trim();
@@ -94,18 +95,23 @@ export class UIManager {
 
   /**
    * Show XP gain toast notification (e.g., '+10 Eye XP').
-   * Toast appears at top-right and fades out.
+   * Multiple toasts stack vertically to avoid overlapping.
    */
   public showXPGain(skill: 'eye' | 'tongue' | 'network', amount: number): void {
     const skillIcons = { eye: '👁️', tongue: '💬', network: '🌐' };
     const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
     const skillColors = { eye: '#3498db', tongue: '#9b59b6', network: '#e67e22' };
     
+    // Calculate vertical position based on active toasts (stack them)
+    const baseTop = 80;
+    const toastHeight = 50; // Approximate height including margin
+    const topPosition = baseTop + (this.activeToasts.length * toastHeight);
+    
     const toast = document.createElement('div');
     toast.textContent = `${skillIcons[skill]} +${amount} ${skillNames[skill]} XP`;
     toast.style.cssText = `
       position: fixed;
-      top: 80px;
+      top: ${topPosition}px;
       right: 20px;
       padding: 12px 20px;
       background: ${skillColors[skill]};
@@ -117,6 +123,7 @@ export class UIManager {
       pointer-events: none;
       z-index: 10000;
       animation: slideInFadeOut 2s ease-out forwards;
+      transition: top 0.3s ease;
     `;
     
     // Add CSS animation if not already present
@@ -147,13 +154,33 @@ export class UIManager {
     }
     
     document.body.appendChild(toast);
+    this.activeToasts.push(toast);
     
-    // Remove element after animation
+    // Remove element after animation and update stack positions
     setTimeout(() => {
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast);
       }
+      // Remove from active toasts array
+      const index = this.activeToasts.indexOf(toast);
+      if (index > -1) {
+        this.activeToasts.splice(index, 1);
+      }
+      // Reposition remaining toasts
+      this.repositionToasts();
     }, 2000);
+  }
+
+  /**
+   * Reposition active toasts to fill gaps when toasts are removed.
+   * @private
+   */
+  private repositionToasts(): void {
+    const baseTop = 80;
+    const toastHeight = 50;
+    this.activeToasts.forEach((toast, index) => {
+      toast.style.top = `${baseTop + (index * toastHeight)}px`;
+    });
   }
 
   /**
@@ -376,6 +403,218 @@ export class UIManager {
   }
 
   /**
+   * Show restoration options modal with proper card-based layout.
+   * @param carName - Name of the car being restored
+   * @param currentCondition - Current condition value
+   * @param options - Array of restoration options with details
+   * @param onCancel - Callback when user cancels
+   */
+  public showRestorationModal(
+    carName: string,
+    currentCondition: number,
+    options: Array<{
+      name: string;
+      cost: number;
+      apCost: number;
+      description: string;
+      conditionGain: number;
+      profit: number;
+      roi: string;
+      risk?: string;
+      onClick: () => void;
+    }>,
+    onCancel: () => void
+  ): void {
+    const stop = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'game-modal-backdrop';
+    Object.assign(backdrop.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      zIndex: '999',
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: 'blur(8px)',
+      pointerEvents: 'auto',
+    });
+
+    ['pointerdown', 'pointerup', 'pointermove', 'click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'touchstart', 'touchend', 'touchmove'].forEach(
+      (eventName) => {
+        backdrop.addEventListener(eventName, stop, { capture: true });
+      }
+    );
+
+    const modal = document.createElement('div');
+    modal.className = 'game-modal restoration-modal';
+    
+    Object.assign(modal.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
+      border: '3px solid rgba(100, 200, 255, 0.4)',
+      borderRadius: '20px',
+      padding: '32px',
+      minWidth: '500px',
+      maxWidth: '700px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      zIndex: '1000',
+      pointerEvents: 'auto',
+      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+    });
+
+    const heading = this.createHeading('Select Restoration Service', 2, {
+      textAlign: 'center',
+      marginBottom: '8px',
+    });
+
+    const subtitle = this.createText(`${carName} • Current Condition: ${currentCondition}/100`, {
+      textAlign: 'center',
+      marginBottom: '24px',
+      fontSize: '16px',
+      color: '#90caf9',
+    });
+
+    modal.appendChild(heading);
+    modal.appendChild(subtitle);
+
+    // Create option cards
+    options.forEach((opt) => {
+      const card = document.createElement('div');
+      Object.assign(card.style, {
+        background: 'linear-gradient(145deg, rgba(30, 30, 50, 0.8), rgba(40, 40, 60, 0.8))',
+        border: '2px solid rgba(100, 200, 255, 0.2)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '16px',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+      });
+
+      card.addEventListener('mouseenter', () => {
+        card.style.borderColor = 'rgba(100, 200, 255, 0.5)';
+        card.style.transform = 'translateX(4px)';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.borderColor = 'rgba(100, 200, 255, 0.2)';
+        card.style.transform = 'translateX(0)';
+      });
+
+      const cardHeader = document.createElement('div');
+      Object.assign(cardHeader.style, {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '8px',
+      });
+
+      const optionName = document.createElement('h3');
+      optionName.textContent = opt.name;
+      Object.assign(optionName.style, {
+        margin: '0',
+        fontSize: '18px',
+        color: '#64b5f6',
+        fontFamily: 'Orbitron, sans-serif',
+      });
+
+      const costInfo = document.createElement('div');
+      costInfo.textContent = `${formatCurrency(opt.cost)} • ${opt.apCost} AP`;
+      Object.assign(costInfo.style, {
+        fontSize: '16px',
+        color: '#ffd54f',
+        fontWeight: 'bold',
+      });
+
+      cardHeader.appendChild(optionName);
+      cardHeader.appendChild(costInfo);
+      card.appendChild(cardHeader);
+
+      const description = document.createElement('div');
+      description.textContent = opt.description;
+      Object.assign(description.style, {
+        fontSize: '14px',
+        color: '#b0bec5',
+        marginBottom: '12px',
+        lineHeight: '1.5',
+      });
+      card.appendChild(description);
+
+      const statsRow = document.createElement('div');
+      Object.assign(statsRow.style, {
+        display: 'flex',
+        gap: '16px',
+        marginBottom: '8px',
+      });
+
+      const conditionGain = document.createElement('div');
+      conditionGain.textContent = `📈 +${opt.conditionGain} condition`;
+      Object.assign(conditionGain.style, {
+        fontSize: '14px',
+        color: '#81c784',
+      });
+      statsRow.appendChild(conditionGain);
+
+      const profitColor = opt.profit >= 0 ? '#2ecc71' : '#e74c3c';
+      const profitIcon = opt.profit >= 0 ? '🟢' : '🔴';
+      const profitStr = opt.profit >= 0 ? `+${formatCurrency(opt.profit)}` : formatCurrency(opt.profit);
+      
+      const profitInfo = document.createElement('div');
+      profitInfo.textContent = `${profitIcon} Est. Profit: ${profitStr} (ROI: ${opt.roi}%)`;
+      Object.assign(profitInfo.style, {
+        fontSize: '14px',
+        color: profitColor,
+        fontWeight: 'bold',
+      });
+      statsRow.appendChild(profitInfo);
+
+      card.appendChild(statsRow);
+
+      if (opt.risk) {
+        const riskWarning = document.createElement('div');
+        riskWarning.textContent = `⚠️ ${opt.risk}`;
+        Object.assign(riskWarning.style, {
+          fontSize: '13px',
+          color: '#ff9800',
+          marginTop: '8px',
+          fontStyle: 'italic',
+        });
+        card.appendChild(riskWarning);
+      }
+
+      card.addEventListener('click', () => {
+        this.remove(modal);
+        this.remove(backdrop);
+        opt.onClick();
+      });
+
+      modal.appendChild(card);
+    });
+
+    // Cancel button
+    const cancelBtn = this.createButton('Cancel', () => {
+      this.remove(modal);
+      this.remove(backdrop);
+      onCancel();
+    });
+    Object.assign(cancelBtn.style, {
+      width: '100%',
+      marginTop: '8px',
+    });
+    modal.appendChild(cancelBtn);
+
+    this.append(backdrop);
+    this.append(modal);
+  }
+
+  /**
    * Show an insufficient funds modal with standardized formatting.
    */
   public showInsufficientFundsModal(): void {
@@ -571,6 +810,10 @@ export class UIManager {
       total: number;
     };
     market?: string;
+    victoryProgress?: {
+      museumCars: { current: number; required: number };
+      onClickProgress?: () => void;
+    };
   }): HTMLDivElement {
     const hud = document.createElement('div');
     hud.id = 'game-hud';
@@ -601,6 +844,31 @@ export class UIManager {
       ${data.location !== undefined ? `<div data-hud="location">📍 Location: ${UIManager.formatLocationLabel(data.location)}</div>` : ''}
       ${data.market !== undefined ? `<div data-hud="market">📈 ${data.market}</div>` : ''}
     `;
+
+    // Add victory progress indicator if provided
+    if (data.victoryProgress) {
+      const progressDiv = document.createElement('div');
+      progressDiv.style.cssText = `
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(100, 200, 255, 0.2);
+        cursor: pointer;
+        transition: color 0.2s ease;
+      `;
+      progressDiv.innerHTML = `🏛️ Museum: ${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}`;
+      
+      if (data.victoryProgress.onClickProgress) {
+        progressDiv.addEventListener('mouseenter', () => {
+          progressDiv.style.color = '#64c8ff';
+        });
+        progressDiv.addEventListener('mouseleave', () => {
+          progressDiv.style.color = '#e0e6ed';
+        });
+        progressDiv.addEventListener('click', data.victoryProgress.onClickProgress);
+      }
+      
+      hud.appendChild(progressDiv);
+    }
 
     return hud;
   }

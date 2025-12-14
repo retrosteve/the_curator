@@ -133,6 +133,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
 
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
+    const victoryResult = this.gameManager.checkVictory();
 
     this.cachedHUD = this.uiManager.createHUD({
       money: player.money,
@@ -146,6 +147,17 @@ export abstract class BaseGameScene extends Phaser.Scene {
         total: player.garageSlots,
       },
       market: this.gameManager.getMarketDescription(),
+      victoryProgress: {
+        museumCars: victoryResult.museumCars,
+        onClickProgress: () => {
+          this.scene.pause();
+          this.uiManager.showModal(
+            '🏆 Victory Progress',
+            `Museum Cars: ${victoryResult.museumCars.current}/${victoryResult.museumCars.required} ${victoryResult.museumCars.met ? '✅' : '⬜'}\nUnicorns: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nMax Skill: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}`,
+            [{ text: 'Close', onClick: () => this.scene.resume() }]
+          );
+        },
+      },
     });
 
     return this.cachedHUD;

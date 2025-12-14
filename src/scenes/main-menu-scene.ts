@@ -87,10 +87,12 @@ export class MainMenuScene extends Phaser.Scene {
       'New Game',
       () => this.startNewGame(),
       {
-        width: '300px',
-        fontSize: '20px',
-        padding: '15px',
-        backgroundColor: '#27ae60',
+        style: {
+          width: '300px',
+          fontSize: '20px',
+          padding: '15px',
+          backgroundColor: '#27ae60',
+        }
       }
     );
     buttonContainer.appendChild(newGameBtn);
@@ -101,10 +103,12 @@ export class MainMenuScene extends Phaser.Scene {
         'Continue',
         () => this.continueGame(),
         {
-          width: '300px',
-          fontSize: '20px',
-          padding: '15px',
-          backgroundColor: '#3498db',
+          style: {
+            width: '300px',
+            fontSize: '20px',
+            padding: '15px',
+            backgroundColor: '#3498db',
+          }
         }
       );
       buttonContainer.appendChild(continueBtn);
@@ -114,10 +118,12 @@ export class MainMenuScene extends Phaser.Scene {
         'Load Saved Game',
         () => this.loadGame(),
         {
-          width: '300px',
-          fontSize: '16px',
-          padding: '12px',
-          backgroundColor: '#2c3e50',
+          style: {
+            width: '300px',
+            fontSize: '16px',
+            padding: '12px',
+            backgroundColor: '#2c3e50',
+          }
         }
       );
       buttonContainer.appendChild(loadBtn);
@@ -128,10 +134,12 @@ export class MainMenuScene extends Phaser.Scene {
       'About',
       () => this.showAbout(),
       {
-        width: '300px',
-        fontSize: '16px',
-        padding: '12px',
-        backgroundColor: '#34495e',
+        style: {
+          width: '300px',
+          fontSize: '16px',
+          padding: '12px',
+          backgroundColor: '#34495e',
+        }
       }
     );
     buttonContainer.appendChild(creditsBtn);

@@ -475,76 +475,91 @@ export class GarageScene extends BaseGameScene {
     }
 
     const options = Economy.getRestorationOptions(car);
-    const modalOptions = options.map(opt => ({
-      text: `${opt.name} (${formatCurrency(opt.cost)} | ${opt.apCost} AP) - ${opt.description} ${opt.risk ? `[WARNING: ${opt.risk}]` : ''}`,
-      onClick: () => {
-        const block = this.timeSystem.getAPBlockModal(opt.apCost, `restoring ${car.name}`);
-        if (block) {
-          this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
-          return;
-        }
-        if (this.gameManager.spendMoney(opt.cost)) {
-          this.timeSystem.spendAP(opt.apCost);
-          
-          // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
-          const isTutorialFirstRestore = this.tutorialManager.isCurrentStep('first_buy');
-          const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
-          this.gameManager.updateCar(result.car);
-          
-          // Tutorial trigger: advance to first_restore immediately after restoration
-          if (isTutorialFirstRestore) {
-            this.tutorialManager.advanceStep('first_restore');
+    
+    // Calculate profit preview for each option
+    const currentValue = Economy.getSalePrice(car, this.gameManager);
+    
+    const modalOptions = options.map(opt => {
+      // Simulate restoration result
+      const simulatedCar = { ...car, condition: Math.min(100, car.condition + opt.conditionGain) };
+      const futureValue = Economy.getSalePrice(simulatedCar, this.gameManager);
+      const profit = futureValue - currentValue - opt.cost;
+      const roi = ((profit / opt.cost) * 100).toFixed(0);
+      
+      return {
+        name: opt.name,
+        cost: opt.cost,
+        apCost: opt.apCost,
+        description: opt.description,
+        conditionGain: opt.conditionGain,
+        profit,
+        roi,
+        risk: opt.risk,
+        onClick: () => {
+          const block = this.timeSystem.getAPBlockModal(opt.apCost, `restoring ${car.name}`);
+          if (block) {
+            this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
+            return;
           }
-          
-          // Tutorial: Auto-sell the first car after restoration
-          if (this.tutorialManager.isCurrentStep('first_restore')) {
-            this.showInventory();
-            // Auto-trigger the sale
-            setTimeout(() => {
-              const restoredCar = this.gameManager.getCar(car.id);
-              if (restoredCar) {
-                const salePrice = Economy.getSalePrice(restoredCar, this.gameManager);
-                this.uiManager.showModal(
-                  'Tutorial: Your First Sale',
-                  `An NPC buyer saw your ${restoredCar.name} and wants to buy it immediately for ${formatCurrency(salePrice)}!\n\nThis is how you flip cars for profit: Buy low, restore, sell high.`,
-                  [{
-                    text: 'Sell to Buyer',
-                    onClick: () => {
-                      this.gameManager.addMoney(salePrice);
-                      this.gameManager.removeCar(car.id);
-                      this.tutorialManager.advanceStep('first_flip');
-                      
-                      // Show next tutorial guidance
-                      setTimeout(() => {
-                        this.tutorialManager.showDialogueWithCallback(
-                          'Uncle Ray',
-                          `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map" to find another opportunity - but this time, you'll face competition from other collectors!`,
-                          () => this.setupUI()
-                        );
-                      }, 300);
-                    }
-                  }]
-                );
-              }
-            }, 500);
+          if (this.gameManager.spendMoney(opt.cost)) {
+            this.timeSystem.spendAP(opt.apCost);
+            
+            // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
+            const isTutorialFirstRestore = this.tutorialManager.isCurrentStep('first_buy');
+            const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
+            this.gameManager.updateCar(result.car);
+            
+            // Tutorial trigger: advance to first_restore immediately after restoration
+            if (isTutorialFirstRestore) {
+              this.tutorialManager.advanceStep('first_restore');
+            }
+            
+            // Tutorial: Auto-sell the first car after restoration
+            if (this.tutorialManager.isCurrentStep('first_restore')) {
+              this.showInventory();
+              // Auto-trigger the sale
+              setTimeout(() => {
+                const restoredCar = this.gameManager.getCar(car.id);
+                if (restoredCar) {
+                  const salePrice = Economy.getSalePrice(restoredCar, this.gameManager);
+                  this.uiManager.showModal(
+                    'Tutorial: Your First Sale',
+                    `An NPC buyer saw your ${restoredCar.name} and wants to buy it immediately for ${formatCurrency(salePrice)}!\n\nThis is how you flip cars for profit: Buy low, restore, sell high.`,
+                    [{
+                      text: 'Sell to Buyer',
+                      onClick: () => {
+                        this.gameManager.addMoney(salePrice);
+                        this.gameManager.removeCar(car.id);
+                        this.tutorialManager.advanceStep('first_flip');
+                        
+                        // Show next tutorial guidance
+                        setTimeout(() => {
+                          this.tutorialManager.showDialogueWithCallback(
+                            'Uncle Ray',
+                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map" to find another opportunity - but this time, you'll face competition from other collectors!`,
+                            () => this.setupUI()
+                          );
+                        }, 300);
+                      }
+                    }]
+                  );
+                }
+              }, 500);
+            } else {
+              this.showInventory();
+            }
           } else {
-            this.showInventory();
+            this.uiManager.showInsufficientFundsModal();
           }
-        } else {
-          this.uiManager.showInsufficientFundsModal();
-        }
-      }
-    }));
-
-    modalOptions.push({
-      text: 'Cancel',
-      onClick: () => this.showInventory(),
+        },
+      };
     });
 
-    this.uiManager.showModal(
-      'Select Restoration Service',
-      `Choose a specialist for ${car.name} (Current: ${car.condition}/100):`,
-      modalOptions
+    this.uiManager.showRestorationModal(
+      car.name,
+      car.condition,
+      modalOptions,
+      () => this.showInventory()
     );
   }
 

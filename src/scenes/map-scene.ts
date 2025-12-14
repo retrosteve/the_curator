@@ -5,8 +5,8 @@ import { getRivalByTierProgression, calculateRivalInterest, getRivalById } from 
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
 
-const AUCTION_HOURS = GAME_CONFIG.timeCosts.auctionHours;
-const INSPECT_HOURS = GAME_CONFIG.timeCosts.inspectHours;
+const AUCTION_AP = GAME_CONFIG.timeCosts.auctionAP;
+const INSPECT_AP = GAME_CONFIG.timeCosts.inspectAP;
 
 /**
  * Map Node configuration.
@@ -142,9 +142,9 @@ export class MapScene extends BaseGameScene {
         wordWrap: { width: 150 },
       }).setOrigin(0.5);
 
-      // Add time cost (use special event time cost if available)
-      const timeCost = (node as any).specialEvent?.timeCost || GAME_CONFIG.timeCosts.travelHours;
-      this.add.text(node.x, node.y, `${timeCost}h`, {
+      // Add AP cost (use special event AP cost if available)
+      const apCost = (node as any).specialEvent?.apCost || GAME_CONFIG.timeCosts.travelAP;
+      this.add.text(node.x, node.y + 35, `${apCost} AP`, {
         fontSize: '18px',
         color: '#fff',
         fontStyle: 'bold',
@@ -183,10 +183,10 @@ export class MapScene extends BaseGameScene {
   }
 
   private visitNode(node: MapNode): void {
-    // Special events have custom time costs, regular nodes use travel time
-    const requiredHours = node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelHours;
+    // Special events have custom AP costs, regular nodes use travel AP
+    const requiredAP = node.specialEvent?.apCost ?? GAME_CONFIG.timeCosts.travelAP;
 
-    const block = this.timeSystem.getTimeBlockModal(requiredHours, `visiting ${node.name}`);
+    const block = this.timeSystem.getAPBlockModal(requiredAP, `visiting ${node.name}`);
     if (block) {
       this.uiManager.showModal(block.title, block.message, [
         { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
@@ -194,8 +194,8 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
-    // Advance time
-    this.timeSystem.advanceTime(requiredHours);
+    // Spend AP
+    this.timeSystem.spendAP(requiredAP);
 
     // Update current location for downstream systems/UI
     this.gameManager.setLocation(node.type);
@@ -267,8 +267,8 @@ export class MapScene extends BaseGameScene {
     const hasRival = (node as any).hasRival || false;
 
     if (hasRival) {
-      // Auction consumes additional time
-      const block = this.timeSystem.getTimeBlockModal(AUCTION_HOURS, 'an auction');
+      // Auction consumes additional AP
+      const block = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
       if (block) {
         this.uiManager.showModal(block.title, block.message, [
           { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
@@ -289,15 +289,15 @@ export class MapScene extends BaseGameScene {
           {
             text: 'Start Auction',
             onClick: () => {
-              this.timeSystem.advanceTime(AUCTION_HOURS);
+              this.timeSystem.spendAP(AUCTION_AP);
               this.scene.start('AuctionScene', { car, rival, interest });
             },
           },
         ]
       );
     } else {
-      // Negotiation consumes inspection time
-      const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, 'inspecting this car');
+      // Negotiation consumes inspection AP
+      const block = this.timeSystem.getAPBlockModal(INSPECT_AP, 'inspecting this car');
       if (block) {
         this.uiManager.showModal(block.title, block.message, [
           { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
@@ -305,7 +305,7 @@ export class MapScene extends BaseGameScene {
         return;
       }
 
-      this.timeSystem.advanceTime(INSPECT_HOURS);
+      this.timeSystem.spendAP(INSPECT_AP);
 
       // Solo negotiation
       this.scene.start('NegotiationScene', { car });
@@ -328,7 +328,7 @@ export class MapScene extends BaseGameScene {
     }
 
     // Special events always have a car to negotiate for (no auctions for simplicity)
-    const block = this.timeSystem.getTimeBlockModal(INSPECT_HOURS, `the ${specialEvent.name}`);
+    const block = this.timeSystem.getAPBlockModal(INSPECT_AP, `the ${specialEvent.name}`);
     if (block) {
       this.uiManager.showModal(block.title, block.message, [
         { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
@@ -336,7 +336,7 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
-    this.timeSystem.advanceTime(INSPECT_HOURS);
+    this.timeSystem.spendAP(INSPECT_AP);
 
     // Show special event description
     this.uiManager.showModal(

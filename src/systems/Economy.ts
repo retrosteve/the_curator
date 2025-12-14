@@ -3,7 +3,7 @@ import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * Restoration option configuration.
- * Defines cost, time, quality, and risk for a specific restoration service.
+ * Defines cost, AP cost, quality, and risk for a specific restoration service.
  */
 export interface RestorationOption {
   id: string;
@@ -11,7 +11,7 @@ export interface RestorationOption {
   specialist: 'Charlie' | 'Artisan';
   type: 'Minor' | 'Major';
   cost: number;
-  time: number;
+  apCost: number;
   conditionGain: number;
   description: string;
   risk?: string;
@@ -46,7 +46,7 @@ export class Economy {
         specialist: 'Charlie',
         type: 'Minor',
         cost: Math.floor(baseValue * charlie.costRateOfBaseValue),
-        time: charlie.timeHours,
+        apCost: charlie.apCost,
         conditionGain: charlie.conditionGain,
         description: "Fast and cheap. Don't ask questions.",
         risk: `${Math.round(charlie.failChance * 100)}% chance to damage car`,
@@ -62,7 +62,7 @@ export class Economy {
         specialist: 'Artisan',
         type: 'Major',
         cost: Math.floor(baseValue * artisan.costRateOfBaseValue),
-        time: artisan.timeHours,
+        apCost: artisan.apCost,
         conditionGain: artisan.conditionGain,
         description: "Perfection takes time. Increases value significantly.",
       });

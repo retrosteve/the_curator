@@ -329,30 +329,19 @@ export class AuctionScene extends BaseGameScene {
     } else {
       // Tutorial: After losing to Sterling Vance, immediately encounter Scrapyard Joe at the same sale
       if (this.tutorialManager.isCurrentStep('first_loss')) {
-        this.uiManager.showModal(
-          'Auction Lost',
-          message + '\n\nSterling drives away with a smug grin...',
-          [
-            {
-              text: 'Continue',
-              onClick: () => {
-                // Uncle Ray spots another opportunity
-                setTimeout(() => {
-                  this.tutorialManager.advanceStep('redemption');
-                  // Immediately start second auction at same location
-                  setTimeout(() => {
-                    const boxywagon = getCarById('tutorial_boxy_wagon');
-                    const scrappyJoe = getRivalById('scrapyard_joe');
-                    if (boxywagon && scrappyJoe) {
-                      const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
-                      this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
-                    }
-                  }, 100);
-                }, 500);
-              },
-            },
-          ]
-        );
+        // Uncle Ray spots another opportunity (dialogue shown by advanceStep)
+        setTimeout(() => {
+          this.tutorialManager.advanceStep('redemption');
+          // Let player dismiss tutorial dialogue before starting second auction
+          setTimeout(() => {
+            const boxywagon = getCarById('tutorial_boxy_wagon');
+            const scrappyJoe = getRivalById('scrapyard_joe');
+            if (boxywagon && scrappyJoe) {
+              const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
+              this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+            }
+          }, 100);
+        }, 500);
         return;
       }
       

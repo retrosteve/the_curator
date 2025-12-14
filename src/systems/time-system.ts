@@ -2,9 +2,9 @@ import { EndDayResult, GameManager } from '@/core/game-manager';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
- * TimeSystem - Manages game time and day/night cycle.
- * Wraps GameManager time-related operations with helper methods.
- * Business hours are defined in GAME_CONFIG.day.
+ * TimeSystem - Manages action points and day/night cycle.
+ * Each day starts with a fresh pool of Action Points (AP).
+ * Days advance for seasonal/market tracking when AP runs out.
  */
 export class TimeSystem {
   private gameManager: GameManager;
@@ -14,26 +14,36 @@ export class TimeSystem {
   }
 
   /**
-   * Advance time by specified hours.
-   * Delegates to GameManager.
-   * @param hours - Hours to advance (can be fractional)
+   * Spend Action Points for an action.
+   * Delegates to GameManager which tracks AP internally.
+   * @param cost - Action Points to spend
    */
-  public advanceTime(hours: number): void {
-    this.gameManager.advanceTime(hours);
+  public spendAP(cost: number): void {
+    this.gameManager.spendAP(cost);
   }
 
   /**
-   * Get current time of day formatted as 12-hour clock.
-   * @returns Formatted time string (e.g., '3:30 PM')
+   * Get current Action Points remaining.
+   * @returns AP remaining (0 to maxAP)
    */
-  public getFormattedTime(): string {
-    const time = this.gameManager.getWorldState().timeOfDay;
-    const hours = Math.floor(time);
-    const minutes = Math.floor((time - hours) * 60);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-    
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  public getCurrentAP(): number {
+    return this.gameManager.getWorldState().currentAP;
+  }
+
+  /**
+   * Get maximum Action Points per day.
+   * @returns Max AP from config
+   */
+  public getMaxAP(): number {
+    return GAME_CONFIG.day.maxAP;
+  }
+
+  /**
+   * Get formatted AP display string.
+   * @returns Formatted string (e.g., '7/10 AP')
+   */
+  public getFormattedAP(): string {
+    return `${this.getCurrentAP()}/${this.getMaxAP()} AP`;
   }
 
   /**
@@ -45,63 +55,59 @@ export class TimeSystem {
   }
 
   /**
-    * Check if it's business hours.
-    * @returns True if current time is between GAME_CONFIG.day.startHour and GAME_CONFIG.day.endHour
+   * Check if there are any Action Points remaining.
+   * @returns True if currentAP > 0
    */
-  public isBusinessHours(): boolean {
-    const time = this.gameManager.getWorldState().timeOfDay;
-    return time >= GAME_CONFIG.day.startHour && time < GAME_CONFIG.day.endHour;
+  public hasAPRemaining(): boolean {
+    return this.getCurrentAP() > 0;
   }
 
   /**
-    * Get time remaining in current day (until business day end).
-    * @returns Hours remaining until GAME_CONFIG.day.endHour
+   * Get Action Points remaining.
+   * @returns AP remaining (0 to maxAP)
    */
-  public getTimeRemainingInDay(): number {
-    const remaining = GAME_CONFIG.day.endHour - this.gameManager.getWorldState().timeOfDay;
-    return Math.max(0, remaining);
+  public getAPRemaining(): number {
+    return this.getCurrentAP();
   }
 
   /**
-   * Check if enough time remains for an action.
-   * @param requiredHours - Hours needed for the action
-    * @returns True if action can be completed before GAME_CONFIG.day.endHour
+   * Check if enough AP remains for an action.
+   * @param required - AP needed for the action
+   * @returns True if enough AP available
    */
-  public hasEnoughTime(requiredHours: number): boolean {
-    return this.getTimeRemainingInDay() >= requiredHours;
+  public hasEnoughAP(required: number): boolean {
+    return this.getCurrentAP() >= required;
   }
 
   /**
-   * Build a consistent modal title/message when an action would exceed business hours.
-   * Returns null when enough time remains.
+   * Build a consistent modal title/message when insufficient AP for an action.
+   * Returns null when enough AP remains.
    */
-  public getTimeBlockModal(
-    requiredHours: number,
+  public getAPBlockModal(
+    required: number,
     actionLabel: string
   ): { title: string; message: string } | null {
-    const hoursLeft = this.getTimeRemainingInDay();
-    if (hoursLeft >= requiredHours) return null;
+    const apLeft = this.getCurrentAP();
+    if (apLeft >= required) return null;
 
-    const currentTime = this.getFormattedTime();
-
-    if (hoursLeft === 0) {
+    if (apLeft === 0) {
       return {
-        title: 'Day Ending Soon',
-        message: `It's ${currentTime} - the business day has ended.\n\nReturn to the garage to end your day.`,
+        title: 'Day Complete',
+        message: `You're out of Action Points for today.\n\nReturn to the garage to end your day and start fresh tomorrow.`,
       };
     }
 
-    const hoursLeftLabel = `${hoursLeft.toFixed(1)} hour${hoursLeft !== 1 ? 's' : ''}`;
-    const requiredLabel = `${requiredHours} hour${requiredHours !== 1 ? 's' : ''}`;
+    const apLabel = `${apLeft} AP`;
+    const requiredLabel = `${required} AP`;
 
     return {
-      title: 'Day Ending Soon',
-      message: `You only have ${hoursLeftLabel} left today, but ${actionLabel} requires ${requiredLabel}.\n\nReturn to the garage to end your day.`,
+      title: 'Not Enough AP',
+      message: `You only have ${apLabel} left today, but ${actionLabel} requires ${requiredLabel}.\n\nReturn to the garage to end your day.`,
     };
   }
 
   /**
-   * End current day and start new day at GAME_CONFIG.day.startHour.
+   * End current day and start new day with fresh Action Points.
    * Daily rent (GAME_CONFIG.economy.dailyRent) is applied during the transition.
    */
   public endDay(): EndDayResult {

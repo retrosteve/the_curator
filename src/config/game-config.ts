@@ -14,8 +14,7 @@ export const GAME_CONFIG = {
   },
 
   day: {
-    startHour: 8,
-    endHour: 20,
+    maxAP: 10, // Action Points per day
   },
 
   player: {
@@ -68,7 +67,7 @@ export const GAME_CONFIG = {
       charlieMinor: {
         availableBelowCondition: 100,
         costRateOfBaseValue: 0.02,
-        timeHours: 4,
+        apCost: 3,
         conditionGain: 10,
         failChance: 0.1,
         failConditionPenalty: 5,
@@ -77,7 +76,7 @@ export const GAME_CONFIG = {
       artisanMajor: {
         availableBelowCondition: 90,
         costRateOfBaseValue: 0.15,
-        timeHours: 8,
+        apCost: 5,
         conditionGain: 30,
       },
     },
@@ -104,9 +103,9 @@ export const GAME_CONFIG = {
   },
 
   timeCosts: {
-    travelHours: 1,
-    inspectHours: 0.5,
-    auctionHours: 2,
+    travelAP: 1,
+    inspectAP: 1,
+    auctionAP: 2,
   },
 
   encounters: {

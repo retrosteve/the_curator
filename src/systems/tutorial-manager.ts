@@ -70,7 +70,7 @@ export class TutorialManager {
       case 'first_visit_scrapyard':
         this.showDialogue(
           "Uncle Ray",
-          "Now click the 'Go to Map' button, then click on 'Joe's Scrapyard' to find your first car. Traveling costs 1 hour."
+          "Now click the 'Go to Map' button, then click on 'Joe's Scrapyard' to find your first car. Traveling costs 1 Action Point."
         );
         break;
       
@@ -144,7 +144,7 @@ export class TutorialManager {
    * @param text - Dialogue text to display
    * @param onDismiss - Callback to execute when dialogue is dismissed
    */
-  private showDialogueWithCallback(speaker: string, text: string, onDismiss: () => void): void {
+  public showDialogueWithCallback(speaker: string, text: string, onDismiss: () => void): void {
     this.uiManager.showTutorialDialogue(speaker, text, onDismiss);
   }
 

@@ -53,15 +53,6 @@ export class NegotiationScene extends BaseGameScene {
     this.setupUI();
     this.setupCommonEventListeners();
 
-    // Tutorial guidance: first inspect - show gameplay instructions
-    if (this.tutorialManager.isCurrentStep('first_inspect')) {
-      this.uiManager.showModal(
-        'Your First Car Inspection',
-        'Look at the car details above. Your Eye skill level determines what you can see:\n\n• Level 1: Basic info only\n• Level 2+: Reveals hidden damage history\n\nTry haggling to lower the price, then click "Accept Offer" to buy. This will cost inspection time.',
-        [{ text: 'Got it', onClick: () => {} }]
-      );
-    }
-
     // Tutorial trigger: advance from first_visit_scrapyard to first_inspect
     if (this.tutorialManager.isCurrentStep('first_visit_scrapyard')) {
       this.tutorialManager.advanceStep('first_inspect');

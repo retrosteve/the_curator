@@ -442,7 +442,7 @@ export class UIManager {
     money: number;
     prestige?: number;
     day: number;
-    time: string;
+    ap: string;
     location?: string;
     skills?: {
       eye: number;
@@ -480,7 +480,7 @@ export class UIManager {
       ${data.garage !== undefined ? `<div data-hud="garage">🏠 Garage: ${data.garage.used}/${data.garage.total}</div>` : ''}
       ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
       <div data-hud="day">📅 Day: ${data.day}</div>
-      <div data-hud="time">🕐 Time: ${data.time}</div>
+      <div data-hud="ap">⚡ ${data.ap}</div>
       ${data.location !== undefined ? `<div data-hud="location">📍 Location: ${UIManager.formatLocationLabel(data.location)}</div>` : ''}
       ${data.market !== undefined ? `<div data-hud="market">📈 ${data.market}</div>` : ''}
     `;
@@ -502,7 +502,7 @@ export class UIManager {
       network: number;
     };
     day?: number;
-    time?: string;
+    ap?: string;
     location?: string;
     garage?: {
       used: number;
@@ -518,7 +518,7 @@ export class UIManager {
     const garageEl = hud.querySelector<HTMLDivElement>('[data-hud="garage"]');
     const skillsEl = hud.querySelector<HTMLDivElement>('[data-hud="skills"]');
     const dayEl = hud.querySelector<HTMLDivElement>('[data-hud="day"]');
-    const timeEl = hud.querySelector<HTMLDivElement>('[data-hud="time"]');
+    const apEl = hud.querySelector<HTMLDivElement>('[data-hud="ap"]');
     const locationEl = hud.querySelector<HTMLDivElement>('[data-hud="location"]');
     const marketEl = hud.querySelector<HTMLDivElement>('[data-hud="market"]');
 
@@ -537,8 +537,8 @@ export class UIManager {
     if (data.day !== undefined && dayEl) {
       dayEl.textContent = `📅 Day: ${data.day}`;
     }
-    if (data.time !== undefined && timeEl) {
-      timeEl.textContent = `🕐 Time: ${data.time}`;
+    if (data.ap !== undefined && apEl) {
+      apEl.textContent = `⚡ ${data.ap}`;
     }
     if (data.location !== undefined && locationEl) {
       locationEl.textContent = `📍 Location: ${UIManager.formatLocationLabel(data.location)}`;

@@ -35,21 +35,22 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 
 ### ✅ Map Scene
 - Three explorable locations:
-  - **Joe's Scrapyard** (Travel: 1 hour) - Find project cars
-  - **Classic Car Dealership** (Travel: 1 hour) - Browse inventory
-  - **Weekend Auction House** (Travel: 1 hour)
-- **Special Events:** Dynamic temporary locations (15% daily chance) with unique opportunities:
+  - **Joe's Scrapyard** (Travel: 1 AP) - Find project cars
+  - **Classic Car Dealership** (Travel: 1 AP) - Browse inventory
+  - **Weekend Auction House** (Travel: 1 AP)
+- **Special Events:** Dynamic temporary locations (15% daily chance) with
+  unique opportunities:
   - Estate Sales (discounted high-value cars)
   - Barn Finds (rare cars with guaranteed tags)
   - Private Collections (prestige cars with bonuses)
   - Clearance Events (multiple cheap cars)
-- Time costs follow the rules:
-  - **Travel:** 1 hour
-  - **Inspect (solo negotiation):** 30 mins
-  - **Special Events:** 30 mins (no travel time)
-  - **Auction:** 2 hours
+- Action Point costs:
+  - **Travel:** 1 AP
+  - **Inspect (solo negotiation):** 1 AP
+  - **Auction:** 2 AP
 - Random encounters:
-  - If a rival is present, the encounter becomes an **Auction** (from any location).
+  - If a rival is present, the encounter becomes an **Auction** (from any
+    location).
   - If no rival is present, the encounter is a **Negotiation**.
   - Special events are always solo encounters (no auctions).
 
@@ -154,9 +155,10 @@ npm run preview
 - **Saved Data:** Money, prestige, inventory, garage slots, day/time, museum display status
 
 ### Restoration
-- Two restoration services are available (time is a major cost):
-  - **Cheap Charlie (Minor Service):** +10 condition, 4 hours, low cost, small risk
-  - **The Artisan (Major Overhaul):** +30 condition, 8 hours, high cost
+- Two restoration services are available (AP cost is a major resource):
+  - **Cheap Charlie (Minor Service):** +10 condition, 3 AP, low cost, small
+    risk
+  - **The Artisan (Major Overhaul):** +30 condition, 5 AP, high cost
 - Max condition: 100
 
 ### Rival AI Strategies

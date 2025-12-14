@@ -26,8 +26,8 @@ export abstract class BaseGameScene extends Phaser.Scene {
     this.uiManager.updateHUD({ prestige });
   };
 
-  protected readonly handleTimeChanged = (_timeOfDay: number): void => {
-    this.uiManager.updateHUD({ time: this.timeSystem.getFormattedTime() });
+  protected readonly handleAPChanged = (_currentAP: number): void => {
+    this.uiManager.updateHUD({ ap: this.timeSystem.getFormattedAP() });
   };
 
   protected readonly handleDayChanged = (day: number): void => {
@@ -59,7 +59,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
   protected setupCommonEventListeners(): void {
     eventBus.on('money-changed', this.handleMoneyChanged);
     eventBus.on('prestige-changed', this.handlePrestigeChanged);
-    eventBus.on('time-changed', this.handleTimeChanged);
+    eventBus.on('ap-changed', this.handleAPChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
 
@@ -75,7 +75,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
   protected cleanupCommonEventListeners(): void {
     eventBus.off('money-changed', this.handleMoneyChanged);
     eventBus.off('prestige-changed', this.handlePrestigeChanged);
-    eventBus.off('time-changed', this.handleTimeChanged);
+    eventBus.off('ap-changed', this.handleAPChanged);
     eventBus.off('day-changed', this.handleDayChanged);
     eventBus.off('location-changed', this.handleLocationChanged);
     
@@ -139,7 +139,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
       prestige: player.prestige,
       skills: player.skills,
       day: world.day,
-      time: this.timeSystem.getFormattedTime(),
+      ap: this.timeSystem.getFormattedAP(),
       location: world.currentLocation,
       garage: {
         used: player.inventory.length,

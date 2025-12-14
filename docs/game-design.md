@@ -17,12 +17,13 @@ You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You m
 
 ## Core Loop
 1. **Morning Phase:** Start in Garage. Check news/intel.
-2. **Map Phase (The Day Loop):** Travel to nodes. Costs time (1 Hour).
+2. **Map Phase (The Day Loop):** Travel to nodes. Costs 1 Action Point (AP).
 3. **Encounter Phase:**
-   - If rival present -> Auction (turn-based battle).
-   - If solo -> Negotiation (menu choices using Player Stats).
-   - **Outcome:** Return to Map (continue day) or Return to Garage (if inventory full/day ends).
-4. **Garage Phase:** Restore cars, sell inventory, or end day.
+   - If rival present -> Auction (turn-based battle, costs 2 AP).
+   - If solo -> Negotiation (menu choices using Player Stats, costs 1 AP).
+   - **Outcome:** Return to Map (continue day) or Return to Garage (if
+     inventory full/day ends).
+4. **Garage Phase:** Restore cars (3-5 AP), sell inventory, or end day.
 
 ### Expanded Loop (Target)
 The game is played across **Days** and **Weeks**. The player manages **Cash**, **Time**, and **Prestige**.
@@ -92,15 +93,17 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 ### Economy & Time
 - **Currencies:** Cash ($) and Prestige (Reputation).
 - **Concept (The Action Budget):** Time is the player’s primary resource.
-- **Time Units:** Every meaningful action advances the clock.
+- **Action Points (AP):** Every meaningful action consumes Action Points.
 - **Day Cycle:**
-  - Day Starts: **08:00**
-  - Day Ends: **20:00**
-  - Total Budget: **12 Hours** per day
+  - Each day starts with **10 Action Points**
+  - Day ends when AP reaches 0 or player returns to garage
 - **Constraints:**
-  - Every action adds to `currentHour`.
-  - If `currentHour + actionCost > 20:00`: the action is **blocked** and the player is forced to end the day.
-- **Next Day:** When the player chooses "End Day" (or is forced to), `day` increments, `currentHour` resets to **08:00**, daily expenses are deducted, and the map resets.
+  - Every action costs AP (1-5 AP depending on complexity).
+  - If `currentAP < actionCost`: the action is **blocked** and the player must
+    end the day.
+- **Next Day:** When the player chooses "End Day" (or is forced to), `day`
+  increments, `currentAP` resets to **10**, daily expenses are deducted, and
+  the map resets.
 - **Daily Costs:**
   - **Daily Rent:** $100 (paid during the Next Day transition).
   - No debt (MVP): `money` never goes below $0.
@@ -197,27 +200,29 @@ As the player levels up, they improve three core tools:
 - **The Artisan:** High Cost / Low Speed / Value Multiplier.
 
 ### Restoration Abstraction
-- Do **not** implement individual parts (Tires/Engine/Paint) as separate systems.
+- Do **not** implement individual parts (Tires/Engine/Paint) as separate
+  systems.
 - Restoration actions are abstracted to:
   - **Minor Service:** `+10` condition
   - **Major Overhaul:** `+30` condition
 
-#### Restoration Time Costs
-- **Minor Service:** 4 Hours
-- **Major Overhaul:** 8 Hours
+#### Restoration AP Costs
+- **Minor Service:** 3 AP
+- **Major Overhaul:** 5 AP
 
 ### Garage Rules
 - **Garage capacity:** Starts at 1 slot (upgradeable).
-- If the player attempts to buy a car while the Garage is full: show error **"Garage Full - Sell or Scrap current car first."**
+- If the player attempts to buy a car while the Garage is full: show error
+  **"Garage Full - Sell or Scrap current car first."**
 - **Softlock prevention:** Add a **"Sell As-Is"** option in the Garage.
   - Sell value: `sellAsIsValue = carValue × 0.7`.
 
-## Time Costs (The Economy)
-- **Travel:** 1 Hour
-- **Inspect:** 30 Mins
-- **Auction:** 2 Hours
-- **Restore (Minor Service):** 4 Hours
-- **Restore (Major Overhaul):** 8 Hours
+## Action Point Costs
+- **Travel:** 1 AP
+- **Inspect:** 1 AP
+- **Auction:** 2 AP
+- **Restore (Minor Service):** 3 AP
+- **Restore (Major Overhaul):** 5 AP
 
 ## Car Progression Tiers (Design)
 - **Tier 1: Daily Drivers** (grind cash via flips)
@@ -239,18 +244,25 @@ As the player levels up, they improve three core tools:
 
 ### Minute 0–2: The Setup
 - Scene: Dirty Garage. Mentor: “Uncle Ray.”
-- Action: Go to Scrapyard. Inspect “Rusty Sedan.”
-- Mechanic: Use **The Eye** to spot bald tires. Buy the car for $1,500.
+- Dialogue: Uncle Ray welcomes you and instructs you to go to the Map and visit Joe's Scrapyard.
+- Action: Go to Scrapyard. Enter inspection screen for "Rusty Sedan."
+- Mechanic: **The Eye** skill works passively - your level determines what details you see. At level 1, you only see basic info (condition: 30%). At level 2+, you'd see damage history (rust, bald tires).
+- Action: Accept the asking price (~$350-$400 based on car's poor condition). Purchase completes; you gain Eye XP automatically for inspecting.
 
 ### Minute 2–4: Restoration
-- Action: In Garage, open the Restoration Menu.
-- Choice: Assign the car to **"Cheap Charlie"** (Low Cost, Fast).
-- Mechanic: Perform a **Minor Service** (4 Hours). Car condition improves. Value increases.
-- Tutorial override: this first restoration always succeeds (ignore Cheap Charlie’s risk).
+- Action: Return to Garage. Uncle Ray guides you to view your Inventory.
+- Action: Select the Rusty Sedan and choose restoration service.
+- Choice: Assign the car to **"Cheap Charlie's Quick Fix"** (Low Cost, Fast,
+  Risky).
+- Action: Perform a **Minor Service** (3 AP). Car condition improves
+  significantly. Value increases.
+- Tutorial override: this first restoration always succeeds (ignore Cheap
+  Charlie's risk).
 
 ### Minute 4–6: The Flip
-- Action: List car on market. NPC buys it.
-- Result: Bank account grows; the profit loop is understood.
+- Action: After restoration completes, an NPC buyer automatically appears with an offer.
+- Result: You sell the car for profit. Bank account grows; the profit loop is understood.
+- Tutorial advances: Uncle Ray encourages you to return to the map for the next challenge.
 
 ### Minute 6–8: The Defeat
 - Action: Travel to an Estate Sale for a Muscle Car.

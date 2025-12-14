@@ -9,7 +9,7 @@ export type GameEvents = {
   'money-changed': number;
   'prestige-changed': number;
   'inventory-changed': Car[];
-  'time-changed': number;
+  'ap-changed': number;
   'day-changed': number;
   'location-changed': string;
   'victory': any; // VictoryResult from GameManager

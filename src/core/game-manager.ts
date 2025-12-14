@@ -29,18 +29,18 @@ export interface PlayerState {
 }
 
 /**
- * World State - Represents game time and current location.
- * Time is tracked in 24-hour format; days advance only via end-of-day transitions.
+ * World State - Represents game day and action points.
+ * Days advance via end-of-day transitions. AP refreshes each new day.
  */
 export interface WorldState {
   day: number;
-  timeOfDay: number; // 0-24 hours
+  currentAP: number; // Remaining Action Points for today
   currentLocation: string;
 }
 
-const DAY_START_HOUR = GAME_CONFIG.day.startHour;
 const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
+const MAX_AP = GAME_CONFIG.day.maxAP;
 
 const SAVE_KEY = 'theCuratorSave';
 const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second
@@ -115,7 +115,7 @@ export class GameManager {
 
     this.world = {
       day: 1,
-      timeOfDay: DAY_START_HOUR,
+      currentAP: MAX_AP,
       currentLocation: 'garage',
     };
   }
@@ -343,23 +343,17 @@ export class GameManager {
   }
 
   /**
-    * Advance time.
-   * @param hours - Hours to advance (can be fractional, e.g., 0.5 for 30 minutes)
+   * Spend Action Points for an action.
+   * @param cost - AP to spend
    */
-  public advanceTime(hours: number): void {
-    this.world.timeOfDay += hours;
-
-    // Game design: actions should be blocked from pushing time past DAY_END_HOUR.
-    // Still clamp to a sensible range defensively.
-    if (this.world.timeOfDay < 0) this.world.timeOfDay = 0;
-    if (this.world.timeOfDay > 24) this.world.timeOfDay = 24;
-
-    eventBus.emit('time-changed', this.world.timeOfDay);
+  public spendAP(cost: number): void {
+    this.world.currentAP = Math.max(0, this.world.currentAP - cost);
+    eventBus.emit('ap-changed', this.world.currentAP);
   }
 
   /**
-    * End the current day and start the next day at DAY_START_HOUR.
-    * Applies daily rent (DAILY_RENT). If rent cannot be paid, the player is bankrupt.
+   * End the current day and start the next day with fresh AP.
+   * Applies daily rent (DAILY_RENT). If rent cannot be paid, the player is bankrupt.
    */
   public endDay(): EndDayResult {
     if (this.player.money < DAILY_RENT) {
@@ -367,7 +361,7 @@ export class GameManager {
     }
 
     this.world.day += 1;
-    this.world.timeOfDay = DAY_START_HOUR;
+    this.world.currentAP = MAX_AP;
 
     const rentPaid = this.applyDailyRent();
 
@@ -390,7 +384,7 @@ export class GameManager {
     }
 
     eventBus.emit('day-changed', this.world.day);
-    eventBus.emit('time-changed', this.world.timeOfDay);
+    eventBus.emit('ap-changed', this.world.currentAP);
 
     this.save(); // Immediate save on day end (critical checkpoint)
     return { bankrupt: false, rentPaid };
@@ -691,7 +685,7 @@ export class GameManager {
     eventBus.emit('prestige-changed', this.player.prestige);
     eventBus.emit('inventory-changed', this.player.inventory);
     eventBus.emit('day-changed', this.world.day);
-    eventBus.emit('time-changed', this.world.timeOfDay);
+    eventBus.emit('ap-changed', this.world.currentAP);
     eventBus.emit('location-changed', this.world.currentLocation);
   }
 }

@@ -24,7 +24,7 @@ export class BootScene extends Phaser.Scene {
     gameManager.setLocation('boot');
     console.log('GameManager initialized:', gameManager);
 
-    // Transition to Garage scene
-    this.scene.start('GarageScene');
+    // Transition to Main Menu scene
+    this.scene.start('MainMenuScene');
   }
 }

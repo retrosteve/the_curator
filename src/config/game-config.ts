@@ -3,6 +3,14 @@ export const GAME_CONFIG = {
     // Random condition range for generated encounter cars (inclusive).
     randomConditionMin: 30,
     randomConditionMax: 90,
+
+    // Tier spawn weights (higher = more common)
+    tierWeights: {
+      'Daily Driver': 50,   // Most common
+      'Cult Classic': 30,   // Common
+      'Icon': 15,           // Uncommon
+      'Unicorn': 5,         // Rare
+    },
   },
 
   day: {
@@ -19,6 +27,28 @@ export const GAME_CONFIG = {
       tongue: 1,
       network: 1,
     },
+
+    // XP progression: each level requires more XP
+    skillProgression: {
+      xpPerLevel: [0, 100, 250, 500, 1000], // Level 1 = 0, Level 2 = 100, Level 3 = 250, etc.
+      maxLevel: 5,
+      
+      // XP gains per action
+      xpGains: {
+        inspect: 10, // Eye XP
+        haggle: 5, // Tongue XP
+        auction: 15, // Tongue XP
+        travelNewLocation: 20, // Network XP
+      },
+    },
+  },
+
+  victory: {
+    // Win conditions: must meet ALL of these
+    requiredPrestige: 1000,
+    requiredUnicorns: 3, // Must have 3 Unicorn-tier cars in museum
+    requiredMuseumCars: 10, // Must have 10 cars at 80%+ condition in museum
+    requiredSkillLevel: 5, // Must have at least one skill at max level
   },
 
   economy: {

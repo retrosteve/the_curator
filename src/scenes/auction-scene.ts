@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
-import { Car, calculateCarValue } from '@/data/car-database';
-import { Rival } from '@/data/rival-database';
+import { Car, calculateCarValue, getCarById } from '@/data/car-database';
+import { Rival, getRivalById } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
@@ -368,10 +368,15 @@ export class AuctionScene extends Phaser.Scene {
   private endAuction(playerWon: boolean, message: string): void {
     // Tutorial triggers
     if (this.tutorialManager.isTutorialActive()) {
-      if (!playerWon && this.tutorialManager.getCurrentStep() === 'first_flip') {
+      const currentStep = this.tutorialManager.getCurrentStep();
+      
+      // Lost to Sterling Vance in first_flip
+      if (!playerWon && currentStep === 'first_flip') {
         this.tutorialManager.advanceStep('first_loss');
-      } else if (playerWon && this.tutorialManager.getCurrentStep() === 'first_loss') {
-        this.tutorialManager.advanceStep('redemption');
+      }
+      // Won redemption battle against Scrapyard Joe
+      else if (playerWon && currentStep === 'redemption') {
+        this.tutorialManager.advanceStep('complete');
       }
     }
 
@@ -393,9 +398,14 @@ export class AuctionScene extends Phaser.Scene {
 
       if (this.gameManager.spendMoney(this.currentBid)) {
         this.gameManager.addCar(this.car);
+        
+        // Award Tongue XP for winning an auction
+        const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.auction;
+        const leveledUp = this.gameManager.addSkillXP('tongue', tongueXPGain);
+        
         this.uiManager.showModal(
           'You Won!',
-          `${message}\n\nYou bought ${this.car.name} for $${this.currentBid.toLocaleString()}!`,
+          `${message}\n\nYou bought ${this.car.name} for $${this.currentBid.toLocaleString()}!${leveledUp ? '\n\n🎉 Your Tongue skill leveled up!' : ''}`,
           [
             {
               text: 'Continue',
@@ -405,6 +415,36 @@ export class AuctionScene extends Phaser.Scene {
         );
       }
     } else {
+      // Tutorial: After losing to Sterling Vance, immediately encounter Scrapyard Joe at the same sale
+      if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_loss') {
+        this.uiManager.showModal(
+          'Auction Lost',
+          message + '\n\nSterling drives away with a smug grin...',
+          [
+            {
+              text: 'Continue',
+              onClick: () => {
+                // Uncle Ray spots another opportunity
+                setTimeout(() => {
+                  this.tutorialManager.advanceStep('redemption');
+                  // Immediately start second auction at same location
+                  setTimeout(() => {
+                    const boxywagon = getCarById('tutorial_boxy_wagon');
+                    const scrappyJoe = getRivalById('scrapyard_joe');
+                    if (boxywagon && scrappyJoe) {
+                      const interest = this.calculateRivalInterest(scrappyJoe, boxywagon.tags);
+                      this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+                    }
+                  }, 100);
+                }, 500);
+              },
+            },
+          ]
+        );
+        return;
+      }
+      
+      // Normal loss flow
       this.uiManager.showModal(
         'Auction Lost',
         message,
@@ -416,6 +456,28 @@ export class AuctionScene extends Phaser.Scene {
         ]
       );
     }
+  }
+
+  /**
+   * Calculate rival interest level based on their wishlist tags.
+   * @param rival - The rival
+   * @param carTags - The car's tags
+   * @returns Interest multiplier (1.0 to 2.0)
+   */
+  private calculateRivalInterest(rival: Rival, carTags: string[]): number {
+    const matchingTags = carTags.filter(tag => rival.wishlist.includes(tag));
+    return matchingTags.length > 0 ? 1.5 : 1.0;
+  }
+
+  /**
+   * Calculate rival interest level based on their wishlist tags.
+   * @param rival - The rival
+   * @param carTags - The car's tags
+   * @returns Interest multiplier (1.0 to 2.0)
+   */
+  private calculateRivalInterest(rival: Rival, carTags: string[]): number {
+    const matchingTags = carTags.filter(tag => rival.wishlist.includes(tag));
+    return matchingTags.length > 0 ? 1.5 : 1.0;
   }
 
   /**

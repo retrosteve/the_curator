@@ -3,6 +3,7 @@ import { eventBus } from './event-bus';
 import { Economy } from '@/systems/economy';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
+import { TutorialManager } from '@/systems/tutorial-manager';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
@@ -20,6 +21,12 @@ export interface PlayerState {
     tongue: number; // 1-5
     network: number; // 1-5
   };
+  skillXP: {
+    eye: number;
+    tongue: number;
+    network: number;
+  };
+  visitedLocations: Set<string>; // Track locations for Network XP (first visit only)
 }
 
 /**
@@ -46,12 +53,24 @@ interface SavedGameData {
   world: WorldState;
   market?: any; // Market fluctuation state
   specialEvents?: any; // Special events state
+  tutorial?: { currentStep: string; isActive: boolean }; // Tutorial state
   version: string; // For future compatibility
 }
 
 export type EndDayResult =
   | { bankrupt: true; requiredRent: number }
   | { bankrupt: false; rentPaid: number };
+
+/**
+ * Victory check result.
+ */
+export interface VictoryResult {
+  hasWon: boolean;
+  prestige: { current: number; required: number; met: boolean };
+  unicorns: { current: number; required: number; met: boolean };
+  museumCars: { current: number; required: number; met: boolean };
+  skillLevel: { current: number; required: number; met: boolean };
+}
 
 /**
  * GameManager - Central singleton for managing game state.
@@ -89,6 +108,8 @@ export class GameManager {
       prestige: GAME_CONFIG.player.startingPrestige,
       bankLoanTaken: false,
       skills: { ...GAME_CONFIG.player.startingSkills },
+      skillXP: { eye: 0, tongue: 0, network: 0 },
+      visitedLocations: new Set(['garage']), // Start with garage as visited
     };
 
     this.world = {
@@ -197,10 +218,12 @@ export class GameManager {
    */
   public getNextGarageSlotCost(): number | null {
     const currentSlots = this.player.garageSlots;
-    // Simple progression: each slot costs 10 prestige more than the last
-    // Max 5 slots for now
+    // Exponential progression as per design: Slot 2: 100, Slot 3: 200, Slot 4: 400, Slot 5: 800
+    const costs = [100, 200, 400, 800];
+    const costIndex = currentSlots - 1; // Current slots = 1 → index 0 (cost 100)
+    
     if (currentSlots >= 5) return null;
-    return currentSlots * 10; // Slot 1->2: 10, 2->3: 20, etc.
+    return costs[costIndex];
   }
 
   /**
@@ -223,11 +246,8 @@ export class GameManager {
    * @returns Number of prestige points earned from museum
    */
   private calculateMuseumPrestigeBonus(): number {
-    // Museum cars: condition >= 80 and value >= $50,000
-    const museumCars = this.player.inventory.filter(car => {
-      const value = Economy.getSalePrice(car, this);
-      return car.condition >= 80 && value >= 50000;
-    });
+    // Only count cars actively displayed in museum
+    const museumCars = this.getMuseumCars();
 
     // 1 prestige per museum car per day
     return museumCars.length;
@@ -255,7 +275,49 @@ export class GameManager {
 
     this.player.inventory[index] = updatedCar;
     eventBus.emit('inventory-changed', this.player.inventory);
+    this.save(); // Auto-save on car update
     return true;
+  }
+
+  /**
+   * Toggle museum display status for a car.
+   * Only cars with condition >= 80 can be displayed.
+   * @param carId - The unique ID of the car
+   * @returns Object with success flag and message
+   */
+  public toggleMuseumDisplay(carId: string): { success: boolean; message: string } {
+    const car = this.player.inventory.find((c) => c.id === carId);
+    if (!car) {
+      return { success: false, message: 'Car not found' };
+    }
+
+    if (!car.displayInMuseum && car.condition < 80) {
+      return { success: false, message: 'Car must be in excellent condition (80%+) to display in museum' };
+    }
+
+    car.displayInMuseum = !car.displayInMuseum;
+    eventBus.emit('inventory-changed', this.player.inventory);
+    this.save(); // Auto-save on museum status change
+
+    const action = car.displayInMuseum ? 'added to' : 'removed from';
+    return { success: true, message: `${car.name} ${action} museum display` };
+  }
+
+  /**
+   * Check if a car is eligible for museum display.
+   * @param car - The car to check
+   * @returns True if car meets museum requirements (condition >= 80)
+   */
+  public isMuseumEligible(car: Car): boolean {
+    return car.condition >= 80;
+  }
+
+  /**
+   * Get all cars currently displayed in museum.
+   * @returns Array of cars with displayInMuseum flag set
+   */
+  public getMuseumCars(): Car[] {
+    return this.player.inventory.filter((car) => car.displayInMuseum === true);
   }
 
   /**
@@ -315,6 +377,12 @@ export class GameManager {
     // Advance special events system (potentially generate new events)
     this.specialEventsSystem.advanceDay(this.world.day);
 
+    // Check for victory condition
+    const victoryCheck = this.checkVictory();
+    if (victoryCheck.hasWon) {
+      eventBus.emit('victory', victoryCheck);
+    }
+
     eventBus.emit('day-changed', this.world.day);
     eventBus.emit('time-changed', this.world.timeOfDay);
 
@@ -341,6 +409,128 @@ export class GameManager {
    */
   public getMarketModifier(carTags: string[]): number {
     return this.marketSystem.getMarketModifier(carTags);
+  }
+
+  /**
+   * Add XP to a skill and check for level-up.
+   * @param skill - The skill to gain XP in ('eye' | 'tongue' | 'network')
+   * @param amount - Amount of XP to gain
+   * @returns True if player leveled up
+   */
+  public addSkillXP(skill: 'eye' | 'tongue' | 'network', amount: number): boolean {
+    const config = GAME_CONFIG.player.skillProgression;
+    const currentLevel = this.player.skills[skill];
+    
+    // Max level reached
+    if (currentLevel >= config.maxLevel) return false;
+
+    this.player.skillXP[skill] += amount;
+    const requiredXP = config.xpPerLevel[currentLevel]; // XP needed for NEXT level
+
+    // Check if leveled up
+    if (this.player.skillXP[skill] >= requiredXP) {
+      this.player.skills[skill] += 1;
+      this.player.skillXP[skill] = 0; // Reset XP for next level
+      eventBus.emit('skill-levelup', { skill, level: this.player.skills[skill] });
+      this.save(); // Auto-save on level-up
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get XP progress for a skill.
+   * @returns Object with current XP and required XP for next level
+   */
+  public getSkillProgress(skill: 'eye' | 'tongue' | 'network'): { current: number; required: number; level: number } {
+    const config = GAME_CONFIG.player.skillProgression;
+    const level = this.player.skills[skill];
+    const currentXP = this.player.skillXP[skill];
+    const requiredXP = level >= config.maxLevel ? 0 : config.xpPerLevel[level];
+
+    return {
+      current: currentXP,
+      required: requiredXP,
+      level,
+    };
+  }
+
+  /**
+   * Visit a location and award Network XP if it's the first visit.
+   * @param locationId - Unique identifier for the location
+   * @returns True if this was a first visit (Network XP awarded)
+   */
+  public visitLocation(locationId: string): boolean {
+    if (this.player.visitedLocations.has(locationId)) {
+      return false; // Already visited
+    }
+
+    this.player.visitedLocations.add(locationId);
+    
+    // Award Network XP for discovering new location
+    const networkXPGain = GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation;
+    const leveledUp = this.addSkillXP('network', networkXPGain);
+    
+    if (leveledUp) {
+      eventBus.emit('network-levelup', this.player.skills.network);
+    }
+
+    return true; // First visit
+  }
+
+  /**
+   * Check if player has met all victory conditions.
+   * Victory requires: prestige threshold, Unicorn collection, museum quality, max skill.
+   * @returns Victory result with breakdown of each condition
+   */
+  public checkVictory(): VictoryResult {
+    const config = GAME_CONFIG.victory;
+    
+    // Check prestige
+    const prestigeMet = this.player.prestige >= config.requiredPrestige;
+    
+    // Check Unicorn count in museum display
+    const museumCars = this.getMuseumCars();
+    const unicornCount = museumCars.filter(car => car.tier === 'Unicorn').length;
+    const unicornsMet = unicornCount >= config.requiredUnicorns;
+    
+    // Check total museum cars (actively displayed)
+    const museumCarsMet = museumCars.length >= config.requiredMuseumCars;
+    
+    // Check skill level (at least one skill at max)
+    const maxSkill = Math.max(
+      this.player.skills.eye,
+      this.player.skills.tongue,
+      this.player.skills.network
+    );
+    const skillMet = maxSkill >= config.requiredSkillLevel;
+    
+    const hasWon = prestigeMet && unicornsMet && museumCarsMet && skillMet;
+    
+    return {
+      hasWon,
+      prestige: {
+        current: this.player.prestige,
+        required: config.requiredPrestige,
+        met: prestigeMet,
+      },
+      unicorns: {
+        current: unicornCount,
+        required: config.requiredUnicorns,
+        met: unicornsMet,
+      },
+      museumCars: {
+        current: museumCars.length,
+        required: config.requiredMuseumCars,
+        met: museumCarsMet,
+      },
+      skillLevel: {
+        current: maxSkill,
+        required: config.requiredSkillLevel,
+        met: skillMet,
+      },
+    };
   }
 
   /**
@@ -400,11 +590,16 @@ export class GameManager {
    */
   public save(): boolean {
     try {
+      const tutorialManager = TutorialManager.getInstance();
       const saveData: SavedGameData = {
-        player: this.player,
+        player: {
+          ...this.player,
+          visitedLocations: Array.from(this.player.visitedLocations) as any, // Convert Set to Array for JSON
+        },
         world: this.world,
         market: this.marketSystem.getState(),
         specialEvents: this.specialEventsSystem.getState(),
+        tutorial: tutorialManager.getState(),
         version: '1.0',
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
@@ -436,6 +631,18 @@ export class GameManager {
       this.player = saveData.player;
       this.world = saveData.world;
 
+      // Backwards compatibility: add skillXP if missing
+      if (!this.player.skillXP) {
+        this.player.skillXP = { eye: 0, tongue: 0, network: 0 };
+      }
+
+      // Backwards compatibility: convert visitedLocations array to Set or initialize
+      if (!this.player.visitedLocations) {
+        this.player.visitedLocations = new Set(['garage']);
+      } else if (Array.isArray(this.player.visitedLocations)) {
+        this.player.visitedLocations = new Set(this.player.visitedLocations as any);
+      }
+
       // Load market state if available (backwards compatibility)
       if (saveData.market) {
         this.marketSystem.loadState(saveData.market);
@@ -444,6 +651,12 @@ export class GameManager {
       // Load special events state if available (backwards compatibility)
       if (saveData.specialEvents) {
         this.specialEventsSystem.loadState(saveData.specialEvents);
+      }
+
+      // Load tutorial state if available (backwards compatibility)
+      if (saveData.tutorial) {
+        const tutorialManager = TutorialManager.getInstance();
+        tutorialManager.loadState(saveData.tutorial as any);
       }
 
       console.log('Game loaded successfully');

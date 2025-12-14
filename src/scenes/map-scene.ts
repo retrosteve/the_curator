@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
-import { getRandomCar } from '@/data/car-database';
-import { getRivalByTierProgression, calculateRivalInterest } from '@/data/rival-database';
+import { getRandomCar, getCarById } from '@/data/car-database';
+import { getRivalByTierProgression, calculateRivalInterest, getRivalById } from '@/data/rival-database';
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
 import { TutorialManager } from '@/systems/tutorial-manager';
@@ -60,6 +60,23 @@ export class MapScene extends Phaser.Scene {
     this.uiManager.updateHUD({ location });
   };
 
+  private readonly handleNetworkLevelUp = (level: number): void => {
+    const abilities = {
+      2: 'You can now spot special events more clearly.',
+      3: 'You gain access to exclusive private sales.',
+      4: 'You can see rival movements before they arrive.',
+      5: 'You have access to all underground deals and legendary car locations.',
+    };
+    
+    const message = abilities[level as keyof typeof abilities] || 'Your Network has improved!';
+    
+    this.uiManager.showModal(
+      'Network Skill Level Up!',
+      `Your Network skill improved to level ${level}!\n\n${message}`,
+      [{ text: 'Excellent!', onClick: () => {} }]
+    );
+  };
+
   constructor() {
     super({ key: 'MapScene' });
   }
@@ -85,6 +102,7 @@ export class MapScene extends Phaser.Scene {
     eventBus.on('time-changed', this.handleTimeChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
+    eventBus.on('network-levelup', this.handleNetworkLevelUp);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       eventBus.off('money-changed', this.handleMoneyChanged);
@@ -92,6 +110,7 @@ export class MapScene extends Phaser.Scene {
       eventBus.off('time-changed', this.handleTimeChanged);
       eventBus.off('day-changed', this.handleDayChanged);
       eventBus.off('location-changed', this.handleLocationChanged);
+      eventBus.off('network-levelup', this.handleNetworkLevelUp);
     });
   }
 
@@ -246,6 +265,19 @@ export class MapScene extends Phaser.Scene {
     // Update current location for downstream systems/UI
     this.gameManager.setLocation(node.type);
 
+    // Award Network XP for visiting location (first visit only)
+    const isFirstVisit = this.gameManager.visitLocation(node.id);
+    if (isFirstVisit) {
+      const progress = this.gameManager.getSkillProgress('network');
+      // Show subtle notification for first visit
+      setTimeout(() => {
+        const message = `New location discovered! Network +${GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation} XP`;
+        this.uiManager.showModal('Location Discovered', message, [
+          { text: 'Continue', onClick: () => {} }
+        ]);
+      }, 100);
+    }
+
     // Tutorial trigger: first inspect
     if (this.tutorialManager.isTutorialActive() && this.tutorialManager.getCurrentStep() === 'first_visit_scrapyard') {
       this.tutorialManager.advanceStep('first_inspect');
@@ -263,10 +295,47 @@ export class MapScene extends Phaser.Scene {
       return;
     }
 
-    // Regular encounters
+    // Tutorial-specific encounters with specific cars
+    if (this.tutorialManager.isTutorialActive()) {
+      const step = this.tutorialManager.getCurrentStep();
+      
+      // Force Rusty Sedan for first inspection/buy
+      if (step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
+        const car = getCarById('tutorial_rusty_sedan') || getRandomCar();
+        this.scene.start('NegotiationScene', { car });
+        return;
+      }
+      
+      // First loss: Force Sterling Vance encounter with Muscle Car
+      if (step === 'first_flip') {
+        const car = getCarById('tutorial_muscle_car') || getRandomCar();
+        const sterlingVance = getRivalById('sterling_vance');
+        const interest = calculateRivalInterest(sterlingVance, car.tags);
+        
+        // Show dramatic intro
+        setTimeout(() => {
+          this.tutorialManager.advanceStep('first_loss');
+        }, 100);
+        
+        // Both Sterling AND Scrapyard Joe are at this location
+        // After losing to Sterling, auction scene will handle the redemption encounter
+        this.scene.start('AuctionScene', { car, rival: sterlingVance, interest });
+        return;
+      }
+      
+      // Skip redemption step - it's handled in AuctionScene after first_loss
+      // If player somehow gets to this state, treat as normal gameplay
+      if (step === 'first_loss' || step === 'redemption') {
+        // Tutorial should have advanced past this point
+        // Fall through to normal gameplay
+      }
+    }
+    
+    // Regular encounters - get random car
     const car = getRandomCar();
-    // Force solo encounter during tutorial to ensure player learns negotiation
-    const hasRival = this.tutorialManager.isTutorialActive() ? false : Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+    
+    // Normal gameplay: random rival chance
+    const hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
 
     if (hasRival) {
       // Auction consumes additional time

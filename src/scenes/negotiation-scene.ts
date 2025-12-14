@@ -183,6 +183,18 @@ export class NegotiationScene extends Phaser.Scene {
       infoPanel.appendChild(history);
     }
 
+    // Award Eye XP for inspecting the car
+    const eyeXPGain = GAME_CONFIG.player.skillProgression.xpGains.inspect;
+    const leveledUp = this.gameManager.addSkillXP('eye', eyeXPGain);
+    if (leveledUp) {
+      const progress = this.gameManager.getSkillProgress('eye');
+      this.uiManager.showModal(
+        'Skill Level Up!',
+        `Your Eye skill improved to level ${progress.level}! You can now spot more details when inspecting cars.`,
+        [{ text: 'Nice!', onClick: () => {} }]
+      );
+    }
+
     // Special Event Info
     if (this.specialEvent) {
       const eventInfo = document.createElement('div');
@@ -244,6 +256,20 @@ export class NegotiationScene extends Phaser.Scene {
     }
 
     this.negotiationCount++;
+    
+    // Award Tongue XP for haggling
+    const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.haggle;
+    const leveledUp = this.gameManager.addSkillXP('tongue', tongueXPGain);
+    if (leveledUp) {
+      const progress = this.gameManager.getSkillProgress('tongue');
+      setTimeout(() => {
+        this.uiManager.showModal(
+          'Skill Level Up!',
+          `Your Tongue skill improved to level ${progress.level}! You can now haggle more effectively.`,
+          [{ text: 'Excellent!', onClick: () => {} }]
+        );
+      }, 100);
+    }
     
     // Simple reduction logic
     const reduction = Math.floor(this.askingPrice * GAME_CONFIG.negotiation.haggleReductionRate);

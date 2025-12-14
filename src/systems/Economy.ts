@@ -78,9 +78,10 @@ export class Economy {
    * Condition is capped at 100.
    * @param car - The car to restore
    * @param option - The restoration option to apply
+   * @param tutorialOverride - If true, always succeed (ignore Charlie's risk) for tutorial
    * @returns Object with updated car, success flag, and message
    */
-  public static performRestoration(car: Car, option: RestorationOption): { car: Car; success: boolean; message: string } {
+  public static performRestoration(car: Car, option: RestorationOption, tutorialOverride: boolean = false): { car: Car; success: boolean; message: string } {
     let newCondition = car.condition;
     let message = "Restoration complete.";
     let success = true;
@@ -89,14 +90,14 @@ export class Economy {
     const conditionMax = GAME_CONFIG.economy.restoration.conditionMax;
 
     if (option.specialist === 'Charlie') {
-      // Charlie has a risk factor
-      if (Math.random() < charlie.failChance) {
+      // Charlie has a risk factor (skip in tutorial override)
+      if (!tutorialOverride && Math.random() < charlie.failChance) {
         newCondition -= charlie.failConditionPenalty;
         message = "Charlie botched the job! Condition worsened.";
         success = false;
       } else {
         newCondition += option.conditionGain;
-        message = "Charlie managed to fix it up.";
+        message = tutorialOverride ? "Charlie managed to fix it up perfectly!" : "Charlie managed to fix it up.";
       }
     } else {
       // Artisan always succeeds

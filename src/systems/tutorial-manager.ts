@@ -57,12 +57,63 @@ export class TutorialManager {
     this.currentStep = step;
     console.log(`Tutorial advanced to: ${step}`);
     
-    // Per-step dialogue/actions live here.
-    // Note: only a subset of steps have bespoke behavior today.
+    // Per-step dialogue/actions according to design document
     switch (step) {
       case 'first_visit_scrapyard':
-        this.showDialogue("Uncle Ray", "Click the 'Go to Map' button below, then click on 'Joe's Scrapyard' to find your first car. It costs 1 hour to travel there.");
+        this.showDialogue(
+          "Uncle Ray",
+          "Now click the 'Go to Map' button, then click on 'Joe's Scrapyard' to find your first car. Traveling costs 1 hour."
+        );
         break;
+      
+      case 'first_inspect':
+        this.showDialogue(
+          "Uncle Ray",
+          "This is a Rusty Sedan. Use your Eye skill to inspect it - look for issues like bald tires. If the price is right, buy it for around $1,500."
+        );
+        break;
+      
+      case 'first_buy':
+        this.showDialogue(
+          "Uncle Ray",
+          "Good purchase! Now return to the garage (click 'Return to Garage') so we can restore it."
+        );
+        break;
+      
+      case 'first_restore':
+        this.showDialogue(
+          "Uncle Ray",
+          "In your inventory, select the car and choose 'Cheap Charlie's Quick Fix'. It's fast and cheap. Perform a Minor Service to improve its condition - this will take 4 hours."
+        );
+        break;
+      
+      case 'first_flip':
+        // No dialogue here - the flip happens automatically via NPC buyer
+        // Next dialogue comes when player goes back to map and encounters Sterling
+        break;
+      
+      case 'first_loss':
+        this.showDialogue(
+          "Sterling Vance",
+          "*smirks* Sorry kid, but this Muscle Car is mine. You'll need more than just money to beat me in a bidding war. Watch and learn."
+        );
+        break;
+      
+      case 'redemption':
+        this.showDialogue(
+          "Uncle Ray",
+          "Don't let that loss get you down! Look - there's another car here nobody else noticed: a Boxy Wagon. This time you're facing a weaker rival. Use aggressive tactics like Power Bid to make them quit early!"
+        );
+        break;
+      
+      case 'complete':
+        this.showDialogue(
+          "Uncle Ray",
+          "You did it! You've learned the basics: inspecting cars, restoring them, bidding strategically, and reading the competition. Now go build your collection!"
+        );
+        this.isActive = false; // End tutorial
+        break;
+      
       default:
         break;
     }
@@ -93,5 +144,35 @@ export class TutorialManager {
    */
   public getCurrentStep(): TutorialStep {
     return this.currentStep;
+  }
+
+  /**
+   * Get tutorial state for saving.
+   * @returns Object with tutorial state
+   */
+  public getState(): { currentStep: TutorialStep; isActive: boolean } {
+    return {
+      currentStep: this.currentStep,
+      isActive: this.isActive,
+    };
+  }
+
+  /**
+   * Load tutorial state from save.
+   * @param state - Saved tutorial state
+   */
+  public loadState(state: { currentStep: TutorialStep; isActive: boolean }): void {
+    this.currentStep = state.currentStep;
+    this.isActive = state.isActive;
+    console.log(`Tutorial state loaded: step=${state.currentStep}, active=${state.isActive}`);
+  }
+
+  /**
+   * Complete the tutorial (called manually or when reaching 'complete' step).
+   */
+  public completeTutorial(): void {
+    this.isActive = false;
+    this.currentStep = 'complete';
+    console.log('Tutorial completed');
   }
 }

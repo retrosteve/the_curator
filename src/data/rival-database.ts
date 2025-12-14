@@ -30,6 +30,28 @@ export interface Rival {
  * Each rival has a unique personality and collection focus.
  */
 export const RivalDatabase: Rival[] = [
+  // Named Tutorial Rivals
+  {
+    id: 'sterling_vance',
+    name: 'Sterling Vance',
+    tier: 1,
+    budget: 75000,
+    patience: 50,
+    wishlist: ['Muscle', 'Classic', 'American', 'Iconic'],
+    strategy: 'Aggressive',
+    avatar: '#8B0000',
+  },
+  {
+    id: 'scrapyard_joe',
+    name: 'Scrapyard Joe',
+    tier: 3,
+    budget: 8000,
+    patience: 30,
+    wishlist: ['Daily Driver', 'Budget', 'Rust'],
+    strategy: 'Passive',
+    avatar: '#8B4513',
+  },
+  // Regular Rivals
   {
     id: 'rival_001',
     name: 'Marcus "The Shark" Thompson',
@@ -99,6 +121,20 @@ export const RivalDatabase: Rival[] = [
 export function getRandomRival(): Rival {
   const randomIndex = Math.floor(Math.random() * RivalDatabase.length);
   return RivalDatabase[randomIndex];
+}
+
+/**
+ * Get a specific rival by ID (useful for tutorial/story encounters).
+ * @param id - The unique ID of the rival
+ * @returns The rival if found, or a random rival as fallback
+ */
+export function getRivalById(id: string): Rival {
+  const rival = RivalDatabase.find(r => r.id === id);
+  if (!rival) {
+    console.warn(`Rival with ID "${id}" not found, returning random rival`);
+    return getRandomRival();
+  }
+  return rival;
 }
 
 /**

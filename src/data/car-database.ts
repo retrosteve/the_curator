@@ -5,6 +5,8 @@
  */
 import { GAME_CONFIG } from '@/config/game-config';
 
+export type CarTier = 'Daily Driver' | 'Cult Classic' | 'Icon' | 'Unicorn';
+
 export interface Car {
   id: string;
   name: string;
@@ -12,7 +14,9 @@ export interface Car {
   condition: number; // 0-100
   tags: string[]; // e.g., "Muscle", "JDM", "Classic"
   history: string[]; // e.g., "Flooded", "Rust", "Barn Find"
+  tier: CarTier; // Car's rarity tier
   currentValue?: number; // Calculated based on condition
+  displayInMuseum?: boolean; // Whether car is displayed in museum (requires condition >= 80)
 }
 
 /**
@@ -22,6 +26,34 @@ export interface Car {
  * Organized by tiers: Daily Drivers (starter), Cult Classics, Icons, Unicorns.
  */
 export const CarDatabase: Car[] = [
+  // Tutorial Cars (Specific cars for tutorial sequence)
+  {
+    id: 'tutorial_rusty_sedan',
+    name: 'Rusty Sedan',
+    baseValue: 1500,
+    condition: 30,
+    tags: ['Daily Driver', 'Beater'],
+    history: ['Rust', 'Bald Tires'],
+    tier: 'Daily Driver',
+  },
+  {
+    id: 'tutorial_muscle_car',
+    name: 'Muscle Car',
+    baseValue: 28000,
+    condition: 55,
+    tags: ['Muscle', 'Classic', 'American'],
+    history: ['Original Paint'],
+    tier: 'Cult Classic',
+  },
+  {
+    id: 'tutorial_boxy_wagon',
+    name: 'Boxy Wagon',
+    baseValue: 4000,
+    condition: 45,
+    tags: ['Daily Driver', 'Practical', 'Wagon'],
+    history: ['Minor Dents'],
+    tier: 'Daily Driver',
+  },
   // Tier 1: Daily Drivers (Starter Cars - $3,000-$8,000)
   {
     id: 'car_starter_001',
@@ -30,6 +62,7 @@ export const CarDatabase: Car[] = [
     condition: 50,
     tags: ['Daily Driver', 'Import', 'Reliable'],
     history: ['High Miles'],
+    tier: 'Daily Driver',
   },
   {
     id: 'car_starter_002',
@@ -38,6 +71,7 @@ export const CarDatabase: Car[] = [
     condition: 45,
     tags: ['Daily Driver', 'Practical', 'Commuter'],
     history: ['Minor Accident'],
+    tier: 'Daily Driver',
   },
   {
     id: 'car_starter_003',
@@ -46,6 +80,7 @@ export const CarDatabase: Car[] = [
     condition: 55,
     tags: ['Daily Driver', 'Roadster', 'Fun'],
     history: ['Repainted'],
+    tier: 'Daily Driver',
   },
   {
     id: 'car_starter_004',
@@ -54,6 +89,7 @@ export const CarDatabase: Car[] = [
     condition: 48,
     tags: ['Daily Driver', 'Hatchback', 'European'],
     history: ['Rust'],
+    tier: 'Daily Driver',
   },
   {
     id: 'car_starter_005',
@@ -62,6 +98,7 @@ export const CarDatabase: Car[] = [
     condition: 40,
     tags: ['Daily Driver', 'Reliable', 'Budget'],
     history: ['Rust'],
+    tier: 'Daily Driver',
   },
   // Tier 2: Cult Classics ($25,000-$40,000)
   {
@@ -71,6 +108,7 @@ export const CarDatabase: Car[] = [
     condition: 45,
     tags: ['Muscle', 'Classic', 'American'],
     history: ['Barn Find', 'Rust'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_002',
@@ -79,6 +117,7 @@ export const CarDatabase: Car[] = [
     condition: 60,
     tags: ['JDM', 'Sports', 'Turbo'],
     history: ['Modified', 'Track Car'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_003',
@@ -87,6 +126,7 @@ export const CarDatabase: Car[] = [
     condition: 50,
     tags: ['Muscle', 'Classic', 'American'],
     history: ['Original Paint', 'Numbers Matching'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_004',
@@ -95,6 +135,7 @@ export const CarDatabase: Car[] = [
     condition: 70,
     tags: ['JDM', 'Sports', 'AWD'],
     history: ['Import', 'Clean Title'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_005',
@@ -103,6 +144,7 @@ export const CarDatabase: Car[] = [
     condition: 40,
     tags: ['Muscle', 'Classic', 'Rare'],
     history: ['Project Car', 'No Engine'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_006',
@@ -111,6 +153,7 @@ export const CarDatabase: Car[] = [
     condition: 55,
     tags: ['JDM', 'Sports', 'Rotary'],
     history: ['Low Miles', 'Original Owner'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_007',
@@ -119,6 +162,7 @@ export const CarDatabase: Car[] = [
     condition: 48,
     tags: ['Muscle', 'Classic', 'American'],
     history: ['Restored Interior', 'Needs Paint'],
+    tier: 'Cult Classic',
   },
   {
     id: 'car_008',
@@ -127,17 +171,193 @@ export const CarDatabase: Car[] = [
     condition: 80,
     tags: ['JDM', 'Exotic', 'Mid-Engine'],
     history: ['Dealer Maintained', 'Pristine'],
+    tier: 'Icon',
+  },
+  // Tier 3: Icons ($50,000-$120,000)
+  {
+    id: 'car_icon_001',
+    name: '1967 Shelby GT500',
+    baseValue: 85000,
+    condition: 60,
+    tags: ['Muscle', 'Classic', 'Shelby', 'American'],
+    history: ['Matching Numbers', 'Original Paint'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_002',
+    name: '1987 Porsche 959',
+    baseValue: 95000,
+    condition: 75,
+    tags: ['Exotic', 'European', 'AWD', 'Rare'],
+    history: ['Limited Production', 'Service Records'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_003',
+    name: '1970 Plymouth Hemi \'Cuda',
+    baseValue: 110000,
+    condition: 55,
+    tags: ['Muscle', 'Classic', 'American', 'Rare'],
+    history: ['Barn Find', 'Numbers Matching'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_004',
+    name: '2005 Ford GT',
+    baseValue: 105000,
+    condition: 85,
+    tags: ['Exotic', 'American', 'Supercar', 'Modern'],
+    history: ['Low Miles', 'Collector Owned'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_005',
+    name: '1963 Chevrolet Corvette Stingray',
+    baseValue: 78000,
+    condition: 70,
+    tags: ['Classic', 'American', 'Sports', 'Iconic'],
+    history: ['Split Window', 'Restored'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_006',
+    name: '1973 BMW 3.0 CSL',
+    baseValue: 72000,
+    condition: 65,
+    tags: ['Classic', 'European', 'Racing', 'Rare'],
+    history: ['Homologation Special', 'Original Engine'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_007',
+    name: '1969 Chevrolet Camaro ZL1',
+    baseValue: 98000,
+    condition: 58,
+    tags: ['Muscle', 'Classic', 'American', 'Rare'],
+    history: ['All-Aluminum Engine', 'Documented'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_008',
+    name: '1991 Acura NSX',
+    baseValue: 68000,
+    condition: 78,
+    tags: ['JDM', 'Exotic', 'Sports', 'Mid-Engine'],
+    history: ['Mint', 'One Owner'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_009',
+    name: '1961 Ferrari 250 GT SWB',
+    baseValue: 115000,
+    condition: 68,
+    tags: ['Exotic', 'Italian', 'Classic', 'Ferrari'],
+    history: ['Competition History', 'Restored'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_010',
+    name: '1993 Mazda RX-7 FD Spirit R',
+    baseValue: 65000,
+    condition: 82,
+    tags: ['JDM', 'Sports', 'Rotary', 'Limited Edition'],
+    history: ['Final Edition', 'Mint'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_011',
+    name: '1970 Chevrolet Chevelle SS 454',
+    baseValue: 82000,
+    condition: 63,
+    tags: ['Muscle', 'Classic', 'American', 'Big Block'],
+    history: ['LS6 Engine', 'Cowl Induction'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_012',
+    name: '1967 Jaguar E-Type Series 1',
+    baseValue: 88000,
+    condition: 72,
+    tags: ['Classic', 'European', 'Sports', 'Iconic'],
+    history: ['Original Interior', 'Matching Numbers'],
+    tier: 'Icon',
+  },
+  // Tier 4: Unicorns ($150,000+)
+  {
+    id: 'car_unicorn_001',
+    name: '1962 Ferrari 250 GTO',
+    baseValue: 350000,
+    condition: 85,
+    tags: ['Exotic', 'Italian', 'Ferrari', 'Legendary', 'Racing'],
+    history: ['Competition History', 'Matching Numbers', 'Mint'],
+    tier: 'Unicorn',
+  },
+  {
+    id: 'car_unicorn_002',
+    name: '1954 Mercedes-Benz 300SL Gullwing',
+    baseValue: 280000,
+    condition: 78,
+    tags: ['Exotic', 'European', 'Classic', 'Legendary', 'Gullwing'],
+    history: ['Original Paint', 'Documented History'],
+    tier: 'Unicorn',
+  },
+  {
+    id: 'car_unicorn_003',
+    name: '1967 Toyota 2000GT',
+    baseValue: 220000,
+    condition: 82,
+    tags: ['JDM', 'Exotic', 'Classic', 'Legendary', 'Rare'],
+    history: ['One of 351 Built', 'Museum Quality'],
+    tier: 'Unicorn',
+  },
+  {
+    id: 'car_unicorn_004',
+    name: '1995 McLaren F1',
+    baseValue: 380000,
+    condition: 88,
+    tags: ['Exotic', 'Supercar', 'British', 'Legendary', 'Mid-Engine'],
+    history: ['Low Miles', 'Full Service History', 'Mint'],
+    tier: 'Unicorn',
+  },
+  {
+    id: 'car_unicorn_005',
+    name: '1971 Plymouth Hemi \'Cuda Convertible',
+    baseValue: 250000,
+    condition: 75,
+    tags: ['Muscle', 'Classic', 'American', 'Legendary', 'Convertible'],
+    history: ['One of 11 Built', 'Matching Numbers'],
+    tier: 'Unicorn',
   },
 ];
 
 /**
- * Generate a random car from the database.
+ * Generate a random car from the database using weighted tier selection.
+ * Daily Drivers are most common, Unicorns are rare.
  * Creates a new instance with a unique ID and random condition (see GAME_CONFIG.cars.randomConditionMin/max).
  * @returns A new car instance with randomized properties
  */
 export function getRandomCar(): Car {
-  const randomIndex = Math.floor(Math.random() * CarDatabase.length);
-  const baseCar = CarDatabase[randomIndex];
+  // Use weighted random selection based on tier
+  const weights = GAME_CONFIG.cars.tierWeights;
+  const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  let random = Math.random() * totalWeight;
+
+  let selectedTier: CarTier = 'Daily Driver';
+  for (const [tier, weight] of Object.entries(weights)) {
+    random -= weight;
+    if (random <= 0) {
+      selectedTier = tier as CarTier;
+      break;
+    }
+  }
+
+  // Filter cars by selected tier
+  const tierCars = CarDatabase.filter(car => car.tier === selectedTier);
+  
+  // Fallback to all cars if no cars in tier (shouldn't happen)
+  const pool = tierCars.length > 0 ? tierCars : CarDatabase;
+  const randomIndex = Math.floor(Math.random() * pool.length);
+  const baseCar = pool[randomIndex];
 
   const minCondition = GAME_CONFIG.cars.randomConditionMin;
   const maxCondition = GAME_CONFIG.cars.randomConditionMax;
@@ -187,6 +407,15 @@ export function calculateCarValue(car: Car): number {
   
   const value = Math.floor(car.baseValue * conditionMultiplier * historyMultiplier);
   return value;
+}
+
+/**
+ * Get a specific car from database by ID.
+ * @param id - The unique ID of the car to retrieve
+ * @returns The car if found, undefined otherwise
+ */
+export function getCarById(id: string): Car | undefined {
+  return CarDatabase.find((car) => car.id === id);
 }
 
 /**

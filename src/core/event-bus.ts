@@ -16,7 +16,7 @@ export type GameEvents = {
   'victory': any; // VictoryResult from GameManager
   'tutorial-complete': void;
   'skill-levelup': { skill: string; level: number };
-  'network-levelup': void;
+  'network-levelup': number;
 };
 
 export type EventMap = Record<string, unknown>;

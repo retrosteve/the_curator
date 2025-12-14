@@ -102,8 +102,8 @@ npm run preview
 ## Documentation
 
 - **This README** is the canonical, human-facing overview (how to run, core loop, mechanics).
-- For strict architecture constraints (used by tooling/agents), see [.github/instructions/ARCHITECTURE.instructions.md](.github/instructions/ARCHITECTURE.instructions.md).
-- For game design rules (core loop, data shapes, auction logic), see [.github/instructions/game-design.instructions.md](.github/instructions/game-design.instructions.md).
+- For strict architecture constraints (used by tooling/agents), see [docs/architecture.md](docs/architecture.md).
+- For game design rules (core loop, data shapes, auction logic), see [docs/game-design.md](docs/game-design.md).
 - For contributor/agent workflow conventions, see [.github/copilot-instructions.md](.github/copilot-instructions.md).
 
 ## How to Play
@@ -169,7 +169,7 @@ npm run preview
 ### Architecture
 
 For strict architecture constraints, see
-[.github/instructions/ARCHITECTURE.instructions.md](.github/instructions/ARCHITECTURE.instructions.md).
+[docs/architecture.md](docs/architecture.md).
 
 ### Adding New Features
 

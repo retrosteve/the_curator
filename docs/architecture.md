@@ -6,11 +6,11 @@ applyTo: "**"
 
 ## ARCHITECTURE: THE CURATOR (STRICT)
 
-This document covers implementation constraints; gameplay rules and tuning live in `.github/instructions/game-design.instructions.md`.
+This document covers implementation constraints; gameplay rules and tuning live in `docs/game-design.md`.
 
 ## Rendering & UI (Non-Negotiable)
 - **Engine:** Use Phaser 3 for the game loop and rendering (maps, sprites).
-- **UI Layer:** Do NOT use Phaser Text objects for complex UI. Use an HTML/CSS DOM overlay for menus, buttons, and dialogs.
+- **UI Layer:** Use HTML/CSS DOM overlay for all menus, buttons, dialogs, and HUD. Phaser Text objects are acceptable for in-world spatial labels (e.g., map node names, distance markers) where positioning relative to game objects is required.
 
 ## DOM Overlay (Implementation Notes)
 - Construct UI via `UIManager` inside each Scene `create()`; clear UI on entry.

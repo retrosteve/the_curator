@@ -18,7 +18,7 @@ export type TutorialStep =
 /**
  * TutorialManager - Singleton managing tutorial progression.
  * Tracks tutorial state and triggers appropriate dialogue/guidance.
- * Tutorial follows the script defined in game-design.instructions.md.
+ * Tutorial follows the script defined in docs/game-design.md.
  */
 export class TutorialManager {
   private static instance: TutorialManager;

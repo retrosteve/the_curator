@@ -5,6 +5,9 @@ import { getRivalByTierProgression, calculateRivalInterest, getRivalById } from 
 import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
 
+const AUCTION_HOURS = GAME_CONFIG.timeCosts.auctionHours;
+const INSPECT_HOURS = GAME_CONFIG.timeCosts.inspectHours;
+
 /**
  * Map Node configuration.
  * Represents a location on the map that the player can visit.
@@ -113,9 +116,23 @@ export class MapScene extends BaseGameScene {
     });
 
     this.nodes.forEach((node) => {
+      // Determine if this node will have a rival (before visit)
+      const hasRival = node.type !== 'special' && Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+      
       // Draw node circle
       const circle = this.add.circle(node.x, node.y, 40, node.color);
       circle.setInteractive({ useHandCursor: true });
+      
+      // Add rival indicator if rival present
+      if (hasRival) {
+        const rivalIndicator = this.add.text(node.x + 30, node.y - 30, '⚔️', {
+          fontSize: '24px',
+        }).setOrigin(0.5);
+        
+        // Store indicator for cleanup
+        (node as any).rivalIndicator = rivalIndicator;
+        (node as any).hasRival = true;
+      }
 
       // Add label
       this.add.text(node.x, node.y + 60, node.name, {
@@ -155,9 +172,11 @@ export class MapScene extends BaseGameScene {
       'Back to Garage',
       () => this.scene.start('GarageScene'),
       {
-        position: 'absolute',
-        bottom: '20px',
-        right: '20px',
+        style: {
+          position: 'absolute',
+          bottom: '20px',
+          right: '20px',
+        }
       }
     );
     this.uiManager.append(backBtn);
@@ -184,7 +203,6 @@ export class MapScene extends BaseGameScene {
     // Award Network XP for visiting location (first visit only)
     const isFirstVisit = this.gameManager.visitLocation(node.id);
     if (isFirstVisit) {
-      const progress = this.gameManager.getSkillProgress('network');
       // Show subtle notification for first visit
       setTimeout(() => {
         const message = `New location discovered! Network +${GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation} XP`;
@@ -250,8 +268,8 @@ export class MapScene extends BaseGameScene {
     // Regular encounters - get random car
     const car = getRandomCar();
     
-    // Normal gameplay: random rival chance
-    const hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+    // Check if this node has a pre-determined rival (from map indicators)
+    const hasRival = (node as any).hasRival || false;
 
     if (hasRival) {
       // Auction consumes additional time

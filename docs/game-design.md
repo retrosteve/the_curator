@@ -6,7 +6,7 @@ applyTo: "**"
 
 ## GAME DESIGN: THE CURATOR (RULES)
 
-This document covers gameplay rules; implementation constraints (Phaser/DOM split, state/events, scene boundaries) live in `.github/instructions/architecture.instructions.md`.
+This document covers gameplay rules; implementation constraints (Phaser/DOM split, state/events, scene boundaries) live in `docs/architecture.md`.
 
 ## High Concept
 You are an aspiring car collector starting with a single garage slot. Your goal is to curate the world’s most prestigious car museum.

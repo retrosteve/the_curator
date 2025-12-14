@@ -590,6 +590,47 @@ export class GarageScene extends BaseGameScene {
     );
   }
 
+  private showMorningBriefing(): void {
+    const world = this.gameManager.getWorldState();
+    const player = this.gameManager.getPlayerState();
+    
+    // Generate 2-3 intel hints
+    const hints: string[] = [];
+    
+    // Hint 1: Market condition
+    const marketStatus = this.gameManager.getMarketDescription();
+    if (marketStatus) {
+      hints.push(`📈 ${marketStatus}`);
+    }
+    
+    // Hint 2: Rival activity (random rumor)
+    const rivals = ['Sterling Vance', 'Marcus Kane', 'Scrapyard Joe', 'Elena Rossi'];
+    const locations = ["Joe's Scrapyard", 'Classic Car Dealership', 'Weekend Auction House'];
+    const randomRival = rivals[Math.floor(Math.random() * rivals.length)];
+    const randomLocation = locations[Math.floor(Math.random() * locations.length)];
+    hints.push(`🔍 Word on the street: ${randomRival} was spotted near ${randomLocation}`);
+    
+    // Hint 3: Special events
+    const activeEvents = this.gameManager.getActiveSpecialEvents();
+    if (activeEvents.length > 0) {
+      const event = activeEvents[0];
+      hints.push(`⭐ ${event.name} - ${event.description}`);
+    } else if (player.skills.network >= 3) {
+      // High network skill provides general tips
+      hints.push(`💡 Network Tip: Visit different locations to find better leads`);
+    }
+    
+    const message = `**Day ${world.day} - Morning Brief**\n\n${hints.join('\n\n')}\n\nGood hunting!`;
+    
+    setTimeout(() => {
+      this.uiManager.showModal(
+        '📰 Morning Intel',
+        message,
+        [{ text: 'Start Day', onClick: () => {} }]
+      );
+    }, 500);
+  }
+
   private goToMap(): void {
     try {
       // Tutorial trigger: first visit to scrapyard
@@ -693,7 +734,13 @@ export class GarageScene extends BaseGameScene {
       [
         {
           text: 'Continue',
-          onClick: () => this.setupUI(),
+          onClick: () => {
+            this.setupUI();
+            // Show morning briefing after day transition (skip during tutorial)
+            if (!this.tutorialManager.isTutorialActive() && world.day > 1) {
+              this.showMorningBriefing();
+            }
+          },
         },
       ]
     );

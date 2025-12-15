@@ -62,11 +62,44 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.on('ap-changed', this.handleAPChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
+    
+    // XP gain and level-up notifications
+    eventBus.on('xp-gained', this.handleXPGained);
+    eventBus.on('skill-levelup', this.handleSkillLevelUp);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupCommonEventListeners();
     });
   }
+  
+  /**
+   * Handle XP gained event - show toast notification.
+   */
+  protected readonly handleXPGained = (data: {
+    skill: 'eye' | 'tongue' | 'network';
+    amount: number;
+    currentXP?: number;
+    requiredXP?: number;
+    currentLevel?: number;
+  }): void => {
+    this.uiManager.showXPGain(
+      data.skill,
+      data.amount,
+      data.currentXP,
+      data.requiredXP,
+      data.currentLevel
+    );
+  };
+  
+  /**
+   * Handle skill level-up event - show celebration modal.
+   */
+  protected readonly handleSkillLevelUp = (data: {
+    skill: string;
+    level: number;
+  }): void => {
+    this.uiManager.showSkillLevelUp(data.skill as 'eye' | 'tongue' | 'network', data.level);
+  };
 
   /**
    * Cleanup common event listeners.
@@ -78,6 +111,8 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('ap-changed', this.handleAPChanged);
     eventBus.off('day-changed', this.handleDayChanged);
     eventBus.off('location-changed', this.handleLocationChanged);
+    eventBus.off('xp-gained', this.handleXPGained);
+    eventBus.off('skill-levelup', this.handleSkillLevelUp);
     
     // Clear cached HUD on cleanup
     this.clearCachedHUD();

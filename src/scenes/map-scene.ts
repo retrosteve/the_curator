@@ -20,6 +20,7 @@ interface MapNode {
   type: 'scrapyard' | 'dealership' | 'auction' | 'special';
   color: number;
   specialEvent?: any; // For special event nodes
+  hasRival?: boolean; // Whether a rival is present at this location
 }
 
 /**
@@ -72,10 +73,6 @@ export class MapScene extends BaseGameScene {
       this.cleanupDashboard();
     });
   }
-
-  private readonly handleXPGained = (data: { skill: 'eye' | 'tongue' | 'network'; amount: number }): void => {
-    this.uiManager.showXPGain(data.skill, data.amount);
-  };
 
   private createDashboard(): void {
     // Build location data
@@ -131,7 +128,7 @@ export class MapScene extends BaseGameScene {
     // Determine rival presence for each location
     this.nodes.forEach((node) => {
       if (node.id !== 'garage' && node.type !== 'special') {
-        (node as any).hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+        node.hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
       }
     });
 
@@ -163,7 +160,7 @@ export class MapScene extends BaseGameScene {
   private createLocationCard(node: MapNode): HTMLElement {
     const card = document.createElement('div');
     const isGarage = node.id === 'garage';
-    const hasRival = (node as any).hasRival;
+    const hasRival = node.hasRival;
     const apCost = isGarage ? 0 : (node.specialEvent?.apCost ?? GAME_CONFIG.timeCosts.travelAP);
     
     // Get color as hex string
@@ -446,52 +443,61 @@ export class MapScene extends BaseGameScene {
   private generateEncounter(node: MapNode): void {
     // Handle special events
     if (node.type === 'special') {
-      const specialEvent = (node as any).specialEvent;
+      const specialEvent = node.specialEvent;
       this.generateSpecialEncounter(specialEvent);
       return;
     }
 
     // Tutorial-specific encounters with specific cars
-    if (this.tutorialManager.isTutorialActive()) {
-      const step = this.tutorialManager.getCurrentStep();
-      
-      // Force Rusty Sedan for first inspection/buy
-      if (step === 'first_visit_scrapyard' || step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
-        const car = getCarById('tutorial_rusty_sedan') || getRandomCar();
-        this.scene.start('NegotiationScene', { car });
-        return;
-      }
-      
-      // First loss: Force Sterling Vance encounter with Muscle Car
-      if (step === 'first_flip') {
-        const car = getCarById('tutorial_muscle_car') || getRandomCar();
-        const sterlingVance = getRivalById('sterling_vance');
-        const interest = calculateRivalInterest(sterlingVance, car.tags);
+    try {
+      if (this.tutorialManager && this.tutorialManager.isTutorialActive()) {
+        const step = this.tutorialManager.getCurrentStep();
         
-        // Show dramatic intro
-        setTimeout(() => {
-          this.tutorialManager.advanceStep('first_loss');
-        }, 100);
+        // Force Rusty Sedan for first inspection/buy
+        if (step === 'first_visit_scrapyard' || step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
+          const car = getCarById('tutorial_rusty_sedan') || getRandomCar();
+          this.scene.start('NegotiationScene', { car });
+          return;
+        }
         
-        // Both Sterling AND Scrapyard Joe are at this location
-        // After losing to Sterling, auction scene will handle the redemption encounter
-        this.scene.start('AuctionScene', { car, rival: sterlingVance, interest });
-        return;
+        // First loss: Force Sterling Vance encounter with Muscle Car
+        if (step === 'first_flip') {
+          const car = getCarById('tutorial_muscle_car') || getRandomCar();
+          const sterlingVance = getRivalById('sterling_vance');
+          const interest = calculateRivalInterest(sterlingVance, car.tags);
+          
+          // Show Sterling's dramatic intro dialogue, then start auction
+          this.tutorialManager.showDialogueWithCallback(
+            "Sterling Vance",
+            "*smirks* Sorry kid, but this Muscle Car is mine. You'll need more than just money to beat me in a bidding war. Watch and learn.",
+            () => {
+              // After dialogue is dismissed, advance step and start auction
+              this.tutorialManager.advanceStep('first_loss');
+              // Use scene.switch to properly transition - this stops current scene and starts new one
+              this.scene.stop('MapScene');
+              this.scene.start('AuctionScene', { car, rival: sterlingVance, interest });
+            }
+          );
+          return;
+        }
+        
+        // Skip redemption step - it's handled in AuctionScene after first_loss
+        // If player somehow gets to this state, treat as normal gameplay
+        if (step === 'first_loss' || step === 'redemption') {
+          // Tutorial should have advanced past this point
+          // Fall through to normal gameplay
+        }
       }
-      
-      // Skip redemption step - it's handled in AuctionScene after first_loss
-      // If player somehow gets to this state, treat as normal gameplay
-      if (step === 'first_loss' || step === 'redemption') {
-        // Tutorial should have advanced past this point
-        // Fall through to normal gameplay
-      }
+    } catch (error) {
+      console.error('Tutorial error in MapScene:', error);
+      // Continue with normal gameplay if tutorial fails
     }
     
     // Regular encounters - get random car
     const car = getRandomCar();
     
     // Check if this node has a pre-determined rival (from map indicators)
-    const hasRival = (node as any).hasRival || false;
+    const hasRival = node.hasRival || false;
 
     if (hasRival) {
       // Auction consumes additional AP
@@ -555,6 +561,7 @@ export class MapScene extends BaseGameScene {
     }
 
     // Special events always have a car to negotiate for (no auctions for simplicity)
+    // AP was already spent in visitNode(), don't double-charge
     const block = this.timeSystem.getAPBlockModal(INSPECT_AP, `the ${specialEvent.name}`);
     if (block) {
       this.uiManager.showModal(block.title, block.message, [

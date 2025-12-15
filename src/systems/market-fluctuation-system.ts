@@ -152,6 +152,7 @@ export class MarketFluctuationSystem {
   /**
    * Get current season based on game day number.
    * Uses day ranges defined in GAME_CONFIG.economy.market.seasonal.
+   * Seasons cycle through the year with winter wrapping around (335-365 and 1-59).
    * @param gameDay - Current game day (from GameManager)
    */
   private getCurrentSeason(gameDay?: number): string {
@@ -160,15 +161,18 @@ export class MarketFluctuationSystem {
 
     const seasonalConfig = GAME_CONFIG.economy.market.seasonal;
     
+    // Normalize day to 1-365 cycle for seasonal calculations
+    const normalizedDay = ((gameDay - 1) % 365) + 1;
+    
     // Check each season's day range
     // Winter wraps around year end (335-365 and 1-59)
-    if (gameDay >= seasonalConfig.winter.startDay || gameDay <= seasonalConfig.winter.endDay) {
+    if (normalizedDay >= seasonalConfig.winter.startDay || normalizedDay <= seasonalConfig.winter.endDay) {
       return 'Winter';
-    } else if (gameDay >= seasonalConfig.spring.startDay && gameDay <= seasonalConfig.spring.endDay) {
+    } else if (normalizedDay >= seasonalConfig.spring.startDay && normalizedDay <= seasonalConfig.spring.endDay) {
       return 'Spring';
-    } else if (gameDay >= seasonalConfig.summer.startDay && gameDay <= seasonalConfig.summer.endDay) {
+    } else if (normalizedDay >= seasonalConfig.summer.startDay && normalizedDay <= seasonalConfig.summer.endDay) {
       return 'Summer';
-    } else if (gameDay >= seasonalConfig.fall.startDay && gameDay <= seasonalConfig.fall.endDay) {
+    } else if (normalizedDay >= seasonalConfig.fall.startDay && normalizedDay <= seasonalConfig.fall.endDay) {
       return 'Fall';
     }
     

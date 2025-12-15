@@ -14,7 +14,7 @@ export const GAME_CONFIG = {
   },
 
   day: {
-    maxAP: 15, // Action Points per day
+    maxAP: 18, // Action Points per day (increased from 15 for better pacing)
   },
 
   player: {
@@ -123,7 +123,7 @@ export const GAME_CONFIG = {
       charlieMinor: {
         availableBelowCondition: 100,
         costRateOfBaseValue: 0.02,
-        apCost: 3,
+        apCost: 2, // Reduced from 3 for better pacing
         conditionGain: 10,
         failChance: 0.1,
         failConditionPenalty: 5,
@@ -132,7 +132,7 @@ export const GAME_CONFIG = {
       artisanMajor: {
         availableBelowCondition: 90,
         costRateOfBaseValue: 0.15,
-        apCost: 5,
+        apCost: 4, // Reduced from 5 for better pacing
         conditionGain: 30,
       },
     },
@@ -227,6 +227,20 @@ export const GAME_CONFIG = {
       tier3MaxPrestige: 50,  // Tier 3 (Scrappers) available up to 50 prestige
       tier2MaxPrestige: 150, // Tier 2 (Enthusiasts) available up to 150 prestige
       tier1MinPrestige: 150, // Tier 1 (Tycoons) available from 150+ prestige
+    },
+  },
+
+  ui: {
+    // Toast notification positioning
+    toast: {
+      baseTopPosition: 80,     // Starting Y position for first toast (px)
+      heightWithMargin: 60,    // Height of each toast including margin (px)
+      animationDuration: 2500, // Toast display duration (ms)
+    },
+
+    // Modal delays
+    modalDelays: {
+      rivalBid: 500, // Delay before showing rival bid result (ms)
     },
   },
 } as const;

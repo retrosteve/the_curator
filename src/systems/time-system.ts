@@ -63,14 +63,6 @@ export class TimeSystem {
   }
 
   /**
-   * Get Action Points remaining.
-   * @returns AP remaining (0 to maxAP)
-   */
-  public getAPRemaining(): number {
-    return this.getCurrentAP();
-  }
-
-  /**
    * Check if enough AP remains for an action.
    * @param required - AP needed for the action
    * @returns True if enough AP available

@@ -14,6 +14,7 @@ import { formatCurrency, formatNumber } from '@/utils/format';
 export class GarageScene extends BaseGameScene {
   private autoEndDayOnEnter: boolean = false;
   private inventoryButton?: HTMLButtonElement;
+  private mapButton?: HTMLButtonElement;
   private currentView: 'menu' | 'inventory' | 'museum' | 'rival-info' = 'menu';
 
   private readonly handleInventoryChanged = (): void => {
@@ -68,6 +69,17 @@ export class GarageScene extends BaseGameScene {
       `The world of car collecting awaits. Build your dream museum!`,
       [{ text: 'Start Collecting!', onClick: () => {} }]
     );
+  };
+
+  private readonly handleTutorialStepChanged = (data: { step: string }): void => {
+    // When tutorial advances to first_visit_scrapyard, apply pulse animation to map button
+    if (data.step === 'first_visit_scrapyard' && this.mapButton) {
+      this.mapButton.style.cssText += `
+        animation: pulse 1.5s ease-in-out infinite;
+        box-shadow: 0 0 20px #4CAF50;
+        transform: scale(1.05);
+      `;
+    }
   };
 
   constructor() {
@@ -189,10 +201,23 @@ export class GarageScene extends BaseGameScene {
       () => this.goToMap(),
       { style: { width: '100%' } }
     );
+    this.mapButton = mapBtn;
+    
+    // Tutorial: Highlight map button and disable others during first_visit_scrapyard step
+    const isTutorialFirstStep = this.tutorialManager?.isCurrentStep('first_visit_scrapyard');
+    if (isTutorialFirstStep) {
+      // Add pulsing animation to map button (CSS animation defined in main.css)
+      mapBtn.style.cssText += `
+        animation: pulse 1.5s ease-in-out infinite;
+        box-shadow: 0 0 20px #4CAF50;
+        transform: scale(1.05);
+      `;
+    }
+    
     buttonContainer.appendChild(mapBtn);
 
     // View Inventory button
-    const inventoryBtn = this.uiManager.createButton(
+    const inventoryBtn = this.createTutorialAwareButton(
       `View Inventory (${player.inventory.length} cars)`,
       () => this.showInventory(),
       { style: { width: '100%' } }
@@ -201,46 +226,67 @@ export class GarageScene extends BaseGameScene {
     buttonContainer.appendChild(inventoryBtn);
 
     // View Museum button
-    const museumCars = this.getMuseumCars();
-    const museumBtn = this.uiManager.createButton(
+    const museumCars = this.gameManager.getMuseumCars();
+    const museumBtn = this.createTutorialAwareButton(
       `View Museum (${museumCars.length} cars)`,
       () => this.showMuseum(),
-      { variant: 'special', style: { width: '100%' } }
+      { 
+        variant: 'special', 
+        style: { width: '100%' }
+      }
     );
     buttonContainer.appendChild(museumBtn);
 
     // End Day button
-    const endDayBtn = this.uiManager.createButton(
+    const endDayBtn = this.createTutorialAwareButton(
       'End Day',
       () => this.endDay(),
-      { variant: 'danger', style: { width: '100%' } }
+      { 
+        variant: 'danger', 
+        style: { width: '100%' }
+      }
     );
     buttonContainer.appendChild(endDayBtn);
 
     // Upgrade Garage button (if available)
     const upgradeCost = this.gameManager.getNextGarageSlotCost();
     if (upgradeCost !== null) {
-      const upgradeBtn = this.uiManager.createButton(
+      const upgradeBtn = this.createTutorialAwareButton(
         `Upgrade Garage (${upgradeCost} Prestige)`,
         () => this.upgradeGarage(),
-        { style: { width: '100%', backgroundColor: '#9b59b6' } }
+        { 
+          style: { 
+            width: '100%', 
+            backgroundColor: '#9b59b6'
+          }
+        }
       );
       buttonContainer.appendChild(upgradeBtn);
     }
 
     // Victory Progress button
-    const victoryBtn = this.uiManager.createButton(
+    const victoryBtn = this.createTutorialAwareButton(
       'Check Victory Progress',
       () => this.showVictoryProgress(),
-      { style: { width: '100%', backgroundColor: '#f39c12' } }
+      { 
+        style: { 
+          width: '100%', 
+          backgroundColor: '#f39c12'
+        }
+      }
     );
     buttonContainer.appendChild(victoryBtn);
 
     // Skills Reference button
-    const skillsRefBtn = this.uiManager.createButton(
+    const skillsRefBtn = this.createTutorialAwareButton(
       '📚 Skills Reference',
       () => this.showSkillsReference(),
-      { style: { width: '100%', backgroundColor: '#8e44ad' } }
+      { 
+        style: { 
+          width: '100%', 
+          backgroundColor: '#8e44ad'
+        }
+      }
     );
     buttonContainer.appendChild(skillsRefBtn);
 
@@ -272,6 +318,7 @@ export class GarageScene extends BaseGameScene {
     eventBus.on('inventory-changed', this.handleInventoryChanged);
     eventBus.on('victory', this.handleVictory);
     eventBus.on('tutorial-complete', this.handleTutorialComplete);
+    eventBus.on('tutorial-step-changed', this.handleTutorialStepChanged);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupEventListeners();
@@ -282,6 +329,35 @@ export class GarageScene extends BaseGameScene {
     eventBus.off('inventory-changed', this.handleInventoryChanged);
     eventBus.off('victory', this.handleVictory);
     eventBus.off('tutorial-complete', this.handleTutorialComplete);
+    eventBus.off('tutorial-step-changed', this.handleTutorialStepChanged);
+  }
+
+  /**
+   * Create button with tutorial-based disabling logic.
+   * During 'first_visit_scrapyard' tutorial step, button is visually disabled and non-functional.
+   * @param label - Button text
+   * @param action - Click handler (disabled during tutorial)
+   * @param options - Button styling options
+   * @returns Button element
+   */
+  private createTutorialAwareButton(
+    label: string,
+    action: () => void,
+    options: Parameters<typeof this.uiManager.createButton>[2] = {}
+  ): HTMLButtonElement {
+    const isTutorialFirstStep = this.tutorialManager?.isCurrentStep('first_visit_scrapyard');
+    return this.uiManager.createButton(
+      label,
+      isTutorialFirstStep ? () => {} : action,
+      {
+        ...options,
+        style: {
+          ...options.style,
+          opacity: isTutorialFirstStep ? '0.5' : '1',
+          cursor: isTutorialFirstStep ? 'not-allowed' : 'pointer'
+        }
+      }
+    );
   }
 
   /**
@@ -430,12 +506,10 @@ export class GarageScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
 
     // Reuse cached HUD
-    if (this.cachedHUD) {
-      this.uiManager.append(this.cachedHUD);
-    } else {
-      const hud = this.createStandardHUD();
-      this.uiManager.append(hud);
+    if (!this.cachedHUD) {
+      this.cachedHUD = this.createStandardHUD();
     }
+    this.uiManager.append(this.cachedHUD);
 
     const panel = this.uiManager.createPanel({
       position: 'absolute',
@@ -487,6 +561,73 @@ export class GarageScene extends BaseGameScene {
       );
       return;
     }
+    
+    // Check for restoration challenges first
+    const challenges = Economy.getRestorationChallenges(car);
+    if (challenges.length > 0) {
+      this.showRestorationChallenges(car, challenges);
+      return;
+    }
+    
+    this.showRestorationOptions(car);
+  }
+  
+  /**
+   * Show restoration challenges that must be completed before standard restoration.
+   */
+  private showRestorationChallenges(car: Car, challenges: typeof Economy.getRestorationChallenges extends (...args: any) => infer R ? R : never): void {
+    // Build plain text message with proper formatting
+    let message = '⚠️ RESTORATION BLOCKED\n\n';
+    message += 'This car requires special treatment before standard restoration can begin.\n\n';
+    message += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    
+    challenges.forEach((challenge, index) => {
+      message += `${challenge.name}\n`;
+      message += `${challenge.description}\n\n`;
+      message += `💰 Cost: ${formatCurrency(challenge.cost)} | ⏰ Time: ${challenge.apCost} AP\n`;
+      
+      if (index < challenges.length - 1) {
+        message += '\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
+      }
+    });
+    
+    const buttons = challenges.map(challenge => ({
+      text: `Fix: ${challenge.name}`,
+      onClick: () => {
+        const block = this.timeSystem.getAPBlockModal(challenge.apCost, `fixing ${car.name}`);
+        if (block) {
+          this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
+          return;
+        }
+        
+        if (this.gameManager.spendMoney(challenge.cost)) {
+          this.timeSystem.spendAP(challenge.apCost);
+          const fixedCar = Economy.completeRestorationChallenge(car, challenge);
+          this.gameManager.updateCar(fixedCar);
+          
+          this.uiManager.showModal(
+            '✅ Challenge Complete!',
+            `${challenge.name} completed successfully!\n\nThe car is now ready for standard restoration.`,
+            [{ text: 'Continue', onClick: () => this.restoreCar(car.id) }]
+          );
+        } else {
+          this.uiManager.showInsufficientFundsModal();
+        }
+      },
+    }));
+    
+    buttons.push({
+      text: 'Cancel',
+      onClick: () => this.showInventory(),
+    });
+    
+    this.uiManager.showModal('🔧 Restoration Challenges', message, buttons);
+  }
+  
+  /**
+   * Show standard restoration options.
+   */
+  private showRestorationOptions(car: Car): void {
 
     const options = Economy.getRestorationOptions(car);
     
@@ -522,6 +663,26 @@ export class GarageScene extends BaseGameScene {
             const isTutorialFirstRestore = this.tutorialManager.isCurrentStep('first_buy');
             const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
             this.gameManager.updateCar(result.car);
+            
+            // Show discovery message if found
+            if (result.discovery) {
+              const discoveryIcon = result.discovery.type === 'positive' ? '💎' : '⚠️';
+              const discoveryName = result.discovery.name;
+              const valueChange = result.discovery.valueChange;
+              
+              setTimeout(() => {
+                this.uiManager.showModal(
+                  `${discoveryIcon} Hidden Discovery!`,
+                  result.message + `\n\n${discoveryName}\nValue change: ${formatCurrency(Math.abs(valueChange))}`,
+                  [{ text: 'Continue', onClick: () => {
+                    this.showInventory();
+                  }}]
+                );
+              }, 300);
+            } else {
+              // Normal restoration result
+              this.showInventory();
+            }
             
             // Tutorial trigger: advance to first_restore immediately after restoration
             if (isTutorialFirstRestore) {
@@ -606,6 +767,33 @@ export class GarageScene extends BaseGameScene {
   private showVictoryProgress(): void {
     const victoryResult = this.gameManager.checkVictory();
     const { prestige, unicorns, museumCars, skillLevel } = victoryResult;
+    const world = this.gameManager.getWorldState();
+
+    // Calculate prestige pace
+    const currentDay = world.day;
+    const prestigePerDay = currentDay > 1 ? prestige.current / currentDay : 0;
+    const daysToVictory = prestigePerDay > 0 
+      ? Math.ceil((prestige.required - prestige.current) / prestigePerDay)
+      : 999;
+    
+    // Determine pace status
+    let paceStatus: 'on-track' | 'slow' | 'stalled';
+    let paceColor: string;
+    let paceIcon: string;
+    
+    if (prestigePerDay >= 20) {
+      paceStatus = 'on-track';
+      paceColor = '#2ecc71';
+      paceIcon = '🚀';
+    } else if (prestigePerDay >= 10) {
+      paceStatus = 'slow';
+      paceColor = '#f39c12';
+      paceIcon = '🐢';
+    } else {
+      paceStatus = 'stalled';
+      paceColor = '#e74c3c';
+      paceIcon = '⚠️';
+    }
 
     // Create custom modal content with progress bars
     const modalContent = document.createElement('div');
@@ -641,6 +829,31 @@ export class GarageScene extends BaseGameScene {
     modalContent.appendChild(createProgressRow('Unicorns in Museum', unicorns.current, unicorns.required, unicorns.met));
     modalContent.appendChild(createProgressRow('Museum Cars (80%+)', museumCars.current, museumCars.required, museumCars.met));
     modalContent.appendChild(createProgressRow('Max Skill Level', skillLevel.current, skillLevel.required, skillLevel.met));
+
+    // Add pace indicator
+    const paceDiv = document.createElement('div');
+    paceDiv.style.cssText = `margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; border-left: 4px solid ${paceColor};`;
+    
+    const paceTitle = document.createElement('div');
+    paceTitle.style.cssText = 'font-weight: bold; font-size: 16px; margin-bottom: 8px;';
+    paceTitle.textContent = `${paceIcon} Prestige Pace: ${paceStatus.toUpperCase().replace('-', ' ')}`;
+    paceDiv.appendChild(paceTitle);
+    
+    const paceDetails = document.createElement('div');
+    paceDetails.style.cssText = 'font-size: 14px; color: #bbb;';
+    paceDetails.innerHTML = `
+      • Current Rate: <span style="color: ${paceColor}; font-weight: bold;">${prestigePerDay.toFixed(1)} prestige/day</span><br>
+      • Days Played: ${currentDay}<br>
+      • Est. Days to Victory: ${daysToVictory < 999 ? daysToVictory : 'N/A'}<br>
+      <br>
+      <span style="font-size: 12px; font-style: italic;">
+        ${paceStatus === 'on-track' ? '✓ Great pace! Keep it up!' : 
+          paceStatus === 'slow' ? '⚡ Consider focusing on museum display and collections.' :
+          '💡 Tip: Display high-condition cars in your museum for daily prestige.'}
+      </span>
+    `;
+    paceDiv.appendChild(paceDetails);
+    modalContent.appendChild(paceDiv);
 
     const statusText = document.createElement('div');
     statusText.style.cssText = `margin-top: 20px; text-align: center; font-weight: bold; font-size: 16px; color: ${victoryResult.hasWon ? '#2ecc71' : '#f39c12'};`;
@@ -805,8 +1018,12 @@ export class GarageScene extends BaseGameScene {
 
   private endDay(): void {
     const playerBefore = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
     const rent = this.gameManager.getDailyRent();
+    const museumIncome = this.gameManager.getMuseumIncomeInfo();
+    const unusedAP = world.currentAP;
 
+    // Pre-check: Can player afford rent?
     if (playerBefore.money < rent) {
       const canSell = playerBefore.inventory.length > 0;
       const canLoan = this.gameManager.canTakeBankLoan();
@@ -863,6 +1080,35 @@ export class GarageScene extends BaseGameScene {
       return;
     }
 
+    // Show end-day confirmation with summary
+    const confirmMessage = 
+      `📊 END DAY ${world.day} SUMMARY:\n\n` +
+      `💰 Current Money: ${formatCurrency(playerBefore.money)}\n` +
+      `🏆 Current Prestige: ${formatNumber(playerBefore.prestige)}\n` +
+      `⏰ Unused AP: ${unusedAP}/${GAME_CONFIG.day.maxAP}\n\n` +
+      `💸 Rent Due: ${formatCurrency(rent)}\n` +
+      `📈 Museum Income: +${museumIncome.totalPerDay} prestige (${museumIncome.carCount} cars)\n\n` +
+      `After rent, you'll have ${formatCurrency(playerBefore.money - rent)}.\n\n` +
+      `Ready to end the day?`;
+    
+    this.uiManager.confirmAction(
+      '🌙 End Day?',
+      confirmMessage,
+      () => this.proceedWithEndDay(),
+      () => {}, // Cancel does nothing
+      { 
+        confirmText: 'End Day', 
+        confirmVariant: 'warning',
+        cancelText: 'Keep Working'
+      }
+    );
+  }
+
+  /**
+   * Actually end the day after confirmation.
+   * Separated from endDay() to allow confirmation dialog.
+   */
+  private proceedWithEndDay(): void {
     const result = this.timeSystem.endDay();
 
     if (result.bankrupt) {
@@ -1069,28 +1315,13 @@ export class GarageScene extends BaseGameScene {
     );
   }
 
-  private getMuseumCars(): Car[] {
-    return this.gameManager.getMuseumCars();
-  }
-
-  private getMuseumPrestigeBonus(): number {
-    const museumCars = this.getMuseumCars();
-    // Simple bonus: 1 prestige per museum car per day
-    return museumCars.length;
-  }
-
-  private getMuseumEligibleCars(): Car[] {
-    const player = this.gameManager.getPlayerState();
-    // Cars eligible for museum: condition >= 80%
-    return player.inventory.filter(car => this.gameManager.isMuseumEligible(car));
-  }
-
   private showMuseum(): void {
     this.uiManager.clear();
     this.currentView = 'museum';
 
-    const museumCars = this.getMuseumCars();
-    const prestigeBonus = this.getMuseumPrestigeBonus();
+    const museumCars = this.gameManager.getMuseumCars();
+    const museumIncomeInfo = this.gameManager.getMuseumIncomeInfo();
+    const player = this.gameManager.getPlayerState();
 
     // Reuse cached HUD
     if (this.cachedHUD) {
@@ -1116,10 +1347,10 @@ export class GarageScene extends BaseGameScene {
     });
     panel.appendChild(heading);
 
-    // Museum stats
-    const eligibleCars = this.getMuseumEligibleCars();
+    // Museum stats - count eligible cars (condition >= 80%)
+    const eligibleCars = player.inventory.filter(car => this.gameManager.isMuseumEligible(car));
     const statsText = this.uiManager.createText(
-      `Displayed: ${museumCars.length} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${prestigeBonus}`,
+      `Displayed: ${museumCars.length} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${museumIncomeInfo.totalPerDay}`,
       { textAlign: 'center', fontWeight: 'bold', marginBottom: '10px' }
     );
     panel.appendChild(statsText);

@@ -111,6 +111,9 @@ export class TutorialManager {
     this.currentStep = step;
     console.log(`Tutorial advanced to: ${step}`);
     
+    // Emit event so scenes can react to step changes
+    eventBus.emit('tutorial-step-changed', { step });
+    
     // Per-step dialogue/actions according to design document
     switch (step) {
       case 'first_visit_scrapyard':
@@ -128,10 +131,7 @@ export class TutorialManager {
         break;
       
       case 'first_buy':
-        this.showDialogue(
-          "Uncle Ray",
-          "Good purchase! You earned +10 Eye XP for inspecting that car. Hover over the skill bars in your garage to see what each level unlocks. Click 'Inventory' to see your new car, then restore it to increase its value."
-        );
+        // Dialogue shown in NegotiationScene before scene transition
         break;
       
       case 'first_restore':
@@ -147,26 +147,18 @@ export class TutorialManager {
         break;
       
       case 'first_loss':
-        this.showDialogue(
-          "Sterling Vance",
-          "*smirks* Sorry kid, but this Muscle Car is mine. You'll need more than just money to beat me in a bidding war. Watch and learn."
-        );
+        // Dialogue already shown in MapScene before auction starts
+        // This step tracks that the player has been introduced to Sterling
         break;
       
       case 'redemption':
-        this.showDialogue(
-          "Uncle Ray",
-          "Don't let that loss get you down! Look - there's another car here nobody else noticed: a Boxy Wagon. This time you're facing a weaker rival. Use aggressive tactics like Power Bid to make them quit early!"
-        );
+        // Dialogue shown in AuctionScene after first_loss before starting second auction
         break;
       
       case 'complete':
-        this.showDialogue(
-          "Uncle Ray",
-          "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car museum! Remember: every car tells a story, and you're the curator."
-        );
+        // Dialogue shown in AuctionScene before scene transition
         this.isActive = false; // End tutorial
-        eventBus.emit('tutorial-complete'); // Emit completion event
+        eventBus.emit('tutorial-complete', undefined); // Emit completion event
         break;
       
       default:

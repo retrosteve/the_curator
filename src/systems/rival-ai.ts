@@ -1,4 +1,4 @@
-import { Rival, BidDecision, getRivalBidDecision } from '@/data/rival-database';
+import { Rival, BidDecision, getRivalBidDecision, getMoodModifiers } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
@@ -15,26 +15,29 @@ export class RivalAI {
   constructor(rival: Rival, carInterest: number) {
     this.rival = { ...rival };
     this.carInterest = carInterest;
-    this.currentPatience = rival.patience;
-    this.currentBudget = rival.budget;
+    
+    // Apply mood modifiers to starting values
+    const moodModifiers = rival.mood ? getMoodModifiers(rival.mood) : { patienceMultiplier: 1, budgetMultiplier: 1 };
+    
+    this.currentPatience = Math.floor(rival.patience * moodModifiers.patienceMultiplier);
+    this.currentBudget = Math.floor(rival.budget * moodModifiers.budgetMultiplier);
   }
 
   /**
    * Get rival's decision on whether to bid and how much.
-   * Automatically updates patience based on strategy before deciding.
    * @param currentBid - Current auction bid amount
    * @returns Bid decision with shouldBid flag, amount, and reason
    */
   public decideBid(currentBid: number): BidDecision {
-    // Update patience based on strategy
-    this.updatePatience();
-
     // Get decision from database function
     const decision = getRivalBidDecision(
       { ...this.rival, patience: this.currentPatience, budget: this.currentBudget },
       currentBid,
       this.carInterest
     );
+
+    // Update patience based on strategy AFTER decision (for next turn)
+    this.updatePatience();
 
     return decision;
   }

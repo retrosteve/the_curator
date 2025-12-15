@@ -1,5 +1,6 @@
 import { formatCurrency } from '@/utils/format';
 import { Car } from '@/data/car-database';
+import { GAME_CONFIG } from '@/config/game-config';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -94,21 +95,41 @@ export class UIManager {
   }
 
   /**
-   * Show XP gain toast notification (e.g., '+10 Eye XP').
+   * Show XP gain toast notification (e.g., '+10 Eye XP (75/100 to Level 2)').
    * Multiple toasts stack vertically to avoid overlapping.
+   * @param skill - The skill that gained XP
+   * @param amount - Amount of XP gained
+   * @param currentXP - Current XP after gain (optional, for progress display)
+   * @param requiredXP - XP required for next level (optional, for progress display)
+   * @param currentLevel - Current skill level (optional, for progress display)
    */
-  public showXPGain(skill: 'eye' | 'tongue' | 'network', amount: number): void {
+  public showXPGain(
+    skill: 'eye' | 'tongue' | 'network',
+    amount: number,
+    currentXP?: number,
+    requiredXP?: number,
+    currentLevel?: number
+  ): void {
     const skillIcons = { eye: '👁️', tongue: '💬', network: '🌐' };
     const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
     const skillColors = { eye: '#3498db', tongue: '#9b59b6', network: '#e67e22' };
     
     // Calculate vertical position based on active toasts (stack them)
-    const baseTop = 80;
-    const toastHeight = 50; // Approximate height including margin
-    const topPosition = baseTop + (this.activeToasts.length * toastHeight);
+    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
+    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
+    
+    // Build toast text with optional progress
+    let toastText = `${skillIcons[skill]} +${amount} ${skillNames[skill]} XP`;
+    if (currentXP !== undefined && requiredXP !== undefined && currentLevel !== undefined) {
+      if (requiredXP === 0) {
+        toastText += ` (MAX LEVEL)`;
+      } else {
+        toastText += ` (${currentXP}/${requiredXP} to Lv${currentLevel + 1})`;
+      }
+    }
     
     const toast = document.createElement('div');
-    toast.textContent = `${skillIcons[skill]} +${amount} ${skillNames[skill]} XP`;
+    toast.textContent = toastText;
     toast.style.cssText = `
       position: fixed;
       top: ${topPosition}px;
@@ -122,9 +143,12 @@ export class UIManager {
       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       pointer-events: none;
       z-index: 10000;
-      animation: slideInFadeOut 2s ease-out forwards;
+      animation: slideInFadeOut 2.5s ease-out forwards;
       transition: top 0.3s ease;
     `;
+    
+    // Track this toast
+    this.activeToasts.push(toast);
     
     // Add CSS animation if not already present
     if (!document.getElementById('xpToastAnimation')) {
@@ -154,7 +178,6 @@ export class UIManager {
     }
     
     document.body.appendChild(toast);
-    this.activeToasts.push(toast);
     
     // Remove element after animation and update stack positions
     setTimeout(() => {
@@ -168,19 +191,58 @@ export class UIManager {
       }
       // Reposition remaining toasts
       this.repositionToasts();
-    }, 2000);
+    }, GAME_CONFIG.ui.toast.animationDuration);
   }
 
   /**
-   * Reposition active toasts to fill gaps when toasts are removed.
-   * @private
+   * Reposition remaining toasts after one is removed.
+   * Updates vertical position of each toast to fill gaps.
    */
   private repositionToasts(): void {
-    const baseTop = 80;
-    const toastHeight = 50;
+    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
     this.activeToasts.forEach((toast, index) => {
-      toast.style.top = `${baseTop + (index * toastHeight)}px`;
+      toast.style.top = `${baseTopPosition + (index * heightWithMargin)}px`;
     });
+  }
+
+  /**
+   * Show skill level-up celebration modal with unlock description.
+   * @param skill - The skill that leveled up
+   * @param newLevel - The new skill level
+   */
+  public showSkillLevelUp(skill: 'eye' | 'tongue' | 'network', newLevel: number): void {
+    const skillIcons = { eye: '👁️', tongue: '💬', network: '🌐' };
+    const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
+    
+    // Define unlock descriptions for each skill level
+    const unlockDescriptions: Record<string, Record<number, string>> = {
+      eye: {
+        2: '✓ Unlock "Kick Tires" tactic in auctions\\n✓ See first history tag on cars\\n✓ Better damage detection',
+        3: '✓ See all history tags\\n✓ More accurate value estimates\\n✓ Spot hidden issues faster',
+        4: '✓ See rival\'s remaining budget in auctions\\n✓ Expert-level appraisals\\n✓ Predict restoration outcomes',
+        5: '✓ Predict market fluctuations 1 day ahead\\n✓ Master appraiser status\\n✓ See hidden car attributes',
+      },
+      tongue: {
+        2: '✓ Unlock "Stall" tactic in auctions\\n✓ More persuasive in negotiations\\n✓ Better haggling results',
+        3: '✓ Unlock "Sweet Talk" (reduce asking price 10%)\\n✓ Increased Stall effectiveness\\n✓ Rivals respect your reputation',
+        4: '✓ 4 Stall uses per auction (up from 2)\\n✓ Advanced negotiation tactics\\n✓ Lower starting bids in auctions',
+        5: '✓ Unlock "Intimidate" (force rival skip turn)\\n✓ Master negotiator status\\n✓ Maximum persuasion power',
+      },
+      network: {
+        2: '✓ 25% chance to see special events 1 day early\\n✓ Better location intel\\n✓ More reliable leads',
+        3: '✓ See rival locations before traveling\\n✓ Expanded network contacts\\n✓ Better car availability info',
+        4: '✓ Unlock "Phone a Friend" (1 free appraisal/day)\\n✓ Premium location access\\n✓ Early auction notifications',
+        5: '✓ See all cars at locations before traveling\\n✓ Master curator network\\n✓ Exclusive private sales access',
+      },
+    };
+    
+    const description = unlockDescriptions[skill][newLevel] || 'New abilities unlocked!';
+    
+    this.showModal(
+      `${skillIcons[skill]} LEVEL UP! ${skillNames[skill]} Level ${newLevel}`,
+      `Congratulations! Your ${skillNames[skill]} skill has improved!\\n\\n${description}`,
+      [{ text: 'Excellent!', onClick: () => {} }]
+    );
   }
 
   /**
@@ -649,10 +711,19 @@ export class UIManager {
   /**
    * Show a modal dialog with title, message, and action buttons.
    * Modal auto-closes when any button is clicked.
+   * 
+   * Use this for:
+   * - Informational messages (single OK button)
+   * - Presenting multiple distinct actions (e.g., "View Details" vs "Continue")
+   * - Custom modal layouts with specific button styling
+   * 
+   * For simple yes/no confirmations, use confirmAction() instead.
+   * 
    * @param title - Modal title text
-   * @param message - Modal body text
+   * @param message - Modal body text (supports newlines with \n)
    * @param buttons - Array of button configurations with text and onClick handlers
    * @returns The modal element (automatically appended to overlay)
+   * @see confirmAction for yes/no confirmation dialogs
    */
   public showModal(
     title: string,
@@ -974,14 +1045,23 @@ export class UIManager {
   /**
    * Show a confirmation modal with confirm/cancel buttons.
    * Reusable pattern for all yes/no decisions.
+   * 
+   * Use this for:
+   * - Confirming destructive actions (sell car, quit auction)
+   * - Spending resources (money, AP, prestige)
+   * - Any binary choice where one option proceeds and one cancels
+   * 
+   * For informational messages or multiple distinct actions, use showModal() instead.
+   * 
    * @param title - Modal title
-   * @param message - Confirmation message
+   * @param message - Confirmation message (supports newlines with \n)
    * @param onConfirm - Callback when user confirms
    * @param onCancel - Optional callback when user cancels (defaults to no-op)
    * @param options - Optional configuration
    * @param options.confirmText - Text for confirm button (default: "Confirm")
    * @param options.confirmVariant - Button variant for confirm (default: "warning")
    * @param options.cancelText - Text for cancel button (default: "Cancel")
+   * @see showModal for informational dialogs or multiple actions
    */
   public confirmAction(
     title: string,
@@ -998,8 +1078,7 @@ export class UIManager {
       {
         text: options?.confirmText || 'Confirm',
         onClick: onConfirm,
-        variant: options?.confirmVariant || 'warning',
-      } as any,
+      },
       {
         text: options?.cancelText || 'Cancel',
         onClick: onCancel || (() => {}),

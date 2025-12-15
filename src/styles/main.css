@@ -282,6 +282,18 @@ p {
   }
 }
 
+/* Tutorial Pulse Animation */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px #4CAF50;
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 30px #4CAF50;
+  }
+}
+
 .tutorial-header {
   display: flex;
   align-items: center;

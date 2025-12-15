@@ -109,7 +109,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Concept (The Action Budget):** Time is the player’s primary resource.
 - **Action Points (AP):** Every meaningful action consumes Action Points.
 - **Day Cycle:**
-  - Each day starts with **15 Action Points** (updated for better pacing)
+  - Each day starts with **18 Action Points** (rebalanced from 15 for better pacing)
   - Day ends when AP reaches 0 or player returns to garage
 - **Constraints:**
   - Every action costs AP (1-5 AP depending on complexity).
@@ -235,8 +235,8 @@ As the player levels up, they improve three core tools:
   - **Major Overhaul:** `+30` condition
 
 #### Restoration AP Costs
-- **Minor Service:** 3 AP
-- **Major Overhaul:** 5 AP
+- **Minor Service:** 2 AP (reduced from 3 for better pacing)
+- **Major Overhaul:** 4 AP (reduced from 5 for better pacing)
 
 ### Garage Rules
 - **Garage capacity:** Starts at 1 slot (upgradeable).
@@ -249,8 +249,8 @@ As the player levels up, they improve three core tools:
 - **Travel:** 1 AP
 - **Inspect:** 1 AP
 - **Auction:** 2 AP
-- **Restore (Minor Service):** 3 AP
-- **Restore (Major Overhaul):** 5 AP
+- **Restore (Minor Service):** 2 AP (reduced from 3)
+- **Restore (Major Overhaul):** 4 AP (reduced from 5)
 
 ## Car Progression Tiers (Design)
 - **Tier 1: Daily Drivers** (grind cash via flips)

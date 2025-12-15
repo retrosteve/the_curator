@@ -1,4 +1,3 @@
-import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
@@ -250,11 +249,16 @@ export class NegotiationScene extends BaseGameScene {
       [{
         text: 'Continue',
         onClick: () => {
-          // Tutorial trigger: first buy - advance AFTER dismissing this modal
+          // Tutorial trigger: first buy - show dialogue with callback before scene transition
           if (this.tutorialManager.isCurrentStep('first_inspect')) {
-            this.tutorialManager.advanceStep('first_buy');
-            // Small delay to ensure tutorial dialogue appears before scene transition
-            setTimeout(() => this.handleLeave(), 100);
+            this.tutorialManager.showDialogueWithCallback(
+              'Uncle Ray',
+              "Good purchase! You earned +10 Eye XP for inspecting that car. Hover over the skill bars in your garage to see what each level unlocks. Click 'Inventory' to see your new car, then restore it to increase its value.",
+              () => {
+                this.tutorialManager.advanceStep('first_buy');
+                this.handleLeave();
+              }
+            );
           } else {
             this.handleLeave();
           }

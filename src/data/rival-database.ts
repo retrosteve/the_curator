@@ -9,6 +9,74 @@ import { GAME_CONFIG } from '@/config/game-config';
 export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 
 /**
+ * Rival mood types affecting daily behavior.
+ * Moods change daily and modify bidding patterns.
+ */
+export type RivalMood = 'Desperate' | 'Cautious' | 'Confident' | 'Normal';
+
+/**
+ * Get mood modifiers for rival behavior.
+ * @param mood - The rival's current mood
+ * @returns Object with patience and budget modifiers
+ */
+export function getMoodModifiers(mood: RivalMood): {
+  patienceMultiplier: number;
+  budgetMultiplier: number;
+  bidAggressiveness: number;
+  description: string;
+} {
+  switch (mood) {
+    case 'Desperate':
+      return {
+        patienceMultiplier: 0.7, // Lower patience (quits faster)
+        budgetMultiplier: 1.2, // Higher bids
+        bidAggressiveness: 1.5, // More aggressive
+        description: 'looks desperate - bidding aggressively but losing patience',
+      };
+    case 'Cautious':
+      return {
+        patienceMultiplier: 1.3, // Higher patience
+        budgetMultiplier: 0.8, // Lower bids
+        bidAggressiveness: 0.7, // Less aggressive
+        description: 'seems cautious - bidding conservatively',
+      };
+    case 'Confident':
+      return {
+        patienceMultiplier: 1.0,
+        budgetMultiplier: 1.1,
+        bidAggressiveness: 1.2,
+        description: 'looks confident - using aggressive tactics',
+      };
+    case 'Normal':
+    default:
+      return {
+        patienceMultiplier: 1.0,
+        budgetMultiplier: 1.0,
+        bidAggressiveness: 1.0,
+        description: 'seems focused',
+      };
+  }
+}
+
+/**
+ * Generate random mood for a rival based on the current day.
+ * Uses full rival ID string for better seed variation.
+ * @param rivalId - Unique rival identifier
+ * @param day - Current game day
+ * @returns Random mood for this rival on this day
+ */
+export function getRivalMood(rivalId: string, day: number): RivalMood {
+  // Use full rival ID string for better seed variation (not just first character)
+  const idSum = rivalId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const seed = (idSum + day * 7) % 100; // Multiply day by prime to vary patterns
+  
+  if (seed < 20) return 'Desperate';
+  if (seed < 40) return 'Cautious';
+  if (seed < 55) return 'Confident';
+  return 'Normal';
+}
+
+/**
  * Get human-readable tier name from tier number.
  * @param tier - The tier number (1, 2, or 3)
  * @returns Human-readable tier name
@@ -39,6 +107,7 @@ export interface Rival {
   patience: number; // 0-100
   wishlist: string[]; // Tags they target
   strategy: RivalStrategy;
+  mood?: RivalMood; // Daily mood affecting behavior (optional, set at runtime)
   avatar?: string; // Optional avatar color/identifier
 }
 
@@ -133,37 +202,44 @@ export const RivalDatabase: Rival[] = [
 ];
 
 /**
- * Get a random rival from the database.
- * @returns A rival selected randomly from the database
+ * Get a random rival from the database with mood assigned.
+ * @param day - Current game day (for mood generation)
+ * @returns A rival selected randomly from the database with mood
  */
-export function getRandomRival(): Rival {
+export function getRandomRival(day: number = 1): Rival {
   const randomIndex = Math.floor(Math.random() * RivalDatabase.length);
-  return RivalDatabase[randomIndex];
-}
-
-/**
- * Get a specific rival by ID (useful for tutorial/story encounters).
- * @param id - The unique ID of the rival
- * @returns The rival if found, or a random rival as fallback
- */
-export function getRivalById(id: string): Rival {
-  const rival = RivalDatabase.find(r => r.id === id);
-  if (!rival) {
-    console.warn(`Rival with ID "${id}" not found, returning random rival`);
-    return getRandomRival();
-  }
+  const rival = { ...RivalDatabase[randomIndex] };
+  rival.mood = getRivalMood(rival.id, day);
   return rival;
 }
 
 /**
- * Get a random rival based on player prestige tier progression.
+ * Get a specific rival by ID with mood assigned (useful for tutorial/story encounters).
+ * @param id - The unique ID of the rival
+ * @param day - Current game day (for mood generation)
+ * @returns The rival if found, or a random rival as fallback
+ */
+export function getRivalById(id: string, day: number = 1): Rival {
+  const rival = RivalDatabase.find(r => r.id === id);
+  if (!rival) {
+    console.warn(`Rival with ID "${id}" not found, returning random rival`);
+    return getRandomRival(day);
+  }
+  const rivalWithMood = { ...rival };
+  rivalWithMood.mood = getRivalMood(rival.id, day);
+  return rivalWithMood;
+}
+
+/**
+ * Get a random rival based on player prestige tier progression with mood.
  * Tier 3 (Scrappers): Early game, easiest - available up to 50 prestige
  * Tier 2 (Enthusiasts): Mid game - available up to 150 prestige
  * Tier 1 (Tycoons): Late game, hardest - available from 150+ prestige
  * @param playerPrestige - Current player prestige level
- * @returns A rival appropriate for the player's current prestige level
+ * @param day - Current game day (for mood generation)
+ * @returns A rival appropriate for the player's current prestige level with mood
  */
-export function getRivalByTierProgression(playerPrestige: number): Rival {
+export function getRivalByTierProgression(playerPrestige: number, day: number = 1): Rival {
   const { tierProgression } = GAME_CONFIG.rivalAI;
 
   let availableTiers: (1 | 2 | 3)[];
@@ -185,11 +261,13 @@ export function getRivalByTierProgression(playerPrestige: number): Rival {
   if (tierRivals.length === 0) {
     // Fallback to any rival if no rivals match the selected tier
     console.warn(`No rivals found for tier ${selectedTier}, falling back to random rival`);
-    return getRandomRival();
+    return getRandomRival(day);
   }
 
   const randomIndex = Math.floor(Math.random() * tierRivals.length);
-  return tierRivals[randomIndex];
+  const rival = { ...tierRivals[randomIndex] };
+  rival.mood = getRivalMood(rival.id, day);
+  return rival;
 }
 
 /**

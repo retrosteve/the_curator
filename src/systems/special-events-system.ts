@@ -81,8 +81,8 @@ export class SpecialEventsSystem {
       return event.expiresInDays > 0;
     });
 
-    // Potentially generate new events (but not too frequently)
-    if (currentDay - this.lastEventDay >= 3) { // Minimum 3 days between event generations
+    // Potentially generate new events (with increased frequency for better engagement)
+    if (currentDay - this.lastEventDay >= 2) { // Reduced from 3 to 2 days for more frequent events
       this.tryGenerateEvent();
       if (this.activeEvents.length > 0) {
         this.lastEventDay = currentDay;
@@ -108,8 +108,8 @@ export class SpecialEventsSystem {
    * Try to generate a random special event.
    */
   private tryGenerateEvent(): void {
-    // 25% chance to generate an event each day
-    if (Math.random() < 0.25) {
+    // 30% chance to generate an event (increased from 25% for more engaging gameplay)
+    if (Math.random() < 0.30) {
       const eventType = this.getRandomEventType();
       const event = this.createEvent(eventType);
       this.activeEvents.push(event);

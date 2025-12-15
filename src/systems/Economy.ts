@@ -2,6 +2,19 @@ import { Car, calculateCarValue } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
+ * Restoration challenge for damaged cars.
+ * Some cars require special treatment before standard restoration.
+ */
+export interface RestorationChallenge {
+  id: string;
+  name: string;
+  cost: number;
+  apCost: number;
+  description: string;
+  requiredFor: string[]; // History tags that require this challenge
+}
+
+/**
  * Restoration option configuration.
  * Defines cost, AP cost, quality, and risk for a specific restoration service.
  */
@@ -23,6 +36,55 @@ export interface RestorationOption {
  * Provides restoration options, value calculations, and market modifiers.
  */
 export class Economy {
+  /**
+   * Check if a car requires special restoration challenges before standard restoration.
+   * @param car - The car to check
+   * @returns Array of required challenges, empty if none needed
+   */
+  public static getRestorationChallenges(car: Car): RestorationChallenge[] {
+    const challenges: RestorationChallenge[] = [];
+    
+    // Check for Rust damage
+    if (car.history.includes('Rust')) {
+      challenges.push({
+        id: 'rust_removal',
+        name: 'Rust Removal Treatment',
+        cost: 500,
+        apCost: 2,
+        description: 'Remove rust and treat metal surfaces before restoration.',
+        requiredFor: ['Rust'],
+      });
+    }
+    
+    // Check for Flood damage
+    if (car.history.includes('Flooded')) {
+      challenges.push({
+        id: 'engine_rebuild',
+        name: 'Engine Rebuild',
+        cost: 1500,
+        apCost: 4,
+        description: 'Rebuild engine to fix water damage before restoration.',
+        requiredFor: ['Flooded'],
+      });
+    }
+    
+    return challenges;
+  }
+  
+  /**
+   * Complete a restoration challenge, removing the problematic history tag.
+   * @param car - The car to fix
+   * @param challenge - The challenge to complete
+   * @returns Updated car with history tag removed
+   */
+  public static completeRestorationChallenge(car: Car, challenge: RestorationChallenge): Car {
+    const updatedHistory = car.history.filter(tag => !challenge.requiredFor.includes(tag));
+    return {
+      ...car,
+      history: updatedHistory,
+    };
+  }
+  
   /**
    * Get available restoration options for a car based on its current condition.
    * Charlie (Minor) available if condition < 100
@@ -72,45 +134,97 @@ export class Economy {
   }
 
   /**
-   * Perform restoration on a car.
+   * Perform restoration on a car with chance of hidden discoveries.
    * Charlie has a 10% chance to damage the car instead of improving it.
    * Artisan always succeeds and improves condition.
+   * Both have chance of hidden discoveries (positive or negative).
    * Condition is capped at 100.
    * @param car - The car to restore
    * @param option - The restoration option to apply
    * @param tutorialOverride - If true, always succeed (ignore Charlie's risk) for tutorial
-   * @returns Object with updated car, success flag, and message
+   * @returns Object with updated car, success flag, message, and discovery info
    */
-  public static performRestoration(car: Car, option: RestorationOption, tutorialOverride: boolean = false): { car: Car; success: boolean; message: string } {
+  public static performRestoration(
+    car: Car, 
+    option: RestorationOption, 
+    tutorialOverride: boolean = false
+  ): { 
+    car: Car; 
+    success: boolean; 
+    message: string;
+    discovery?: {
+      found: boolean;
+      type: 'positive' | 'negative';
+      name: string;
+      valueChange: number;
+    };
+  } {
     let newCondition = car.condition;
     let message = "Restoration complete.";
     let success = true;
+    let discovery: any = undefined;
 
     const charlie = GAME_CONFIG.economy.restoration.charlieMinor;
     const conditionMax = GAME_CONFIG.economy.restoration.conditionMax;
+
+    // Check for hidden discoveries (10% chance for positive, 5% chance for negative)
+    if (!tutorialOverride) {
+      const discoveryRoll = Math.random();
+      if (discoveryRoll < 0.10) {
+        // Positive discovery
+        discovery = {
+          found: true,
+          type: 'positive' as const,
+          name: 'Original Engine Block',
+          valueChange: 5000,
+        };
+        message = "💎 DISCOVERY! Found original engine block! +$5,000 value.";
+      } else if (discoveryRoll < 0.15) {
+        // Negative discovery (5% chance: 0.10 to 0.15)
+        discovery = {
+          found: true,
+          type: 'negative' as const,
+          name: 'Hidden Flood Damage',
+          valueChange: -3000,
+        };
+        message = "⚠️ PROBLEM! Found hidden flood damage. -$3,000 value.";
+      }
+    }
 
     if (option.specialist === 'Charlie') {
       // Charlie has a risk factor (skip in tutorial override)
       if (!tutorialOverride && Math.random() < charlie.failChance) {
         newCondition -= charlie.failConditionPenalty;
-        message = "Charlie botched the job! Condition worsened.";
+        message = discovery ? `${message} AND Charlie botched the job!` : "Charlie botched the job! Condition worsened.";
         success = false;
       } else {
         newCondition += option.conditionGain;
-        message = tutorialOverride ? "Charlie managed to fix it up perfectly!" : "Charlie managed to fix it up.";
+        if (!discovery) {
+          message = tutorialOverride ? "Charlie managed to fix it up perfectly!" : "Charlie managed to fix it up.";
+        }
       }
     } else {
       // Artisan always succeeds
       newCondition += option.conditionGain;
-      message = "The Artisan did a magnificent job.";
+      if (!discovery) {
+        message = "The Artisan did a magnificent job.";
+      }
     }
 
-    const updatedCar = {
+    let updatedCar = {
       ...car,
       condition: Math.min(newCondition, conditionMax),
     };
+    
+    // Apply discovery value change if found
+    if (discovery) {
+      updatedCar = {
+        ...updatedCar,
+        baseValue: Math.max(100, updatedCar.baseValue + discovery.valueChange), // Minimum $100
+      };
+    }
 
-    return { car: updatedCar, success, message };
+    return { car: updatedCar, success, message, discovery };
   }
 
   /**

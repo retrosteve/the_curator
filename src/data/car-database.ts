@@ -1,7 +1,11 @@
 /**
  * Car data structure.
  * Represents a single vehicle with its condition, history, and metadata.
- * currentValue is typically calculated via calculateCarValue() and not stored in the database.
+ * 
+ * Note on currentValue: This is a calculated field using calculateCarValue().
+ * It's marked optional because it's not stored in the database - it's always
+ * computed on-demand based on condition, history, and market modifiers.
+ * Use calculateCarValue(car) to get the current market value.
  */
 import { GAME_CONFIG } from '@/config/game-config';
 
@@ -11,11 +15,12 @@ export interface Car {
   id: string;
   name: string;
   baseValue: number;
-  condition: number; // 0-100
+  condition: number; // 0-100 (percentage)
   tags: string[]; // e.g., "Muscle", "JDM", "Classic"
   history: string[]; // e.g., "Flooded", "Rust", "Barn Find"
   tier: CarTier; // Car's rarity tier
-  currentValue?: number; // Calculated based on condition
+  /** @deprecated Use calculateCarValue(car) instead - this is a computed field */
+  currentValue?: number;
   displayInMuseum?: boolean; // Whether car is displayed in museum (requires condition >= 80)
 }
 
@@ -526,10 +531,14 @@ export function getRandomCar(): Car {
   const randomCondition =
     Math.floor(Math.random() * (maxCondition - minCondition + 1)) + minCondition;
   
-  // Create a copy with a unique ID
+  // Create a copy with a unique ID (use crypto.randomUUID if available, fallback to timestamp)
+  const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID 
+    ? `car_${crypto.randomUUID()}`
+    : `car_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   return {
     ...baseCar,
-    id: `car_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: uniqueId,
     condition: randomCondition,
   };
 }

@@ -27,6 +27,7 @@ export interface PlayerState {
     network: number;
   };
   visitedLocations: Set<string>; // Track locations for Network XP (first visit only)
+  claimedCollections: Set<string>; // Track completed collections to avoid duplicate rewards
 }
 
 /**
@@ -118,6 +119,7 @@ export class GameManager {
       skills: { ...GAME_CONFIG.player.startingSkills },
       skillXP: { eye: 0, tongue: 0, network: 0 },
       visitedLocations: new Set(['garage']), // Start with garage as visited
+      claimedCollections: new Set<string>(), // Track completed collections (always initialized)
     };
 
     this.world = {
@@ -335,11 +337,11 @@ export class GameManager {
    * Uses a Set stored in player state (added on-the-fly if missing).
    */
   private hasCollectionBeenClaimed(collectionId: string): boolean {
-    // Initialize claimed collections set if it doesn't exist
-    if (!(this.player as any).claimedCollections) {
-      (this.player as any).claimedCollections = new Set<string>();
+    // Initialize claimed collections set if it doesn't exist (for old saves)
+    if (!this.player.claimedCollections) {
+      this.player.claimedCollections = new Set<string>();
     }
-    return (this.player as any).claimedCollections.has(collectionId);
+    return this.player.claimedCollections.has(collectionId);
   }
 
   /**
@@ -347,10 +349,10 @@ export class GameManager {
    */
   private claimCollectionReward(collectionId: string, collection: any): void {
     // Mark as claimed
-    if (!(this.player as any).claimedCollections) {
-      (this.player as any).claimedCollections = new Set<string>();
+    if (!this.player.claimedCollections) {
+      this.player.claimedCollections = new Set<string>();
     }
-    (this.player as any).claimedCollections.add(collectionId);
+    this.player.claimedCollections.add(collectionId);
     
     // Award prestige
     this.addPrestige(collection.prestigeReward);
@@ -646,6 +648,7 @@ export class GameManager {
 
   /**
    * Add XP to a skill and check for level-up.
+   * Emits XP events for UI feedback with progress information.
    * @param skill - The skill to gain XP in ('eye' | 'tongue' | 'network')
    * @param amount - Amount of XP to gain
    * @returns True if player leveled up
@@ -659,6 +662,15 @@ export class GameManager {
 
     this.player.skillXP[skill] += amount;
     const requiredXP = config.xpPerLevel[currentLevel]; // XP needed for NEXT level
+    
+    // Emit XP gain event with progress details for UI notification
+    eventBus.emit('xp-gained', {
+      skill,
+      amount,
+      currentXP: this.player.skillXP[skill],
+      requiredXP,
+      currentLevel,
+    });
 
     // Check if leveled up
     if (this.player.skillXP[skill] >= requiredXP) {
@@ -842,6 +854,7 @@ export class GameManager {
         player: {
           ...this.player,
           visitedLocations: Array.from(this.player.visitedLocations) as any, // Convert Set to Array for JSON
+          claimedCollections: Array.from(this.player.claimedCollections) as any, // Convert Set to Array for JSON
         },
         world: this.world,
         market: this.marketSystem.getState(),
@@ -888,6 +901,13 @@ export class GameManager {
         this.player.visitedLocations = new Set(['garage']);
       } else if (Array.isArray(this.player.visitedLocations)) {
         this.player.visitedLocations = new Set(this.player.visitedLocations as any);
+      }
+
+      // Backwards compatibility: convert claimedCollections array to Set or initialize
+      if (!this.player.claimedCollections) {
+        this.player.claimedCollections = new Set<string>();
+      } else if (Array.isArray(this.player.claimedCollections)) {
+        this.player.claimedCollections = new Set(this.player.claimedCollections as any);
       }
 
       // Backwards compatibility: add dayStats if missing

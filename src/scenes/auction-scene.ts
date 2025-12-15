@@ -1,6 +1,6 @@
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
-import { Rival, getTierName, getRivalById, calculateRivalInterest } from '@/data/rival-database';
+import { Rival, getTierName, getRivalById, calculateRivalInterest, getMoodModifiers } from '@/data/rival-database';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
@@ -17,7 +17,6 @@ export class AuctionScene extends BaseGameScene {
   private currentBid: number = 0;
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
-  private kickTiresUsed: boolean = false;
   private totalPlayerActions: number = 0;
   private patienceDamageDealt: number = 0;
 
@@ -56,6 +55,11 @@ export class AuctionScene extends BaseGameScene {
     });
     this.setupUI();
     this.setupCommonEventListeners();
+    
+    // Ensure cleanup on scene shutdown
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.cleanupCommonEventListeners();
+    });
   }
 
 
@@ -115,6 +119,16 @@ export class AuctionScene extends BaseGameScene {
       `Tier: ${getTierName(this.rival.tier)}`,
       { fontSize: '14px', color: '#ccc' }
     );
+    
+    // Show rival mood
+    if (this.rival.mood && this.rival.mood !== 'Normal') {
+      const moodInfo = getMoodModifiers(this.rival.mood);
+      const rivalMood = this.uiManager.createText(
+        `${this.rival.name} ${moodInfo.description}`,
+        { fontSize: '13px', color: '#f39c12', fontStyle: 'italic', marginTop: '5px' }
+      );
+      rivalInfo.appendChild(rivalMood);
+    }
 
     // Patience bar with color coding and status
     const patience = this.rivalAI.getPatience();
@@ -300,7 +314,6 @@ export class AuctionScene extends BaseGameScene {
       return;
     }
 
-    this.kickTiresUsed = true;
     this.totalPlayerActions++;
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
@@ -384,19 +397,21 @@ export class AuctionScene extends BaseGameScene {
             },
           ]
         );
-      }, GAME_CONFIG.auction.rivalBidModalDelayMs);
+      }, GAME_CONFIG.ui.modalDelays.rivalBid);
     }
   }
 
   private endAuction(playerWon: boolean, message: string): void {
     // Tutorial trigger for loss (happens immediately)
-    if (this.tutorialManager.isCurrentStep('first_flip') && !playerWon) {
-      this.tutorialManager.advanceStep('first_loss');
+    try {
+      if (this.tutorialManager.isCurrentStep('first_flip') && !playerWon) {
+        this.tutorialManager.advanceStep('first_loss');
+      }
+    } catch (error) {
+      console.error('Tutorial error in AuctionScene:', error);
     }
 
     if (playerWon) {
-      const player = this.gameManager.getPlayerState();
-
       if (this.gameManager.spendMoney(this.currentBid)) {
         if (!this.gameManager.addCar(this.car)) {
           // Garage is full
@@ -421,7 +436,12 @@ export class AuctionScene extends BaseGameScene {
         this.uiManager.showXPGain('tongue', tongueXPGain);
         
         // Tutorial: Show completion message AFTER auction win modal is dismissed
-        const isTutorialComplete = this.tutorialManager.isCurrentStep('redemption');
+        let isTutorialComplete = false;
+        try {
+          isTutorialComplete = this.tutorialManager.isCurrentStep('redemption');
+        } catch (error) {
+          console.error('Tutorial error checking completion:', error);
+        }
         
         this.uiManager.showModal(
           'You Won!',
@@ -431,10 +451,15 @@ export class AuctionScene extends BaseGameScene {
               text: 'Continue',
               onClick: () => {
                 if (isTutorialComplete) {
-                  // Advance tutorial to complete AFTER dismissing win modal
-                  this.tutorialManager.advanceStep('complete');
-                  // Small delay to ensure tutorial dialogue appears before scene transition
-                  setTimeout(() => this.scene.start('MapScene'), 100);
+                  // Show tutorial completion dialogue before returning to map
+                  this.tutorialManager.showDialogueWithCallback(
+                    "Uncle Ray",
+                    "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car museum! Remember: every car tells a story, and you're the curator.",
+                    () => {
+                      this.tutorialManager.advanceStep('complete');
+                      this.scene.start('MapScene');
+                    }
+                  );
                 } else {
                   this.scene.start('MapScene');
                 }
@@ -445,21 +470,27 @@ export class AuctionScene extends BaseGameScene {
       }
     } else {
       // Tutorial: After losing to Sterling Vance, immediately encounter Scrapyard Joe at the same sale
-      if (this.tutorialManager.isCurrentStep('first_loss')) {
-        // Uncle Ray spots another opportunity (dialogue shown by advanceStep)
-        setTimeout(() => {
-          this.tutorialManager.advanceStep('redemption');
-          // Let player dismiss tutorial dialogue before starting second auction
-          setTimeout(() => {
-            const boxywagon = getCarById('tutorial_boxy_wagon');
-            const scrappyJoe = getRivalById('scrapyard_joe');
-            if (boxywagon && scrappyJoe) {
-              const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
-              this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+      try {
+        if (this.tutorialManager.isCurrentStep('first_loss')) {
+          // Uncle Ray spots another opportunity - show dialogue then start second auction
+          this.tutorialManager.showDialogueWithCallback(
+            "Uncle Ray",
+            "Don't let that loss get you down! Look - there's another car here nobody else noticed: a Boxy Wagon. This time you're facing a weaker rival. Use aggressive tactics like Power Bid to make them quit early!",
+            () => {
+              this.tutorialManager.advanceStep('redemption');
+              const boxywagon = getCarById('tutorial_boxy_wagon');
+              const scrappyJoe = getRivalById('scrapyard_joe');
+              if (boxywagon && scrappyJoe) {
+                const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
+                this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+              }
             }
-          }, 100);
-        }, 500);
-        return;
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('Tutorial error in redemption flow:', error);
+        // Continue with normal loss flow
       }
       
       // Normal loss flow

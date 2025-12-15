@@ -14,9 +14,16 @@ export type GameEvents = {
   'location-changed': string;
   'victory': any; // VictoryResult from GameManager
   'tutorial-complete': void;
+  'tutorial-step-changed': { step: string };
   'skill-levelup': { skill: string; level: number };
   'network-levelup': number;
-  'xp-gained': { skill: 'eye' | 'tongue' | 'network'; amount: number };
+  'xp-gained': { 
+    skill: 'eye' | 'tongue' | 'network'; 
+    amount: number;
+    currentXP?: number;
+    requiredXP?: number;
+    currentLevel?: number;
+  };
 };
 
 export type EventMap = Record<string, unknown>;

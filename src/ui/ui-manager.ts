@@ -50,6 +50,10 @@ export class UIManager {
     return UIManager.instance;
   }
 
+  public isModalOpen(): boolean {
+    return document.querySelector('.modal-backdrop') !== null;
+  }
+
   /**
    * Show floating money text animation (e.g., '+$2,500' when selling).
    * Text floats upward and fades out.

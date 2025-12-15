@@ -66,6 +66,10 @@ export abstract class BaseGameScene extends Phaser.Scene {
     // XP gain and level-up notifications
     eventBus.on('xp-gained', this.handleXPGained);
     eventBus.on('skill-levelup', this.handleSkillLevelUp);
+    eventBus.on('collection-complete', this.handleCollectionComplete);
+    eventBus.on('tutorial-dialogue-show', this.handleTutorialDialogueShow);
+    eventBus.on('tutorial-dialogue-hide', this.handleTutorialDialogueHide);
+    eventBus.on('tutorial-skip-prompt', this.handleTutorialSkipPrompt);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupCommonEventListeners();
@@ -101,6 +105,48 @@ export abstract class BaseGameScene extends Phaser.Scene {
     this.uiManager.showSkillLevelUp(data.skill as 'eye' | 'tongue' | 'network', data.level);
   };
 
+  protected readonly handleCollectionComplete = (data: {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    prestigeReward: number;
+  }): void => {
+    this.uiManager.showModal(
+      `${data.icon} Collection Complete!`,
+      `${data.name}\n${data.description}\n\n+${data.prestigeReward} Prestige Awarded!`,
+      [{ text: 'Excellent!', onClick: () => {} }]
+    );
+  };
+
+  protected readonly handleTutorialDialogueShow = (data: {
+    speaker: string;
+    text: string;
+    onDismiss?: () => void;
+  }): void => {
+    this.uiManager.showTutorialDialogue(data.speaker, data.text, data.onDismiss);
+  };
+
+  protected readonly handleTutorialDialogueHide = (): void => {
+    this.uiManager.hideTutorialDialogue();
+  };
+
+  protected readonly handleTutorialSkipPrompt = (data: {
+    onSkip: () => void;
+    onContinue: () => void;
+  }): void => {
+    if (this.uiManager.isModalOpen()) return;
+
+    this.uiManager.showModal(
+      'Skip Tutorial?',
+      'Are you sure you want to skip the tutorial? You can always replay it by starting a new game.',
+      [
+        { text: 'Skip Tutorial', onClick: data.onSkip },
+        { text: 'Continue Tutorial', onClick: data.onContinue },
+      ]
+    );
+  };
+
   /**
    * Cleanup common event listeners.
    * Automatically called on scene shutdown.
@@ -113,6 +159,10 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('location-changed', this.handleLocationChanged);
     eventBus.off('xp-gained', this.handleXPGained);
     eventBus.off('skill-levelup', this.handleSkillLevelUp);
+    eventBus.off('collection-complete', this.handleCollectionComplete);
+    eventBus.off('tutorial-dialogue-show', this.handleTutorialDialogueShow);
+    eventBus.off('tutorial-dialogue-hide', this.handleTutorialDialogueHide);
+    eventBus.off('tutorial-skip-prompt', this.handleTutorialSkipPrompt);
     
     // Clear cached HUD on cleanup
     this.clearCachedHUD();
@@ -195,9 +245,25 @@ export abstract class BaseGameScene extends Phaser.Scene {
           this.scene.pause();
           const allMet = victoryResult.prestige.met && victoryResult.unicorns.met && victoryResult.museumCars.met && victoryResult.skillLevel.met;
           const statusMsg = allMet ? '\n\n🎉 ALL CONDITIONS MET! You can win now!' : '\n\nKeep working toward these goals!';
+
+          const nextSteps: string[] = [];
+          if (!victoryResult.prestige.met) {
+            nextSteps.push('Earn Prestige by displaying museum cars (80%+), completing collections, and profiting from flips.');
+          }
+          if (!victoryResult.unicorns.met) {
+            nextSteps.push('Find Unicorn-tier cars via auctions and special events, then keep them displayed in the museum.');
+          }
+          if (!victoryResult.museumCars.met) {
+            nextSteps.push('Display more cars in the museum (toggle display on any car at 80%+ condition).');
+          }
+          if (!victoryResult.skillLevel.met) {
+            nextSteps.push('Level skills: Inspect (Eye), Haggle/Auction (Tongue), Visit new locations (Network).');
+          }
+
+          const nextStepsText = nextSteps.length > 0 ? `\n\nNext steps:\n- ${nextSteps.join('\n- ')}` : '';
           this.uiManager.showModal(
             '🏆 Victory Progress - Details',
-            `**Win Conditions:**\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nMuseum Collection: ${victoryResult.museumCars.current}/${victoryResult.museumCars.required} ${victoryResult.museumCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}`,
+            `**Win Conditions:**\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nMuseum Collection: ${victoryResult.museumCars.current}/${victoryResult.museumCars.required} ${victoryResult.museumCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}${nextStepsText}`,
             [{ text: 'Close', onClick: () => this.scene.resume() }]
           );
         },

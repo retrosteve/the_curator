@@ -15,6 +15,23 @@ export type GameEvents = {
   'victory': any; // VictoryResult from GameManager
   'tutorial-complete': void;
   'tutorial-step-changed': { step: string };
+  'tutorial-dialogue-show': {
+    speaker: string;
+    text: string;
+    onDismiss?: () => void;
+  };
+  'tutorial-dialogue-hide': void;
+  'tutorial-skip-prompt': {
+    onSkip: () => void;
+    onContinue: () => void;
+  };
+  'collection-complete': {
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    prestigeReward: number;
+  };
   'skill-levelup': { skill: string; level: number };
   'xp-gained': { 
     skill: 'eye' | 'tongue' | 'network'; 

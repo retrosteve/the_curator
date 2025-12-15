@@ -3,7 +3,6 @@ import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { TutorialManager, type TutorialStep } from '@/systems/tutorial-manager';
-import { UIManager } from '@/ui/ui-manager';
 import { GAME_CONFIG } from '@/config/game-config';
 import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
 import type { SpecialEventsState } from '@/systems/special-events-system';
@@ -180,6 +179,12 @@ export class GameManager {
    * @param amount - Amount to add (positive number)
    */
   public addMoney(amount: number): void {
+    if (!Number.isFinite(amount) || amount === 0) return;
+    if (amount < 0) {
+      // Prefer spendMoney() for deductions; ignore here to prevent accidental exploits.
+      console.warn('addMoney called with negative amount; ignoring.', amount);
+      return;
+    }
     this.player.money += amount;
     if (amount > 0) {
       this.world.dayStats.moneyEarned += amount;
@@ -249,6 +254,7 @@ export class GameManager {
    * @param amount - Amount to add or subtract (can be negative)
    */
   public addPrestige(amount: number): void {
+    if (!Number.isFinite(amount) || amount === 0) return;
     this.player.prestige = Math.max(0, this.player.prestige + amount);
     eventBus.emit('prestige-changed', this.player.prestige);
   }
@@ -376,13 +382,15 @@ export class GameManager {
     
     // Award prestige
     this.addPrestige(collection.prestigeReward);
-    
-    // Show celebration modal
-    UIManager.getInstance().showModal(
-      `${collection.icon} Collection Complete!`,
-      `${collection.name}\n${collection.description}\n\n+${collection.prestigeReward} Prestige Awarded!`,
-      [{ text: 'Excellent!', onClick: () => {} }]
-    );
+
+    // Notify UI layer (scenes) to celebrate.
+    eventBus.emit('collection-complete', {
+      id: collectionId,
+      name: collection.name,
+      description: collection.description,
+      icon: collection.icon,
+      prestigeReward: collection.prestigeReward,
+    });
   }
 
   /**
@@ -601,6 +609,12 @@ export class GameManager {
    * @param cost - AP to spend
    */
   public spendAP(cost: number): void {
+    if (!Number.isFinite(cost) || cost <= 0) {
+      if (cost !== 0) {
+        console.warn('spendAP called with non-positive/invalid cost; ignoring.', cost);
+      }
+      return;
+    }
     this.world.currentAP = Math.max(0, this.world.currentAP - cost);
     eventBus.emit('ap-changed', this.world.currentAP);
   }
@@ -674,6 +688,7 @@ export class GameManager {
    * @returns True if player leveled up
    */
   public addSkillXP(skill: 'eye' | 'tongue' | 'network', amount: number): boolean {
+    if (!Number.isFinite(amount) || amount <= 0) return false;
     const config = GAME_CONFIG.player.skillProgression;
     const currentLevel = this.player.skills[skill];
     

@@ -1,4 +1,3 @@
-import { UIManager } from '@/ui/ui-manager';
 import { eventBus } from '@/core/event-bus';
 
 /**
@@ -26,10 +25,8 @@ export class TutorialManager {
   private static instance: TutorialManager;
   private currentStep: TutorialStep = 'intro';
   private isActive: boolean = false;
-  private uiManager: UIManager;
 
   private constructor() {
-    this.uiManager = UIManager.getInstance();
     this.setupKeyboardListener();
   }
 
@@ -48,26 +45,13 @@ export class TutorialManager {
    * Show prompt to confirm skipping tutorial.
    */
   private showSkipTutorialPrompt(): void {
-    const existingModal = document.querySelector('.modal-backdrop');
-    if (existingModal) return; // Don't show if modal already open
-
-    this.uiManager.showModal(
-      'Skip Tutorial?',
-      'Are you sure you want to skip the tutorial? You can always replay it by starting a new game.',
-      [
-        {
-          text: 'Skip Tutorial',
-          onClick: () => {
-            this.completeTutorial();
-            console.log('Tutorial skipped by user');
-          },
-        },
-        {
-          text: 'Continue Tutorial',
-          onClick: () => {},
-        },
-      ]
-    );
+    eventBus.emit('tutorial-skip-prompt', {
+      onSkip: () => {
+        this.completeTutorial();
+        console.log('Tutorial skipped by user');
+      },
+      onContinue: () => {},
+    });
   }
 
   public static getInstance(): TutorialManager {
@@ -173,7 +157,7 @@ export class TutorialManager {
    * @param text - Dialogue text to display
    */
   private showDialogue(speaker: string, text: string): void {
-    this.uiManager.showTutorialDialogue(speaker, text);
+    eventBus.emit('tutorial-dialogue-show', { speaker, text });
   }
 
   /**
@@ -183,7 +167,7 @@ export class TutorialManager {
    * @param onDismiss - Callback to execute when dialogue is dismissed
    */
   public showDialogueWithCallback(speaker: string, text: string, onDismiss: () => void): void {
-    this.uiManager.showTutorialDialogue(speaker, text, onDismiss);
+    eventBus.emit('tutorial-dialogue-show', { speaker, text, onDismiss });
   }
 
   /**
@@ -237,7 +221,7 @@ export class TutorialManager {
    * Hide the current tutorial dialogue.
    */
   public hideTutorialDialogue(): void {
-    this.uiManager.hideTutorialDialogue();
+    eventBus.emit('tutorial-dialogue-hide', undefined);
   }
 
   /**

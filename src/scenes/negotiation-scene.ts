@@ -12,23 +12,29 @@ import { formatCurrency } from '@/utils/format';
 export class NegotiationScene extends BaseGameScene {
   private car!: Car;
   private specialEvent?: any;
+  private locationId?: string;
+  private encounterStarted: boolean = false;
   private askingPrice: number = 0;
   private lowestPrice: number = 0;
   private negotiationCount: number = 0;
+  private hasAwardedInspectXP: boolean = false;
 
   constructor() {
     super({ key: 'NegotiationScene' });
   }
 
-  init(data: { car: Car; specialEvent?: any }): void {
+  init(data: { car: Car; specialEvent?: any; locationId?: string }): void {
     this.car = data.car;
     this.specialEvent = data.specialEvent;
+    this.locationId = data.locationId;
+    this.encounterStarted = false;
     // Seller starts asking for 120% of value (or market value)
     const value = calculateCarValue(this.car);
     this.askingPrice = Math.floor(value * GAME_CONFIG.negotiation.askingPriceMultiplier);
     // Seller won't go below 90% of value
     this.lowestPrice = Math.floor(value * GAME_CONFIG.negotiation.lowestPriceMultiplier);
     this.negotiationCount = 0;
+    this.hasAwardedInspectXP = false;
 
     // Handle special event modifiers
     if (this.specialEvent) {
@@ -60,13 +66,19 @@ export class NegotiationScene extends BaseGameScene {
       return;
     }
 
+    this.encounterStarted = true;
+
     // Greenish/Neutral background for negotiation
     this.setupBackground('NEGOTIATION', {
       topColor: 0x2c3e50,
       bottomColor: 0x27ae60,
     });
-    this.setupUI();
     this.setupCommonEventListeners();
+
+    // Award Eye XP once per encounter (not on every UI refresh).
+    this.awardInspectXPOnce();
+
+    this.setupUI();
 
     // Tutorial trigger: advance from first_visit_scrapyard to first_inspect
     if (this.tutorialManager.isCurrentStep('first_visit_scrapyard')) {
@@ -109,19 +121,6 @@ export class NegotiationScene extends BaseGameScene {
         color: '#e74c3c'
       });
       infoPanel.appendChild(history);
-    }
-
-    // Award Eye XP for inspecting the car
-    const eyeXPGain = GAME_CONFIG.player.skillProgression.xpGains.inspect;
-    const leveledUp = this.gameManager.addSkillXP('eye', eyeXPGain);
-    this.uiManager.showXPGain('eye', eyeXPGain);
-    if (leveledUp) {
-      const progress = this.gameManager.getSkillProgress('eye');
-      this.uiManager.showSkillLevelUpModal(
-        'eye',
-        progress.level,
-        'You can now spot more details when inspecting cars.'
-      );
     }
 
     // Special Event Info
@@ -225,6 +224,24 @@ export class NegotiationScene extends BaseGameScene {
     this.setupUI();
   }
 
+  private awardInspectXPOnce(): void {
+    if (this.hasAwardedInspectXP) return;
+    this.hasAwardedInspectXP = true;
+
+    const eyeXPGain = GAME_CONFIG.player.skillProgression.xpGains.inspect;
+    const leveledUp = this.gameManager.addSkillXP('eye', eyeXPGain);
+    this.uiManager.showXPGain('eye', eyeXPGain);
+
+    if (leveledUp) {
+      const progress = this.gameManager.getSkillProgress('eye');
+      this.uiManager.showSkillLevelUpModal(
+        'eye',
+        progress.level,
+        'You can now spot more details when inspecting cars.'
+      );
+    }
+  }
+
   private handleBuy(): void {
     const player = this.gameManager.getPlayerState();
     
@@ -244,6 +261,10 @@ export class NegotiationScene extends BaseGameScene {
       // Refund the money since we couldn't add the car
       this.gameManager.addMoney(this.askingPrice);
       return;
+    }
+
+    if (this.locationId) {
+      this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
     }
 
     // Apply special event rewards
@@ -285,6 +306,11 @@ export class NegotiationScene extends BaseGameScene {
 
   private handleLeave(): void {
     this.uiManager.clear();
+
+    if (this.encounterStarted && this.locationId) {
+      this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+    }
+
     this.scene.start('MapScene');
   }
 }

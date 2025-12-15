@@ -107,10 +107,15 @@ export class MapScene extends BaseGameScene {
       });
     });
 
-    // Determine rival presence for each location
+    // Determine rival presence for each location (stable within the day)
+    const rivalRollLocations = this.nodes
+      .filter((node) => node.id !== 'garage' && node.type !== 'special')
+      .map((node) => node.id);
+    this.gameManager.ensureRivalPresenceForLocations(rivalRollLocations);
+
     this.nodes.forEach((node) => {
       if (node.id !== 'garage' && node.type !== 'special') {
-        node.hasRival = Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+        node.hasRival = this.gameManager.hasRivalAtLocation(node.id);
       }
     });
 
@@ -142,8 +147,18 @@ export class MapScene extends BaseGameScene {
   private createLocationCard(node: MapNode): HTMLElement {
     const card = document.createElement('div');
     const isGarage = node.id === 'garage';
+    const player = this.gameManager.getPlayerState();
     const hasRival = node.hasRival;
-    const apCost = isGarage ? 0 : (node.specialEvent?.apCost ?? GAME_CONFIG.timeCosts.travelAP);
+    const canSeeRivals = player.skills.network >= 2;
+    const apCost = isGarage ? 0 : (node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelAP);
+
+    const world = this.gameManager.getWorldState();
+    const offerMap = world.carOfferByLocation ?? {};
+    const isExhaustedToday =
+      node.type !== 'special' &&
+      node.id !== 'garage' &&
+      Object.prototype.hasOwnProperty.call(offerMap, node.id) &&
+      offerMap[node.id] === null;
     
     // Get color as hex string
     const hexColor = '#' + node.color.toString(16).padStart(6, '0');
@@ -161,6 +176,11 @@ export class MapScene extends BaseGameScene {
       position: relative;
       overflow: hidden;
     `;
+
+    if (isExhaustedToday) {
+      card.style.cursor = 'not-allowed';
+      card.style.opacity = '0.65';
+    }
 
     // Add color accent bar
     const accent = document.createElement('div');
@@ -251,10 +271,25 @@ export class MapScene extends BaseGameScene {
       statusBar.appendChild(homeBadge);
     }
 
-    // Rival indicator
-    if (hasRival) {
+    // Exhausted badge (only after the location's daily offer has been consumed)
+    if (isExhaustedToday) {
+      const exhaustedBadge = document.createElement('span');
+      exhaustedBadge.textContent = '🚫 EXHAUSTED TODAY';
+      exhaustedBadge.style.cssText = `
+        background: rgba(244, 67, 54, 0.2);
+        color: #f44336;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+      `;
+      statusBar.appendChild(exhaustedBadge);
+    }
+
+    // Rival indicator (requires Network 2+)
+    if (hasRival && canSeeRivals) {
       const rivalBadge = document.createElement('span');
-      rivalBadge.textContent = '⚔️ RIVAL PRESENT';
+      rivalBadge.textContent = '⚔️ RIVAL PRESENT TODAY';
       rivalBadge.style.cssText = `
         background: rgba(255,69,58,0.2);
         color: #ff453a;
@@ -263,6 +298,7 @@ export class MapScene extends BaseGameScene {
         font-size: 12px;
         font-weight: bold;
       `;
+      rivalBadge.title = 'This is locked in for the current day.';
       statusBar.appendChild(rivalBadge);
     }
 
@@ -301,6 +337,7 @@ export class MapScene extends BaseGameScene {
     `;
 
     button.addEventListener('mouseenter', () => {
+      if (isExhaustedToday) return;
       button.style.transform = 'translateY(-2px)';
       button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
     });
@@ -319,12 +356,14 @@ export class MapScene extends BaseGameScene {
 
     // Hover effect for entire card
     card.addEventListener('mouseenter', () => {
+      if (isExhaustedToday) return;
       card.style.transform = 'translateY(-4px)';
       card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4)';
       card.style.borderColor = 'rgba(255,255,255,0.4)';
     });
 
     card.addEventListener('mouseleave', () => {
+      if (isExhaustedToday) return;
       card.style.transform = 'translateY(0)';
       card.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
       card.style.borderColor = 'rgba(255,255,255,0.2)';
@@ -380,6 +419,23 @@ export class MapScene extends BaseGameScene {
 
   private setupUI(): void {
     this.resetUIWithHUD();
+
+    // Minimal clarity: daily intel is locked in for the day (prevents confusion about rerolls).
+    const hud = document.getElementById('game-hud');
+    if (hud && !hud.querySelector('[data-hud="daily-intel"]')) {
+      const intelHint = document.createElement('div');
+      intelHint.setAttribute('data-hud', 'daily-intel');
+      intelHint.textContent = '📰 Today\'s intel is locked (rivals & offers don\'t reroll)';
+      intelHint.title = 'Rival presence and location offers are fixed for the current day.';
+      intelHint.style.cssText = `
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(100, 200, 255, 0.2);
+        font-size: 12px;
+        color: rgba(224, 230, 237, 0.8);
+      `;
+      hud.appendChild(intelHint);
+    }
   }
 
   private visitNode(node: MapNode): void {
@@ -389,8 +445,25 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
+    // If the location's daily offer has already been consumed, don't spend travel AP.
+    if (node.type !== 'special') {
+      const world = this.gameManager.getWorldState();
+      const offerMap = world.carOfferByLocation ?? {};
+      const isExhaustedToday =
+        Object.prototype.hasOwnProperty.call(offerMap, node.id) && offerMap[node.id] === null;
+
+      if (isExhaustedToday) {
+        this.uiManager.showModal(
+          'Exhausted Today',
+          `${node.name} has already been picked clean today. Check back tomorrow.`,
+          [{ text: 'OK', onClick: () => {} }]
+        );
+        return;
+      }
+    }
+
     // Special events have custom AP costs, regular nodes use travel AP
-    const requiredAP = node.specialEvent?.apCost ?? GAME_CONFIG.timeCosts.travelAP;
+    const requiredAP = node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelAP;
 
     const block = this.timeSystem.getAPBlockModal(requiredAP, `visiting ${node.name}`);
     if (block) {
@@ -442,7 +515,7 @@ export class MapScene extends BaseGameScene {
             this.showGarageFullGate();
             return;
           }
-          this.scene.start('NegotiationScene', { car });
+          this.scene.start('NegotiationScene', { car, locationId: node.id });
           return;
         }
         
@@ -466,7 +539,7 @@ export class MapScene extends BaseGameScene {
               this.tutorialManager.advanceStep('first_loss');
               // Use scene.switch to properly transition - this stops current scene and starts new one
               this.scene.stop('MapScene');
-              this.scene.start('AuctionScene', { car, rival: sterlingVance, interest });
+              this.scene.start('AuctionScene', { car, rival: sterlingVance, interest, locationId: node.id });
             }
           );
           return;
@@ -485,7 +558,16 @@ export class MapScene extends BaseGameScene {
     }
     
     // Regular encounters - get random car
-    const car = getRandomCar();
+    const car = this.gameManager.getDailyCarOfferForLocation(node.id);
+
+    if (!car) {
+      this.uiManager.showModal(
+        'Nothing Available',
+        `You scout ${node.name}, but there's nothing worth pursuing here today.`,
+        [{ text: 'Continue', onClick: () => {} }]
+      );
+      return;
+    }
     
     // Check if this node has a pre-determined rival (from map indicators)
     const hasRival = node.hasRival || false;
@@ -518,7 +600,7 @@ export class MapScene extends BaseGameScene {
                 return;
               }
               this.timeSystem.spendAP(AUCTION_AP);
-              this.scene.start('AuctionScene', { car, rival, interest });
+              this.scene.start('AuctionScene', { car, rival, interest, locationId: node.id });
             },
           },
         ]
@@ -541,7 +623,7 @@ export class MapScene extends BaseGameScene {
       this.timeSystem.spendAP(INSPECT_AP);
 
       // Solo negotiation
-      this.scene.start('NegotiationScene', { car });
+      this.scene.start('NegotiationScene', { car, locationId: node.id });
     }
   }
 
@@ -561,21 +643,11 @@ export class MapScene extends BaseGameScene {
     }
 
     // Special events always have a car to negotiate for (no auctions for simplicity)
-    // AP was already spent in visitNode(), don't double-charge
-    const block = this.timeSystem.getAPBlockModal(INSPECT_AP, `the ${specialEvent.name}`);
-    if (block) {
-      this.uiManager.showModal(block.title, block.message, [
-        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-      ]);
-      return;
-    }
-
+    // AP was already spent in visitNode(); do not charge additional inspection AP here.
     if (!this.hasGarageSpace()) {
       this.showGarageFullGate();
       return;
     }
-
-    this.timeSystem.spendAP(INSPECT_AP);
 
     // Show special event description
     this.uiManager.showModal(

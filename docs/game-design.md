@@ -18,6 +18,7 @@ You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You m
 ## Core Loop
 1. **Morning Phase:** Start in Garage. Check news/intel.
 2. **Map Phase (The Day Loop):** Travel to nodes. Costs 1 Action Point (AP).
+  - **Daily Offers:** Each non-special location has a single car offer per day (locked in for the day). Once you resolve the encounter (buy/win/leave/lose), that location is exhausted until tomorrow.
 3. **Encounter Phase:**
    - If rival present -> Auction (turn-based battle, costs 2 AP).
    - If solo -> Negotiation (menu choices using Player Stats, costs 1 AP).
@@ -116,7 +117,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - If `currentAP < actionCost`: the action is **blocked** and the player must
     end the day.
 - **Next Day:** When the player chooses "End Day" (or is forced to), `day`
-  increments, `currentAP` resets to **10**, daily expenses are deducted, and
+  increments, `currentAP` resets to **18**, daily expenses are deducted, and
   the map resets.
 - **Daily Costs:**
   - **Daily Rent:** Scales with garage capacity (balanced to avoid mid-game bankruptcies):
@@ -150,6 +151,7 @@ Special Events add dynamic variety to the exploration phase, appearing as tempor
 - **Event Duration:** Events last 1-2 days before disappearing.
 - **Rewards:** Events can provide bonuses like money rewards, prestige boosts, or guaranteed car tags.
 - **Time Cost:** Visiting special events costs inspection time (30 minutes) instead of travel time.
+- **Time Cost:** Visiting special events costs a fixed Action Point cost (varies by event) and does not additionally charge the normal inspection cost.
 - **No Rivals:** Special events are always solo encounters (no auctions).
 
 **Implementation Note:** Special events are generated daily in GameManager.endDay(), stored in SpecialEventsSystem, and displayed as dynamic nodes in MapScene.

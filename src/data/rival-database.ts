@@ -247,7 +247,7 @@ export function getRivalByTierProgression(playerPrestige: number, day: number = 
   if (playerPrestige >= tierProgression.tier1MinPrestige) {
     // High prestige: All tiers available, but favor Tier 1
     availableTiers = [1, 1, 1, 2, 3]; // 60% Tier 1, 20% Tier 2, 20% Tier 3
-  } else if (playerPrestige >= tierProgression.tier2MaxPrestige) {
+  } else if (playerPrestige >= tierProgression.tier3MaxPrestige) {
     // Medium prestige: Tier 2 and 3 available
     availableTiers = [2, 2, 2, 3]; // 75% Tier 2, 25% Tier 3
   } else {

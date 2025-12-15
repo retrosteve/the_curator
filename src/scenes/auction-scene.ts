@@ -14,6 +14,8 @@ export class AuctionScene extends BaseGameScene {
   private car!: Car;
   private rival!: Rival;
   private rivalAI!: RivalAI;
+  private locationId?: string;
+  private encounterStarted: boolean = false;
   private currentBid: number = 0;
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
@@ -33,10 +35,12 @@ export class AuctionScene extends BaseGameScene {
     super({ key: 'AuctionScene' });
   }
 
-  init(data: { car: Car; rival: Rival; interest: number }): void {
+  init(data: { car: Car; rival: Rival; interest: number; locationId?: string }): void {
     this.car = data.car;
     this.rival = data.rival;
     this.rivalAI = new RivalAI(data.rival, data.interest);
+    this.locationId = data.locationId;
+    this.encounterStarted = false;
     this.currentBid = Math.floor(calculateCarValue(this.car) * AuctionScene.STARTING_BID_MULTIPLIER);
     this.stallUsesThisAuction = 0;
   }
@@ -60,6 +64,8 @@ export class AuctionScene extends BaseGameScene {
       );
       return;
     }
+
+    this.encounterStarted = true;
 
     this.setupBackground('AUCTION BATTLE!', {
       topColor: 0x8b0000,
@@ -373,7 +379,15 @@ export class AuctionScene extends BaseGameScene {
   }
 
   private playerQuit(): void {
+    this.consumeOfferIfNeeded();
     this.endAuction(false, 'You quit the auction.');
+  }
+
+  private consumeOfferIfNeeded(): void {
+    if (!this.encounterStarted) return;
+    if (this.locationId) {
+      this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+    }
   }
 
   private rivalTurn(): void {
@@ -437,8 +451,14 @@ export class AuctionScene extends BaseGameScene {
           );
           // Refund the money since we couldn't add the car
           this.gameManager.addMoney(this.currentBid);
+
+          // The car is forfeited; treat this location as exhausted today.
+          this.consumeOfferIfNeeded();
           return;
         }
+
+        // Winning (and acquiring) exhausts the location's daily offer.
+        this.consumeOfferIfNeeded();
         
         // Award Tongue XP for winning an auction
         const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.auction;
@@ -479,6 +499,8 @@ export class AuctionScene extends BaseGameScene {
         );
       }
     } else {
+      // Leaving/losing also exhausts the location's daily offer (stricter anti-fishing).
+      this.consumeOfferIfNeeded();
       // Tutorial: After losing to Sterling Vance, immediately encounter Scrapyard Joe at the same sale
       try {
         if (this.tutorialManager.isCurrentStep('first_loss')) {

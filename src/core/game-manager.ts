@@ -1,4 +1,4 @@
-import { Car } from '@/data/car-database';
+import { Car, getRandomCar } from '@/data/car-database';
 import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
@@ -39,6 +39,17 @@ export interface WorldState {
   day: number;
   currentAP: number; // Remaining Action Points for today
   currentLocation: string;
+  /**
+   * Per-day car offer for each location id.
+   * - Missing key: not yet rolled for the day.
+   * - null: rolled and consumed/cleared for the day.
+   */
+  carOfferByLocation: Record<string, Car | null>;
+  /**
+   * Rival presence roll for the current day, keyed by location id.
+   * Stored in world state so it remains stable across scene transitions and reloads.
+   */
+  rivalPresenceByLocation: Record<string, boolean>;
   dayStats: {
     carsAcquired: number;
     moneyEarned: number;
@@ -139,6 +150,8 @@ export class GameManager {
       day: 1,
       currentAP: MAX_AP,
       currentLocation: 'garage',
+      carOfferByLocation: {},
+      rivalPresenceByLocation: {},
       dayStats: {
         carsAcquired: 0,
         moneyEarned: 0,
@@ -146,6 +159,140 @@ export class GameManager {
         prestigeGained: 0,
       },
     };
+  }
+
+  private resetDailyCarOffers(): void {
+    this.world.carOfferByLocation = {};
+  }
+
+  private sanitizeDailyOfferMap(): void {
+    const offerMap = this.world.carOfferByLocation;
+    if (!offerMap || typeof offerMap !== 'object') {
+      this.world.carOfferByLocation = {};
+      return;
+    }
+
+    // Remove invalid entries and any garage key.
+    for (const [locationId, offer] of Object.entries(offerMap)) {
+      if (!locationId || locationId === 'garage') {
+        delete offerMap[locationId];
+        continue;
+      }
+
+      if (offer === null) continue;
+
+      // Validate minimal Car shape; if invalid, delete key so it will reroll when accessed.
+      const maybeCar = offer as Partial<Car> | undefined;
+      const isValidCar =
+        Boolean(maybeCar) &&
+        typeof maybeCar === 'object' &&
+        typeof maybeCar.id === 'string' &&
+        typeof maybeCar.name === 'string' &&
+        typeof maybeCar.baseValue === 'number' &&
+        typeof maybeCar.condition === 'number' &&
+        Array.isArray(maybeCar.tags) &&
+        Array.isArray(maybeCar.history) &&
+        typeof maybeCar.tier === 'string';
+
+      if (!isValidCar) {
+        delete offerMap[locationId];
+      }
+    }
+  }
+
+  private sanitizeDailyRivalPresenceMap(): void {
+    const presenceMap = this.world.rivalPresenceByLocation;
+    if (!presenceMap || typeof presenceMap !== 'object') {
+      this.world.rivalPresenceByLocation = {};
+      return;
+    }
+
+    for (const [locationId, present] of Object.entries(presenceMap)) {
+      if (!locationId || locationId === 'garage') {
+        delete presenceMap[locationId];
+        continue;
+      }
+
+      if (typeof present !== 'boolean') {
+        delete presenceMap[locationId];
+      }
+    }
+  }
+
+  private resetDailyRivalPresence(): void {
+    this.world.rivalPresenceByLocation = {};
+  }
+
+  /**
+   * Ensure daily car offers are rolled once per day for each location id.
+   * Garage and special nodes should not be passed.
+   */
+  public ensureDailyCarOffersForLocations(locationIds: string[]): void {
+    for (const locationId of locationIds) {
+      if (!locationId || locationId === 'garage') continue;
+
+      if (Object.prototype.hasOwnProperty.call(this.world.carOfferByLocation, locationId)) {
+        continue;
+      }
+
+      this.world.carOfferByLocation[locationId] = getRandomCar();
+    }
+  }
+
+  /**
+   * Get the per-day car offer for a location.
+   * If not yet rolled, it will roll and store a value.
+   */
+  public getDailyCarOfferForLocation(locationId: string): Car | null {
+    if (!locationId || locationId === 'garage') return null;
+
+    if (!Object.prototype.hasOwnProperty.call(this.world.carOfferByLocation, locationId)) {
+      this.ensureDailyCarOffersForLocations([locationId]);
+    }
+
+    return this.world.carOfferByLocation[locationId] ?? null;
+  }
+
+  /**
+   * Mark a location's daily offer as consumed (no more cars there today).
+   */
+  public consumeDailyCarOfferForLocation(locationId: string): void {
+    if (!locationId || locationId === 'garage') return;
+    if (!this.world.carOfferByLocation) {
+      this.world.carOfferByLocation = {};
+    }
+
+    this.world.carOfferByLocation[locationId] = null;
+    this.debouncedSave();
+  }
+
+  /**
+   * Ensure rival presence is rolled once per day for each location id.
+   * Garage and special nodes should not be passed.
+   */
+  public ensureRivalPresenceForLocations(locationIds: string[]): void {
+    for (const locationId of locationIds) {
+      if (!locationId) continue;
+      if (Object.prototype.hasOwnProperty.call(this.world.rivalPresenceByLocation, locationId)) {
+        continue;
+      }
+      this.world.rivalPresenceByLocation[locationId] =
+        Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
+    }
+  }
+
+  /**
+   * Get rival presence for a location for the current day.
+   * If not yet rolled, it will roll and store a value.
+   */
+  public hasRivalAtLocation(locationId: string): boolean {
+    if (!locationId || locationId === 'garage') return false;
+
+    if (!Object.prototype.hasOwnProperty.call(this.world.rivalPresenceByLocation, locationId)) {
+      this.ensureRivalPresenceForLocations([locationId]);
+    }
+
+    return Boolean(this.world.rivalPresenceByLocation[locationId]);
   }
 
   /**
@@ -632,6 +779,12 @@ export class GameManager {
     this.world.day += 1;
     this.world.currentAP = MAX_AP;
 
+    // New day: re-roll daily rival presence (but keep it stable within the day).
+    this.resetDailyRivalPresence();
+
+    // New day: re-roll per-location daily car offers.
+    this.resetDailyCarOffers();
+
     const rentPaid = this.applyDailyRent();
 
     // Apply museum prestige bonus
@@ -924,6 +1077,20 @@ export class GameManager {
       };
 
       this.world = saveData.world;
+
+      // Backwards compatibility: add per-day rival presence map if missing
+      if (!this.world.rivalPresenceByLocation) {
+        this.world.rivalPresenceByLocation = {};
+      }
+
+      // Backwards compatibility: add per-day car offers map if missing
+      if (!this.world.carOfferByLocation) {
+        this.world.carOfferByLocation = {};
+      }
+
+      // Save hygiene: strip invalid or corrupted entries so the day can safely reroll them.
+      this.sanitizeDailyRivalPresenceMap();
+      this.sanitizeDailyOfferMap();
 
       // Backwards compatibility: add skillXP if missing
       if (!this.player.skillXP) {

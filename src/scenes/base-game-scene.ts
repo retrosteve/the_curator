@@ -135,6 +135,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     const world = this.gameManager.getWorldState();
     const victoryResult = this.gameManager.checkVictory();
     const museumIncome = this.gameManager.getMuseumIncomeInfo();
+    const dailyRent = this.gameManager.getDailyRent();
 
     this.cachedHUD = this.uiManager.createHUD({
       money: player.money,
@@ -147,15 +148,21 @@ export abstract class BaseGameScene extends Phaser.Scene {
         used: player.inventory.length,
         total: player.garageSlots,
       },
+      dailyRent,
       market: this.gameManager.getMarketDescription(),
       museumIncome: museumIncome.carCount > 0 ? museumIncome : undefined,
       victoryProgress: {
+        prestige: victoryResult.prestige,
+        unicorns: victoryResult.unicorns,
         museumCars: victoryResult.museumCars,
+        skillLevel: victoryResult.skillLevel,
         onClickProgress: () => {
           this.scene.pause();
+          const allMet = victoryResult.prestige.met && victoryResult.unicorns.met && victoryResult.museumCars.met && victoryResult.skillLevel.met;
+          const statusMsg = allMet ? '\n\n🎉 ALL CONDITIONS MET! You can win now!' : '\n\nKeep working toward these goals!';
           this.uiManager.showModal(
-            '🏆 Victory Progress',
-            `Museum Cars: ${victoryResult.museumCars.current}/${victoryResult.museumCars.required} ${victoryResult.museumCars.met ? '✅' : '⬜'}\nUnicorns: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nMax Skill: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}`,
+            '🏆 Victory Progress - Details',
+            `**Win Conditions:**\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nMuseum Collection: ${victoryResult.museumCars.current}/${victoryResult.museumCars.required} ${victoryResult.museumCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}`,
             [{ text: 'Close', onClick: () => this.scene.resume() }]
           );
         },

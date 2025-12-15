@@ -139,19 +139,25 @@ export class GarageScene extends BaseGameScene {
 
     const skills: Array<'eye' | 'tongue' | 'network'> = ['eye', 'tongue', 'network'];
     const skillNames = { eye: '👁 Eye', tongue: '💬 Tongue', network: '🌐 Network' };
+    const skillTooltips = {
+      eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
+      tongue: 'Lvl 1: Basic negotiation\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master negotiator (max Stall uses)',
+      network: 'Lvl 1: Access public opportunities\nLvl 2: See rival movements\nLvl 3: Unlock private sales\nLvl 4: Earlier event notifications\nLvl 5: Insider deals & exclusive leads'
+    };
     
     skills.forEach(skill => {
       const progress = this.gameManager.getSkillProgress(skill);
       const isMaxLevel = progress.level >= 5;
       
       const skillRow = document.createElement('div');
-      skillRow.style.cssText = 'margin-bottom: 8px;';
+      skillRow.style.cssText = 'margin-bottom: 8px; cursor: help; position: relative;';
+      skillRow.title = skillTooltips[skill];
       
       // Skill label with level and XP
       const label = document.createElement('div');
       label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;';
       label.innerHTML = `
-        <span>${skillNames[skill]} Lvl ${progress.level}</span>
+        <span>${skillNames[skill]} Lvl ${progress.level} ℹ️</span>
         <span>${isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`}</span>
       `;
       skillRow.appendChild(label);
@@ -1032,19 +1038,35 @@ export class GarageScene extends BaseGameScene {
       return;
     }
 
-    if (this.gameManager.upgradeGarageSlots()) {
-      this.uiManager.showModal(
-        'Garage Upgraded!',
-        `Your garage now has ${player.garageSlots + 1} slots.`,
-        [{ text: 'OK', onClick: () => this.setupUI() }]
-      );
-    } else {
-      this.uiManager.showModal(
-        'Upgrade Failed',
-        'Unable to upgrade garage. Please try again.',
-        [{ text: 'OK', onClick: () => {} }]
-      );
-    }
+    // Calculate rent change
+    const currentRent = this.gameManager.getDailyRent();
+    const newSlots = player.garageSlots + 1;
+    const rentConfig = GAME_CONFIG.economy.rentByGarageSlots as Record<number, number>;
+    const newRent = rentConfig[newSlots] || currentRent;
+    const rentIncrease = newRent - currentRent;
+
+    // Show confirmation with rent warning
+    this.uiManager.confirmAction(
+      '⚠️ Upgrade Garage?',
+      `Upgrade to ${newSlots} garage slots for ${cost} prestige?\n\n💸 RENT WILL INCREASE:\nCurrent: ${formatCurrency(currentRent)}/day\nNew: ${formatCurrency(newRent)}/day\nIncrease: +${formatCurrency(rentIncrease)}/day\n\nMake sure you can afford the higher daily rent!`,
+      () => {
+        if (this.gameManager.upgradeGarageSlots()) {
+          this.uiManager.showModal(
+            'Garage Upgraded!',
+            `Your garage now has ${newSlots} slots.\n\nDaily rent is now ${formatCurrency(newRent)}.`,
+            [{ text: 'OK', onClick: () => this.setupUI() }]
+          );
+        } else {
+          this.uiManager.showModal(
+            'Upgrade Failed',
+            'Unable to upgrade garage. Please try again.',
+            [{ text: 'OK', onClick: () => {} }]
+          );
+        }
+      },
+      () => {},
+      { confirmText: 'Upgrade', confirmVariant: 'warning' }
+    );
   }
 
   private getMuseumCars(): Car[] {
@@ -1107,6 +1129,62 @@ export class GarageScene extends BaseGameScene {
       { textAlign: 'center', fontSize: '13px', color: '#95a5a6', marginBottom: '20px' }
     );
     panel.appendChild(infoText);
+
+    // Collections progress
+    const collections = this.gameManager.getAllCollectionsProgress();
+    if (collections.length > 0) {
+      const collectionsHeading = this.uiManager.createHeading('📚 Collections', 3, {
+        marginTop: '20px',
+        marginBottom: '10px',
+      });
+      panel.appendChild(collectionsHeading);
+
+      collections.forEach(collection => {
+        const collectionCard = document.createElement('div');
+        collectionCard.style.cssText = `
+          background: ${collection.isComplete ? 'linear-gradient(145deg, rgba(46, 204, 113, 0.2), rgba(39, 174, 96, 0.2))' : 'rgba(255,255,255,0.05)'};
+          border: 2px solid ${collection.isComplete ? '#2ecc71' : 'rgba(100, 200, 255, 0.2)'};
+          border-radius: 8px;
+          padding: 12px;
+          margin-bottom: 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        `;
+
+        const leftSide = document.createElement('div');
+        leftSide.innerHTML = `
+          <div style="font-size: 18px; margin-bottom: 4px;">${collection.icon} ${collection.name}</div>
+          <div style="font-size: 12px; color: #95a5a6;">${collection.description}</div>
+        `;
+
+        const rightSide = document.createElement('div');
+        rightSide.style.cssText = 'text-align: right;';
+        
+        const statusIcon = collection.isClaimed ? '✅' : collection.isComplete ? '🎁' : '⬜';
+        const statusText = collection.isClaimed ? 'Completed!' : collection.isComplete ? 'Ready to Claim!' : `${collection.current}/${collection.required}`;
+        
+        rightSide.innerHTML = `
+          <div style="font-size: 16px; font-weight: bold; color: ${collection.isClaimed ? '#2ecc71' : collection.isComplete ? '#f39c12' : '#64b5f6'};">
+            ${statusIcon} ${statusText}
+          </div>
+          <div style="font-size: 12px; color: #95a5a6; margin-top: 4px;">
+            Reward: +${collection.prestigeReward} Prestige
+          </div>
+        `;
+
+        collectionCard.appendChild(leftSide);
+        collectionCard.appendChild(rightSide);
+        panel.appendChild(collectionCard);
+      });
+    }
+
+    // Displayed Cars heading
+    const displayedHeading = this.uiManager.createHeading('🏛️ Displayed Vehicles', 3, {
+      marginTop: '20px',
+      marginBottom: '10px',
+    });
+    panel.appendChild(displayedHeading);
 
     if (museumCars.length === 0) {
       const emptyText = this.uiManager.createText(

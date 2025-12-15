@@ -3,6 +3,7 @@ import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { TutorialManager } from '@/systems/tutorial-manager';
+import { UIManager } from '@/ui/ui-manager';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
@@ -292,6 +293,7 @@ export class GameManager {
   /**
    * Add car to inventory and emit inventory-changed event.
    * Enforces garage capacity - returns false if garage is full.
+   * Also checks for collection completions and awards bonuses.
    * @param car - The car to add to inventory
    * @returns True if car was added, false if garage is full
    */
@@ -299,11 +301,132 @@ export class GameManager {
     if (this.player.inventory.length >= this.player.garageSlots) {
       return false;
     }
+
     this.player.inventory.push(car);
     this.world.dayStats.carsAcquired += 1;
     eventBus.emit('inventory-changed', this.player.inventory);
-    this.debouncedSave(); // Auto-save on inventory change
+    
+    // Check for collection completions
+    this.checkNewCollectionCompletions();
+    
+    this.debouncedSave();
     return true;
+  }
+
+  /**
+   * Check if any new collections were just completed and award bonuses.
+   * @private
+   */
+  private checkNewCollectionCompletions(): void {
+    const collections = GAME_CONFIG.collections.sets;
+    
+    for (const [collectionId, collection] of Object.entries(collections)) {
+      const progress = this.getCollectionProgress(collectionId);
+      
+      // Check if collection just completed
+      if (progress.isComplete && !this.hasCollectionBeenClaimed(collectionId)) {
+        this.claimCollectionReward(collectionId, collection);
+      }
+    }
+  }
+
+  /**
+   * Track claimed collections to avoid duplicate rewards.
+   * Uses a Set stored in player state (added on-the-fly if missing).
+   */
+  private hasCollectionBeenClaimed(collectionId: string): boolean {
+    // Initialize claimed collections set if it doesn't exist
+    if (!(this.player as any).claimedCollections) {
+      (this.player as any).claimedCollections = new Set<string>();
+    }
+    return (this.player as any).claimedCollections.has(collectionId);
+  }
+
+  /**
+   * Award collection completion bonus.
+   */
+  private claimCollectionReward(collectionId: string, collection: any): void {
+    // Mark as claimed
+    if (!(this.player as any).claimedCollections) {
+      (this.player as any).claimedCollections = new Set<string>();
+    }
+    (this.player as any).claimedCollections.add(collectionId);
+    
+    // Award prestige
+    this.addPrestige(collection.prestigeReward);
+    
+    // Show celebration modal
+    UIManager.getInstance().showModal(
+      `${collection.icon} Collection Complete!`,
+      `${collection.name}\n${collection.description}\n\n+${collection.prestigeReward} Prestige Awarded!`,
+      [{ text: 'Excellent!', onClick: () => {} }]
+    );
+  }
+
+  /**
+   * Get progress for a specific collection.
+   * @param collectionId - The collection identifier from GAME_CONFIG
+   * @returns Progress object with current count and completion status
+   */
+  public getCollectionProgress(collectionId: string): {
+    current: number;
+    required: number;
+    isComplete: boolean;
+    isClaimed: boolean;
+    matchingCars: Car[];
+  } {
+    const collections = GAME_CONFIG.collections.sets as Record<string, any>;
+    const collection = collections[collectionId];
+    
+    if (!collection) {
+      return { current: 0, required: 0, isComplete: false, isClaimed: false, matchingCars: [] };
+    }
+    
+    // Find all museum cars that match the collection's required tags
+    const museumCars = this.getMuseumCars();
+    const matchingCars = museumCars.filter(car => 
+      collection.requiredTags.some((tag: string) => car.tags.includes(tag))
+    );
+    
+    const current = matchingCars.length;
+    const required = collection.requiredCount;
+    const isComplete = current >= required;
+    const isClaimed = this.hasCollectionBeenClaimed(collectionId);
+    
+    return { current, required, isComplete, isClaimed, matchingCars };
+  }
+
+  /**
+   * Get all collection progress data.
+   * @returns Array of collection progress objects
+   */
+  public getAllCollectionsProgress(): Array<{
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    current: number;
+    required: number;
+    isComplete: boolean;
+    isClaimed: boolean;
+    prestigeReward: number;
+  }> {
+    const collections = GAME_CONFIG.collections.sets as Record<string, any>;
+    
+    return Object.entries(collections).map(([id, collection]) => {
+      const progress = this.getCollectionProgress(id);
+      return {
+        id,
+        name: collection.name,
+        description: collection.description,
+        icon: collection.icon,
+        current: progress.current,
+        required: progress.required,
+        isComplete: progress.isComplete,
+        isClaimed: progress.isClaimed,
+        prestigeReward: collection.prestigeReward,
+      };
+    });
   }
 
   /**

@@ -1,4 +1,5 @@
 import { UIManager } from '@/ui/ui-manager';
+import { eventBus } from '@/core/event-bus';
 
 /**
  * Tutorial step identifiers.
@@ -129,14 +130,14 @@ export class TutorialManager {
       case 'first_buy':
         this.showDialogue(
           "Uncle Ray",
-          "Good purchase! Click 'Inventory' in the garage to see your new car, then restore it to increase its value."
+          "Good purchase! You earned +10 Eye XP for inspecting that car. Hover over the skill bars in your garage to see what each level unlocks. Click 'Inventory' to see your new car, then restore it to increase its value."
         );
         break;
       
       case 'first_restore':
         this.showDialogue(
           "Uncle Ray",
-          "Great! The car's condition improved. Now let's flip it for profit - an NPC buyer is interested and will make you an offer."
+          "Great! The car's condition improved. Notice the Victory Progress tracker in your HUD showing your path to becoming a master curator. Also watch that daily rent - it increases when you upgrade your garage! Now let's flip this car for profit - an NPC buyer is interested."
         );
         break;
       

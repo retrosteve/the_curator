@@ -819,13 +819,17 @@ export class UIManager {
       used: number;
       total: number;
     };
+    dailyRent?: number;
     market?: string;
     museumIncome?: {
       totalPerDay: number;
       carCount: number;
     };
     victoryProgress?: {
-      museumCars: { current: number; required: number };
+      prestige: { current: number; required: number; met: boolean };
+      unicorns: { current: number; required: number; met: boolean };
+      museumCars: { current: number; required: number; met: boolean };
+      skillLevel: { current: number; required: number; met: boolean };
       onClickProgress?: () => void;
     };
   }): HTMLDivElement {
@@ -853,6 +857,7 @@ export class UIManager {
       ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
       ${data.museumIncome !== undefined && data.museumIncome.carCount > 0 ? `<div data-hud="museum-income" style="color: #f39c12; font-size: 13px;" title="Museum cars generate prestige daily based on condition quality">🏛️ Museum: +${data.museumIncome.totalPerDay} prestige/day (${data.museumIncome.carCount} cars)</div>` : ''}
       ${data.garage !== undefined ? `<div data-hud="garage">🏠 Garage: ${data.garage.used}/${data.garage.total}</div>` : ''}
+      ${data.dailyRent !== undefined ? `<div data-hud="daily-rent" style="color: #ff6b6b; font-size: 13px;" title="Rent increases as you upgrade your garage">💸 Daily Rent: ${formatCurrency(data.dailyRent)}</div>` : ''}
       ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
       <div data-hud="day">📅 Day: ${data.day}</div>
       <div data-hud="ap">⚡ ${data.ap}</div>
@@ -860,24 +865,42 @@ export class UIManager {
       ${data.market !== undefined ? `<div data-hud="market">📈 ${data.market}</div>` : ''}
     `;
 
-    // Add victory progress indicator if provided
+    // Add victory progress tracker if provided
     if (data.victoryProgress) {
       const progressDiv = document.createElement('div');
       progressDiv.style.cssText = `
         margin-top: 8px;
         padding-top: 8px;
         border-top: 1px solid rgba(100, 200, 255, 0.2);
+        font-size: 13px;
         cursor: pointer;
-        transition: color 0.2s ease;
+        transition: all 0.2s ease;
       `;
-      progressDiv.innerHTML = `🏛️ Museum: ${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}`;
+      
+      const prestigeIcon = data.victoryProgress.prestige.met ? '✅' : '⬜';
+      const unicornIcon = data.victoryProgress.unicorns.met ? '✅' : '⬜';
+      const museumIcon = data.victoryProgress.museumCars.met ? '✅' : '⬜';
+      const skillIcon = data.victoryProgress.skillLevel.met ? '✅' : '⬜';
+      
+      progressDiv.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 4px; color: #ffd700;">🏆 Victory Progress (click for details)</div>
+        <div style="line-height: 1.4;">
+          ${prestigeIcon} Prestige: ${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}<br>
+          ${unicornIcon} Unicorns: ${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}<br>
+          ${museumIcon} Museum: ${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}<br>
+          ${skillIcon} Max Skill: ${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}
+        </div>
+      `;
       
       if (data.victoryProgress.onClickProgress) {
         progressDiv.addEventListener('mouseenter', () => {
-          progressDiv.style.color = '#64c8ff';
+          progressDiv.style.backgroundColor = 'rgba(100, 200, 255, 0.1)';
+          progressDiv.style.borderRadius = '8px';
+          progressDiv.style.padding = '4px';
         });
         progressDiv.addEventListener('mouseleave', () => {
-          progressDiv.style.color = '#e0e6ed';
+          progressDiv.style.backgroundColor = 'transparent';
+          progressDiv.style.padding = '0';
         });
         progressDiv.addEventListener('click', data.victoryProgress.onClickProgress);
       }

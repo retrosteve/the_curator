@@ -57,9 +57,23 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 
 ### Museum Display Mechanic
 - **Eligibility:** Cars with condition >= 80% can be displayed in the museum.
-- **Passive Prestige:** Displayed cars generate 1 prestige per day per car.
+- **Passive Prestige:** Displayed cars generate prestige based on quality tiers:
+  - Good (80-89%): +1 prestige/day
+  - Excellent (90-99%): +2 prestige/day
+  - Perfect (100%): +3 prestige/day
 - **Management:** Players can toggle cars between garage storage and museum display.
 - **Capacity:** Museum display slots are unlimited (no hard cap).
+
+### Car Collections System
+- **Collection Sets:** Players can complete themed collections for one-time prestige bonuses:
+  - **JDM Legends** (5 JDM cars): +50 prestige
+  - **Muscle Masters** (5 Muscle cars): +50 prestige
+  - **European Elite** (5 European cars): +50 prestige
+  - **Exotic Collection** (4 Exotic cars): +75 prestige
+  - **Classics Curator** (6 Classic cars): +60 prestige
+- **Auto-Detection:** Collections automatically check for completion when cars are added to inventory.
+- **Museum Integration:** Collection progress displayed in museum view.
+- **Total Reward Potential:** +285 prestige from all collections.
 
 ## Data Structures
 
@@ -95,7 +109,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Concept (The Action Budget):** Time is the player’s primary resource.
 - **Action Points (AP):** Every meaningful action consumes Action Points.
 - **Day Cycle:**
-  - Each day starts with **10 Action Points**
+  - Each day starts with **15 Action Points** (updated for better pacing)
   - Day ends when AP reaches 0 or player returns to garage
 - **Constraints:**
   - Every action costs AP (1-5 AP depending on complexity).
@@ -105,7 +119,12 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   increments, `currentAP` resets to **10**, daily expenses are deducted, and
   the map resets.
 - **Daily Costs:**
-  - **Daily Rent:** $100 (paid during the Next Day transition).
+  - **Daily Rent:** Scales with garage capacity (balanced to avoid mid-game bankruptcies):
+    - 1 slot: $100/day
+    - 2 slots: $150/day
+    - 3 slots: $250/day
+    - 4 slots: $400/day
+    - 5 slots: $600/day
   - No debt (MVP): `money` never goes below $0.
   - If you can’t afford rent, you must raise cash before ending the day:
     - Sell a car (if you have one), or

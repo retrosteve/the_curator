@@ -27,11 +27,22 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 ### ✅ Garage Scene
 - View your car inventory (shows current/max garage slots)
 - View your car museum (display high-value restored cars)
+- **Car Collections:** Track and complete themed collections for prestige bonuses
 - Restore cars (costs money + time)
 - Sell cars for profit
-- Upgrade garage capacity (costs prestige)
+- Upgrade garage capacity (costs prestige, with rent increase warning)
+- **Skill Progress Bars:** Hover for detailed tooltips showing what each level unlocks
 - Save/Load game progress
 - End day mechanic
+
+### ✅ Victory Progress Tracker
+- Persistent HUD display showing all 4 win conditions:
+  - Prestige progress (500 required)
+  - Unicorn cars in museum (2 required)
+  - Total museum cars (8 required)
+  - Skill mastery level (4 required)
+- Click tracker for detailed breakdown
+- Visual checkmarks when conditions are met
 
 ### ✅ Map Scene
 - Three explorable locations:
@@ -57,19 +68,17 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 ### ✅ Auction Scene
 Turn-based bidding battles against AI rivals:
 - **Rival Tiers:** Progressive difficulty (Scrappers → Enthusiasts → Tycoons) based on prestige
-- **Tactics:** Bid, Power Bid (reduces patience), Stall (requires Tongue skill), Kick Tires (requires Eye skill)
+- **Enhanced Tactics:** 
+  - **Bid** (+$100) - Standard bid
+  - **Power Bid** (+$500, -20 Rival Patience) - Aggressive bid with combo streak tracking
+  - **Kick Tires** (-$500 Rival Budget, requires Eye skill) - Undercut their spending power
+  - **Stall** (Tongue 2+, limited uses = Tongue level, -20 Rival Patience) - Psychological warfare
+  - **Quit** - Walk away
+- **Combo System:** Consecutive Power Bids create combos (🔥 COMBO x3!)
+- **Stress Animations:** Rival patience bar shakes when low, with status messages
+- **Post-Auction Recap:** Shows victory type (Psychological/Financial/Strategic) and tactics used
 - **Rival AI:** Patience and budget determine when rivals quit
-- **Tier Display:** Shows opponent tier in auction UI
 - **Market Fluctuations:** Dynamic pricing based on seasons and random events
-- **Rival Tiers:** Progressive difficulty (Scrappers → Enthusiasts → Tycoons) based on prestige
-- **Tactics:** Bid, Power Bid (reduces patience), Stall (requires Tongue skill), Kick Tires (requires Eye skill)
-- **Rival AI:** Patience and budget determine when rivals quit
-- **Tier Display:** Shows opponent tier in auction UI
-- **Bid** (+$100) - Standard bid
-- **Power Bid** (+$500, -20 Rival Patience) - Aggressive bid
-- **Kick Tires** (-$500 Rival Budget, requires Eye skill) - Undercut their spending power
-- **Stall** (Tongue 2+, limited uses per auction = Tongue level, -20 Rival Patience) - Psychological warfare
-- **Quit** - Walk away
 
 Rivals have unique:
 - Budgets
@@ -78,11 +87,18 @@ Rivals have unique:
 - Car preferences (wishlist tags)
 
 ### ✅ Core Systems
-- **Economy** - Value calculations, restoration costs
-- **Time Management** - Day/night cycle, action costs
+- **Economy** - Value calculations, restoration costs, balanced rent scaling
+- **Time Management** - 15 Action Points per day, action costs
 - **Player State** - Money, inventory, prestige, skills (Eye/Tongue/Network)
+- **Car Collections** - 5 themed sets with prestige rewards (total +285 prestige)
+- **Victory Tracker** - Real-time progress toward becoming master curator
 - **Save/Load** - Persistent game progress via localStorage
 - **Event System** - Decoupled communication
+
+### 🎮 Car Database
+- **43 Total Cars** across 4 tiers (Daily Drivers, Cult Classics, Icons, Unicorns)
+- Variety of tags: JDM, Muscle, European, Exotic, Classic, and more
+- Weighted random spawns favor lower tiers for balanced progression
 
 ## Installation
 

@@ -14,7 +14,7 @@ export const GAME_CONFIG = {
   },
 
   day: {
-    maxAP: 10, // Action Points per day
+    maxAP: 15, // Action Points per day
   },
 
   player: {
@@ -44,22 +44,69 @@ export const GAME_CONFIG = {
 
   victory: {
     // Win conditions: must meet ALL of these
-    requiredPrestige: 1000,
-    requiredUnicorns: 3, // Must have 3 Unicorn-tier cars in museum
-    requiredMuseumCars: 10, // Must have 10 cars at 80%+ condition in museum
-    requiredSkillLevel: 5, // Must have at least one skill at max level
+    requiredPrestige: 500, // Reduced from 1000 with 15 AP economy and more content
+    requiredUnicorns: 2, // Reduced from 3 (more achievable)
+    requiredMuseumCars: 8, // Reduced from 10
+    requiredSkillLevel: 4, // Reduced from 5 (max level still valuable but not required)
+  },
+
+  collections: {
+    // Car collection sets that award prestige bonuses when completed
+    sets: {
+      jdmLegends: {
+        name: 'JDM Legends',
+        description: 'Collect iconic Japanese sports cars',
+        requiredTags: ['JDM'],
+        requiredCount: 5,
+        prestigeReward: 50,
+        icon: '🇯🇵',
+      },
+      muscleMasters: {
+        name: 'Muscle Masters',
+        description: 'Own the kings of American muscle',
+        requiredTags: ['Muscle'],
+        requiredCount: 5,
+        prestigeReward: 50,
+        icon: '👊',
+      },
+      europeanElite: {
+        name: 'European Elite',
+        description: 'Curate finest European automobiles',
+        requiredTags: ['European'],
+        requiredCount: 5,
+        prestigeReward: 50,
+        icon: '🇪🇺',
+      },
+      exoticCollection: {
+        name: 'Exotic Collection',
+        description: 'Acquire rare exotic supercars',
+        requiredTags: ['Exotic'],
+        requiredCount: 4,
+        prestigeReward: 75,
+        icon: '💎',
+      },
+      classicsCurator: {
+        name: 'Classics Curator',
+        description: 'Preserve automotive history',
+        requiredTags: ['Classic'],
+        requiredCount: 6,
+        prestigeReward: 60,
+        icon: '🏛️',
+      },
+    },
   },
 
   economy: {
     dailyRent: 100, // Base rent for 1 slot
     
     // Rent scales with garage slots to add progression challenge
+    // Rebalanced to be less punishing with 15 AP economy
     rentByGarageSlots: {
       1: 100,
-      2: 200,
-      3: 400,
-      4: 800,
-      5: 1600,
+      2: 150,  // Was 200
+      3: 250,  // Was 400
+      4: 400,  // Was 800
+      5: 600,  // Was 1600
     },
 
     // Emergency cash injection (MVP). Repayment not implemented.

@@ -185,10 +185,11 @@ export class MarketFluctuationSystem {
    * @param gameDay - Current game day for seasonal calculations
    */
   private getSeasonalModifier(carTags: string[], gameDay?: number): number {
-    const season = this.getCurrentSeason(gameDay).toLowerCase();
     const seasonalConfigs = GAME_CONFIG.economy.market.seasonal;
-    const seasonalConfig = seasonalConfigs[season as keyof typeof seasonalConfigs] as any;
-
+    type SeasonalConfig = { startDay: number; endDay: number; tags: readonly string[]; modifier: number };
+    type SeasonKey = keyof typeof seasonalConfigs;
+    const seasonKey = this.getCurrentSeason(gameDay).toLowerCase() as SeasonKey;
+    const seasonalConfig = seasonalConfigs[seasonKey] as unknown as SeasonalConfig | undefined;
     if (!seasonalConfig) return 1.0;
 
     // Check if car has any of the affected tags
@@ -216,12 +217,16 @@ export class MarketFluctuationSystem {
    * Try to trigger a random market event.
    */
   private tryTriggerEvent(): void {
-    const events = GAME_CONFIG.economy.market.events;
+    const events: Record<MarketEventType, { chance: number; duration: number; modifier: number; description: string }> =
+      GAME_CONFIG.economy.market.events;
     const rand = Math.random();
 
     let cumulativeChance = 0;
 
-    for (const [eventType, config] of Object.entries(events)) {
+    for (const [eventType, config] of Object.entries(events) as Array<[
+      MarketEventType,
+      { chance: number; duration: number; modifier: number; description: string }
+    ]>) {
       cumulativeChance += config.chance;
       if (rand < cumulativeChance) {
         this.triggerEvent(eventType as MarketEventType, config);
@@ -233,7 +238,10 @@ export class MarketFluctuationSystem {
   /**
    * Trigger a specific market event.
    */
-  private triggerEvent(type: MarketEventType, config: any): void {
+  private triggerEvent(
+    type: MarketEventType,
+    config: { description: string; modifier: number; duration: number }
+  ): void {
     const affectedTags = type === 'nicheBoom' ? this.getRandomTags(2) : undefined;
 
     this.currentEvent = {

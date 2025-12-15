@@ -2,9 +2,11 @@ import { Car } from '@/data/car-database';
 import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
-import { TutorialManager } from '@/systems/tutorial-manager';
+import { TutorialManager, type TutorialStep } from '@/systems/tutorial-manager';
 import { UIManager } from '@/ui/ui-manager';
 import { GAME_CONFIG } from '@/config/game-config';
+import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
+import type { SpecialEventsState } from '@/systems/special-events-system';
 
 /**
  * Player State - Represents all player-owned resources and progression.
@@ -57,13 +59,25 @@ const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second
  * Saved game data structure.
  */
 interface SavedGameData {
-  player: PlayerState;
+  player: Omit<PlayerState, 'visitedLocations' | 'claimedCollections'> & {
+    visitedLocations?: string[];
+    claimedCollections?: string[];
+  };
   world: WorldState;
-  market?: any; // Market fluctuation state
-  specialEvents?: any; // Special events state
-  tutorial?: { currentStep: string; isActive: boolean }; // Tutorial state
+  market?: MarketFluctuationState; // Market fluctuation state
+  specialEvents?: SpecialEventsState; // Special events state
+  tutorial?: { currentStep: TutorialStep; isActive: boolean }; // Tutorial state
   version: string; // For future compatibility
 }
+
+type CollectionConfig = {
+  name: string;
+  description: string;
+  requiredTags: readonly string[];
+  requiredCount: number;
+  prestigeReward: number;
+  icon: string;
+};
 
 export type EndDayResult =
   | { bankrupt: true; requiredRent: number }
@@ -321,12 +335,12 @@ export class GameManager {
    * @private
    */
   private checkNewCollectionCompletions(): void {
-    const collections = GAME_CONFIG.collections.sets;
+    const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
     
     for (const [collectionId, collection] of Object.entries(collections)) {
       // Check against full inventory (not just museum)
-      const matchingCars = this.player.inventory.filter(car => 
-        collection.requiredTags.some((tag: string) => car.tags.includes(tag))
+      const matchingCars = this.player.inventory.filter((car) =>
+        collection.requiredTags.some((tag) => car.tags.includes(tag))
       );
       
       const isComplete = matchingCars.length >= collection.requiredCount;
@@ -353,7 +367,7 @@ export class GameManager {
   /**
    * Award collection completion bonus.
    */
-  private claimCollectionReward(collectionId: string, collection: any): void {
+  private claimCollectionReward(collectionId: string, collection: CollectionConfig): void {
     // Mark as claimed
     if (!this.player.claimedCollections) {
       this.player.claimedCollections = new Set<string>();
@@ -384,7 +398,7 @@ export class GameManager {
     isClaimed: boolean;
     matchingCars: Car[];
   } {
-    const collections = GAME_CONFIG.collections.sets as Record<string, any>;
+    const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
     const collection = collections[collectionId];
     
     if (!collection) {
@@ -392,8 +406,8 @@ export class GameManager {
     }
     
     // Find all inventory cars that match the collection's required tags
-    const matchingCars = this.player.inventory.filter(car => 
-      collection.requiredTags.some((tag: string) => car.tags.includes(tag))
+    const matchingCars = this.player.inventory.filter((car) =>
+      collection.requiredTags.some((tag) => car.tags.includes(tag))
     );
     
     const current = matchingCars.length;
@@ -419,7 +433,7 @@ export class GameManager {
     isClaimed: boolean;
     prestigeReward: number;
   }> {
-    const collections = GAME_CONFIG.collections.sets as Record<string, any>;
+    const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
     
     return Object.entries(collections).map(([id, collection]) => {
       const progress = this.getCollectionProgress(id);
@@ -721,11 +735,7 @@ export class GameManager {
     
     // Award Network XP for discovering new location (addSkillXP emits xp-gained event)
     const networkXPGain = GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation;
-    const leveledUp = this.addSkillXP('network', networkXPGain);
-    
-    if (leveledUp) {
-      eventBus.emit('network-levelup', this.player.skills.network as any);
-    }
+    this.addSkillXP('network', networkXPGain);
 
     return true; // First visit
   }
@@ -856,8 +866,8 @@ export class GameManager {
       const saveData: SavedGameData = {
         player: {
           ...this.player,
-          visitedLocations: Array.from(this.player.visitedLocations) as any, // Convert Set to Array for JSON
-          claimedCollections: Array.from(this.player.claimedCollections) as any, // Convert Set to Array for JSON
+          visitedLocations: Array.from(this.player.visitedLocations),
+          claimedCollections: Array.from(this.player.claimedCollections),
         },
         world: this.world,
         market: this.marketSystem.getState(),
@@ -891,7 +901,13 @@ export class GameManager {
         return false;
       }
 
-      this.player = saveData.player;
+      const savedPlayer = saveData.player;
+      this.player = {
+        ...(savedPlayer as Omit<PlayerState, 'visitedLocations' | 'claimedCollections'>),
+        visitedLocations: new Set(savedPlayer.visitedLocations ?? ['garage']),
+        claimedCollections: new Set(savedPlayer.claimedCollections ?? []),
+      };
+
       this.world = saveData.world;
 
       // Backwards compatibility: add skillXP if missing
@@ -899,19 +915,7 @@ export class GameManager {
         this.player.skillXP = { eye: 0, tongue: 0, network: 0 };
       }
 
-      // Backwards compatibility: convert visitedLocations array to Set or initialize
-      if (!this.player.visitedLocations) {
-        this.player.visitedLocations = new Set(['garage']);
-      } else if (Array.isArray(this.player.visitedLocations)) {
-        this.player.visitedLocations = new Set(this.player.visitedLocations as any);
-      }
-
-      // Backwards compatibility: convert claimedCollections array to Set or initialize
-      if (!this.player.claimedCollections) {
-        this.player.claimedCollections = new Set<string>();
-      } else if (Array.isArray(this.player.claimedCollections)) {
-        this.player.claimedCollections = new Set(this.player.claimedCollections as any);
-      }
+      // visitedLocations / claimedCollections are normalized during assignment above.
 
       // Backwards compatibility: add dayStats if missing
       if (!this.world.dayStats) {
@@ -936,7 +940,7 @@ export class GameManager {
       // Load tutorial state if available (backwards compatibility)
       if (saveData.tutorial) {
         const tutorialManager = TutorialManager.getInstance();
-        tutorialManager.loadState(saveData.tutorial as any);
+        tutorialManager.loadState(saveData.tutorial);
       }
 
       console.log('Game loaded successfully');

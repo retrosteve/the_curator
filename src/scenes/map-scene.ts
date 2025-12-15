@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { getRandomCar, getCarById } from '@/data/car-database';
 import { getRivalByTierProgression, calculateRivalInterest, getRivalById } from '@/data/rival-database';
-import { eventBus } from '@/core/event-bus';
 import { GAME_CONFIG } from '@/config/game-config';
 
 const AUCTION_AP = GAME_CONFIG.timeCosts.auctionAP;
@@ -32,19 +31,6 @@ export class MapScene extends BaseGameScene {
   private nodes: MapNode[] = [];
   private dashboardContainer: HTMLElement | null = null;
 
-  private readonly handleNetworkLevelUp = (level: number): void => {
-    const abilities = {
-      2: 'You can now spot special events more clearly.',
-      3: 'You gain access to exclusive private sales.',
-      4: 'You can see rival movements before they arrive.',
-      5: 'You have access to all underground deals and legendary car locations.',
-    };
-    
-    const message = abilities[level as keyof typeof abilities] || 'Your Network has improved!';
-    
-    this.uiManager.showSkillLevelUpModal('network', level, message);
-  };
-
   constructor() {
     super({ key: 'MapScene' });
   }
@@ -64,12 +50,8 @@ export class MapScene extends BaseGameScene {
 
   private setupEventListeners(): void {
     this.setupCommonEventListeners();
-    eventBus.on('network-levelup', this.handleNetworkLevelUp);
-    eventBus.on('xp-gained', this.handleXPGained);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      eventBus.off('network-levelup', this.handleNetworkLevelUp);
-      eventBus.off('xp-gained', this.handleXPGained);
       this.cleanupDashboard();
     });
   }

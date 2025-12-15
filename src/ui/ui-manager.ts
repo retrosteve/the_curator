@@ -16,6 +16,15 @@ export class UIManager {
   private tutorialBackdropElement: HTMLElement | null = null;
   private activeToasts: HTMLElement[] = []; // Track active XP toasts for stacking
 
+  private static ensureStyleElement(id: string, cssText: string): void {
+    if (document.getElementById(id)) return;
+
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = cssText;
+    document.head.appendChild(style);
+  }
+
   private static formatLocationLabel(location: string): string {
     const normalized = location.replace(/[_-]+/g, ' ').trim();
     if (!normalized) return '';
@@ -66,10 +75,9 @@ export class UIManager {
     `;
     
     // Add CSS animation if not already present
-    if (!document.getElementById('floatingMoneyAnimation')) {
-      const style = document.createElement('style');
-      style.id = 'floatingMoneyAnimation';
-      style.textContent = `
+    UIManager.ensureStyleElement(
+      'floatingMoneyAnimation',
+      `
         @keyframes floatUp {
           0% {
             opacity: 1;
@@ -80,9 +88,8 @@ export class UIManager {
             transform: translate(-50%, -50%) translateY(-100px);
           }
         }
-      `;
-      document.head.appendChild(style);
-    }
+      `
+    );
     
     document.body.appendChild(floatingText);
     
@@ -144,7 +151,7 @@ export class UIManager {
       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       pointer-events: none;
       z-index: 10000;
-      animation: slideInFadeOut 2.5s ease-out forwards;
+      animation: slideInFadeOut ${GAME_CONFIG.ui.toast.animationDuration}ms ease-out forwards;
       transition: top 0.3s ease;
     `;
     
@@ -152,10 +159,9 @@ export class UIManager {
     this.activeToasts.push(toast);
     
     // Add CSS animation if not already present
-    if (!document.getElementById('xpToastAnimation')) {
-      const style = document.createElement('style');
-      style.id = 'xpToastAnimation';
-      style.textContent = `
+    UIManager.ensureStyleElement(
+      'xpToastAnimation',
+      `
         @keyframes slideInFadeOut {
           0% {
             opacity: 0;
@@ -174,9 +180,8 @@ export class UIManager {
             transform: translateX(100px);
           }
         }
-      `;
-      document.head.appendChild(style);
-    }
+      `
+    );
     
     document.body.appendChild(toast);
     
@@ -359,7 +364,9 @@ export class UIManager {
       fontSize: '15px',
       color: '#e0e6ed',
       lineHeight: '1.6',
-      fontFamily: 'Rajdhani, sans-serif',      whiteSpace: 'pre-line',      ...style,
+      fontFamily: 'Rajdhani, sans-serif',
+      whiteSpace: 'pre-line',
+      ...style,
     });
 
     return p;

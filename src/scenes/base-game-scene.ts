@@ -224,7 +224,8 @@ export abstract class BaseGameScene extends Phaser.Scene {
    */
   protected resetUIWithHUD(): void {
     this.uiManager.clear();
-    const hud = this.createStandardHUD();
+    // Force recreation to ensure HUD-only computed fields (rent/market/museum/victory) stay current.
+    const hud = this.createStandardHUD(true);
     this.uiManager.append(hud);
   }
 }

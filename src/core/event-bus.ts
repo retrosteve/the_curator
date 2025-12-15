@@ -16,7 +16,6 @@ export type GameEvents = {
   'tutorial-complete': void;
   'tutorial-step-changed': { step: string };
   'skill-levelup': { skill: string; level: number };
-  'network-levelup': number;
   'xp-gained': { 
     skill: 'eye' | 'tongue' | 'network'; 
     amount: number;

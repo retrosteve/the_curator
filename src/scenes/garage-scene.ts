@@ -3,7 +3,7 @@ import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/Economy';
 import { Car } from '@/data/car-database';
-import { GAME_CONFIG } from '@/config/game-config';
+import { GAME_CONFIG, SKILL_METADATA } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
 
 /**
@@ -150,7 +150,6 @@ export class GarageScene extends BaseGameScene {
     skillsPanel.appendChild(skillsHeading);
 
     const skills: Array<'eye' | 'tongue' | 'network'> = ['eye', 'tongue', 'network'];
-    const skillNames = { eye: '👁 Eye', tongue: '💬 Tongue', network: '🌐 Network' };
     const skillTooltips = {
       eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
       tongue: 'Lvl 1: Basic negotiation\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master negotiator (max Stall uses)',
@@ -160,6 +159,7 @@ export class GarageScene extends BaseGameScene {
     skills.forEach(skill => {
       const progress = this.gameManager.getSkillProgress(skill);
       const isMaxLevel = progress.level >= 5;
+      const skillMeta = SKILL_METADATA[skill];
       
       const skillRow = document.createElement('div');
       skillRow.style.cssText = 'margin-bottom: 8px; cursor: help; position: relative;';
@@ -169,7 +169,7 @@ export class GarageScene extends BaseGameScene {
       const label = document.createElement('div');
       label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;';
       label.innerHTML = `
-        <span>${skillNames[skill]} Lvl ${progress.level} ℹ️</span>
+        <span>${skillMeta.icon} ${skillMeta.name} Lvl ${progress.level} ℹ️</span>
         <span>${isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`}</span>
       `;
       skillRow.appendChild(label);

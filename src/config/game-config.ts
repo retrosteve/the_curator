@@ -1,3 +1,27 @@
+/**
+ * Centralized skill metadata to avoid duplication across UI components.
+ */
+export const SKILL_METADATA = {
+  eye: {
+    name: 'Eye',
+    icon: '👁️',
+    color: '#3498db',
+    description: 'Spot details and hidden damage',
+  },
+  tongue: {
+    name: 'Tongue',
+    icon: '💬',
+    color: '#9b59b6',
+    description: 'Negotiate and persuade',
+  },
+  network: {
+    name: 'Network',
+    icon: '🌐',
+    color: '#e67e22',
+    description: 'Discover opportunities',
+  },
+} as const;
+
 export const GAME_CONFIG = {
   cars: {
     // Random condition range for generated encounter cars (inclusive).
@@ -109,7 +133,7 @@ export const GAME_CONFIG = {
       5: 600,  // Was 1600
     },
 
-    // Emergency cash injection (MVP). Repayment not implemented.
+    // Emergency cash injection - one-time use only
     bankLoan: {
       amount: 500,
       oneTime: true,
@@ -209,6 +233,13 @@ export const GAME_CONFIG = {
     },
 
     rivalBidModalDelayMs: 500,
+
+    // Patience bar UI thresholds
+    patienceThresholds: {
+      critical: 20,  // Red zone - rival about to quit
+      low: 30,       // Orange zone - rival sweating
+      medium: 50,    // Yellow zone - rival getting annoyed
+    },
   },
 
   rivalAI: {

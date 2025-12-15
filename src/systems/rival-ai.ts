@@ -29,15 +29,15 @@ export class RivalAI {
    * @returns Bid decision with shouldBid flag, amount, and reason
    */
   public decideBid(currentBid: number): BidDecision {
-    // Get decision from database function
+    // Update patience based on strategy BEFORE decision (for current turn)
+    this.updatePatience();
+
+    // Get decision from database function with updated patience
     const decision = getRivalBidDecision(
       { ...this.rival, patience: this.currentPatience, budget: this.currentBudget },
       currentBid,
       this.carInterest
     );
-
-    // Update patience based on strategy AFTER decision (for next turn)
-    this.updatePatience();
 
     return decision;
   }

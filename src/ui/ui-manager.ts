@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/format';
 import { Car } from '@/data/car-database';
-import { GAME_CONFIG } from '@/config/game-config';
+import { GAME_CONFIG, SKILL_METADATA } from '@/config/game-config';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -110,16 +110,17 @@ export class UIManager {
     requiredXP?: number,
     currentLevel?: number
   ): void {
-    const skillIcons = { eye: '👁️', tongue: '💬', network: '🌐' };
-    const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
-    const skillColors = { eye: '#3498db', tongue: '#9b59b6', network: '#e67e22' };
+    const skillMeta = SKILL_METADATA[skill];
+    const skillIcon = skillMeta.icon;
+    const skillName = skillMeta.name;
+    const skillColor = skillMeta.color;
     
     // Calculate vertical position based on active toasts (stack them)
     const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
     const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
     
     // Build toast text with optional progress
-    let toastText = `${skillIcons[skill]} +${amount} ${skillNames[skill]} XP`;
+    let toastText = `${skillIcon} +${amount} ${skillName} XP`;
     if (currentXP !== undefined && requiredXP !== undefined && currentLevel !== undefined) {
       if (requiredXP === 0) {
         toastText += ` (MAX LEVEL)`;
@@ -135,7 +136,7 @@ export class UIManager {
       top: ${topPosition}px;
       right: 20px;
       padding: 12px 20px;
-      background: ${skillColors[skill]};
+      background: ${skillColor};
       color: #fff;
       border-radius: 8px;
       font-size: 14px;
@@ -211,8 +212,9 @@ export class UIManager {
    * @param newLevel - The new skill level
    */
   public showSkillLevelUp(skill: 'eye' | 'tongue' | 'network', newLevel: number): void {
-    const skillIcons = { eye: '👁️', tongue: '💬', network: '🌐' };
-    const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
+    const skillMeta = SKILL_METADATA[skill];
+    const skillIcon = skillMeta.icon;
+    const skillName = skillMeta.name;
     
     // Define unlock descriptions for each skill level
     const unlockDescriptions: Record<string, Record<number, string>> = {
@@ -239,8 +241,8 @@ export class UIManager {
     const description = unlockDescriptions[skill][newLevel] || 'New abilities unlocked!';
     
     this.showModal(
-      `${skillIcons[skill]} LEVEL UP! ${skillNames[skill]} Level ${newLevel}`,
-      `Congratulations! Your ${skillNames[skill]} skill has improved!\\n\\n${description}`,
+      `${skillIcon} LEVEL UP! ${skillName} Level ${newLevel}`,
+      `Congratulations! Your ${skillName} skill has improved!\\n\\n${description}`,
       [{ text: 'Excellent!', onClick: () => {} }]
     );
   }
@@ -771,28 +773,60 @@ export class UIManager {
       borderRadius: '20px',
       padding: '32px',
       minWidth: '400px',
-      maxWidth: '600px',
+      maxWidth: '700px',
+      maxHeight: '85vh',
       zIndex: '1000',
       pointerEvents: 'auto',
       boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      display: 'flex',
+      flexDirection: 'column',
     });
 
     const heading = this.createHeading(title, 2, {
       textAlign: 'center',
       marginBottom: '20px',
+      flexShrink: '0',
     });
 
-    const text = this.createText(message, {
-      textAlign: 'center',
+    // Create content container with scroll
+    const contentContainer = document.createElement('div');
+    Object.assign(contentContainer.style, {
+      overflowY: 'auto',
+      overflowX: 'hidden',
       marginBottom: '20px',
-      fontSize: '16px',
+      flexGrow: '1',
+      flexShrink: '1',
+      wordWrap: 'break-word',
+      textAlign: 'center',
     });
+
+    // Check if message contains HTML tags
+    const isHTML = /<[a-z][\s\S]*>/i.test(message);
+    
+    if (isHTML) {
+      // If it's HTML content, use innerHTML
+      contentContainer.innerHTML = message;
+      // Apply text styling to the container
+      Object.assign(contentContainer.style, {
+        fontSize: '16px',
+        color: '#e0e6ed',
+        lineHeight: '1.6',
+        fontFamily: 'Rajdhani, sans-serif',
+      });
+    } else {
+      // Otherwise use createText for plain text
+      const text = this.createText(message, {
+        fontSize: '16px',
+      });
+      contentContainer.appendChild(text);
+    }
 
     const buttonContainer = document.createElement('div');
     Object.assign(buttonContainer.style, {
       display: 'flex',
       justifyContent: 'center',
       gap: '10px',
+      flexShrink: '0',
     });
 
     buttons.forEach((btn) => {
@@ -805,7 +839,7 @@ export class UIManager {
     });
 
     modal.appendChild(heading);
-    modal.appendChild(text);
+    modal.appendChild(contentContainer);
     modal.appendChild(buttonContainer);
 
     this.append(backdrop);

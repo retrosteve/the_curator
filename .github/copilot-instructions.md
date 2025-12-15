@@ -32,6 +32,33 @@ When working on implementation, you are encouraged to critically evaluate the de
 
 Design docs are living documents. Your feedback improves the game.
 
+## Code Review Guidelines (CRITICAL)
+When conducting code reviews, you MUST verify issues before reporting them:
+
+**DO:**
+- **Trace execution paths** - Follow the actual code flow before claiming something is broken
+- **Check for existing protections** - Look for guards, validation, and error handling already in place
+- **Understand patterns** - Recognize intentional design patterns (singleton, observer, factory) before calling them problems
+- **Verify with examples** - Trace through specific scenarios to confirm bugs actually occur
+- **Distinguish bugs from style** - Only flag actual defects, not just alternative approaches
+- **Test your claims** - If you claim something can fail, trace through the scenario that would cause it
+
+**DON'T:**
+- **Assume bugs without verification** - Don't flag potential issues without confirming they're real
+- **Confuse design choices with defects** - Singletons, God objects, and monolithic files may be intentional
+- **Flag micro-optimizations** - Don't mention minor performance tweaks unless they're actually impacting the game
+- **Report theoretical edge cases** - Only flag edge cases that can realistically occur
+- **Question working code** - If event cleanup works, cache invalidation works, or state management works, don't claim it's broken
+
+**Verification Checklist Before Flagging an Issue:**
+1. Can I trace the exact code path that causes this bug?
+2. Have I checked if there's already protection/validation for this case?
+3. Is this a real defect or just a different design approach?
+4. Would fixing this actually improve the code or just change the style?
+5. Is this theoretical or does it affect actual gameplay?
+
+**When in doubt, DON'T report it.** False positives waste time and create doubt about working code.
+
 ## Docs Drift Checklist
 When you change behavior (rules, costs, flows) update the docs in the same PR.
 

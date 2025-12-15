@@ -192,8 +192,8 @@ export class GameManager {
   }
 
   /**
-   * Take a one-time bank loan (MVP).
-   * Loan repayment is not implemented yet; this is an emergency cash injection.
+   * Take a one-time bank loan.
+   * This is an emergency cash injection.
    */
   public takeBankLoan(): boolean {
     if (!this.canTakeBankLoan()) return false;
@@ -317,16 +317,22 @@ export class GameManager {
 
   /**
    * Check if any new collections were just completed and award bonuses.
+   * Collections are checked against full inventory, not just museum cars.
    * @private
    */
   private checkNewCollectionCompletions(): void {
     const collections = GAME_CONFIG.collections.sets;
     
     for (const [collectionId, collection] of Object.entries(collections)) {
-      const progress = this.getCollectionProgress(collectionId);
+      // Check against full inventory (not just museum)
+      const matchingCars = this.player.inventory.filter(car => 
+        collection.requiredTags.some((tag: string) => car.tags.includes(tag))
+      );
+      
+      const isComplete = matchingCars.length >= collection.requiredCount;
       
       // Check if collection just completed
-      if (progress.isComplete && !this.hasCollectionBeenClaimed(collectionId)) {
+      if (isComplete && !this.hasCollectionBeenClaimed(collectionId)) {
         this.claimCollectionReward(collectionId, collection);
       }
     }
@@ -367,6 +373,7 @@ export class GameManager {
 
   /**
    * Get progress for a specific collection.
+   * Collections track all inventory cars with matching tags, not just museum displays.
    * @param collectionId - The collection identifier from GAME_CONFIG
    * @returns Progress object with current count and completion status
    */
@@ -384,9 +391,8 @@ export class GameManager {
       return { current: 0, required: 0, isComplete: false, isClaimed: false, matchingCars: [] };
     }
     
-    // Find all museum cars that match the collection's required tags
-    const museumCars = this.getMuseumCars();
-    const matchingCars = museumCars.filter(car => 
+    // Find all inventory cars that match the collection's required tags
+    const matchingCars = this.player.inventory.filter(car => 
       collection.requiredTags.some((tag: string) => car.tags.includes(tag))
     );
     
@@ -713,12 +719,9 @@ export class GameManager {
 
     this.player.visitedLocations.add(locationId);
     
-    // Award Network XP for discovering new location
+    // Award Network XP for discovering new location (addSkillXP emits xp-gained event)
     const networkXPGain = GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation;
     const leveledUp = this.addSkillXP('network', networkXPGain);
-    
-    // Emit event for UI feedback
-    eventBus.emit('xp-gained', { skill: 'network', amount: networkXPGain });
     
     if (leveledUp) {
       eventBus.emit('network-levelup', this.player.skills.network as any);

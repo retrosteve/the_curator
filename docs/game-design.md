@@ -125,12 +125,12 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
     - 3 slots: $250/day
     - 4 slots: $400/day
     - 5 slots: $600/day
-  - No debt (MVP): `money` never goes below $0.
+  - No debt: `money` never goes below $0.
   - If you can’t afford rent, you must raise cash before ending the day:
     - Sell a car (if you have one), or
     - Take a bank loan (if one is available).
   - If you still can’t pay rent, you are **bankrupt** and it is **Game Over**.
-  - Bank loan (MVP): a one-time emergency loan that adds cash immediately.
+  - Bank loan: a one-time emergency loan that adds cash immediately.
 - **Market Trends:** Periodic modifiers can shift prices by category (e.g., seasonal demand affecting convertibles).
 
 **Implementation Note:** Market fluctuations are active with seasonal trends and random events:

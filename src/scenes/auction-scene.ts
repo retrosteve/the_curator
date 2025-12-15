@@ -17,8 +17,6 @@ export class AuctionScene extends BaseGameScene {
   private currentBid: number = 0;
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
-  private totalPlayerActions: number = 0;
-  private patienceDamageDealt: number = 0;
 
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
   private static readonly BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
@@ -133,6 +131,7 @@ export class AuctionScene extends BaseGameScene {
     // Patience bar with color coding and status
     const patience = this.rivalAI.getPatience();
     const patiencePercent = Math.max(0, Math.min(100, patience));
+    const thresholds = GAME_CONFIG.auction.patienceThresholds;
     let patienceColor = '#4CAF50'; // Green
     let patienceStatus = '';
     let shakeAnimation = '';
@@ -141,15 +140,15 @@ export class AuctionScene extends BaseGameScene {
       patienceColor = '#000';
       patienceStatus = ' 💥 BREAKING!';
       shakeAnimation = 'shake 0.3s ease-in-out infinite';
-    } else if (patience < 20) {
+    } else if (patience < thresholds.critical) {
       patienceColor = '#f44336';
       patienceStatus = ' ⚠️ About to quit!';
       shakeAnimation = 'shake 0.5s ease-in-out infinite';
-    } else if (patience < 30) {
+    } else if (patience < thresholds.low) {
       patienceColor = '#ff9800';
       patienceStatus = ' 😰 Sweating...';
       shakeAnimation = 'shake 0.8s ease-in-out infinite';
-    } else if (patience < 50) {
+    } else if (patience < thresholds.medium) {
       patienceColor = '#FFC107';
       patienceStatus = ' 😤 Getting annoyed';
     }
@@ -285,11 +284,9 @@ export class AuctionScene extends BaseGameScene {
     }
 
     this.currentBid = newBid;
-    this.totalPlayerActions++;
 
     if (options?.power) {
       this.powerBidStreak++;
-      this.patienceDamageDealt += AuctionScene.POWER_BID_PATIENCE_PENALTY;
       this.rivalAI.onPlayerPowerBid();
       if (this.rivalAI.getPatience() <= 0) {
         this.endAuction(true, `${this.rival.name} lost patience and quit!`);
@@ -314,7 +311,6 @@ export class AuctionScene extends BaseGameScene {
       return;
     }
 
-    this.totalPlayerActions++;
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
 
@@ -349,9 +345,7 @@ export class AuctionScene extends BaseGameScene {
     }
 
     this.stallUsesThisAuction += 1;
-    this.totalPlayerActions++;
     this.powerBidStreak = 0; // Reset streak
-    this.patienceDamageDealt += AuctionScene.STALL_PATIENCE_PENALTY;
     this.rivalAI.onPlayerStall();
     
     if (this.rivalAI.getPatience() <= 0) {

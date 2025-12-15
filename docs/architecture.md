@@ -11,13 +11,13 @@ This document covers implementation constraints; gameplay rules and tuning live 
 ## Rendering & UI (Non-Negotiable)
 - **Engine:** Use Phaser 3 for the game loop and rendering (maps, sprites).
 - **UI Layer:** Use HTML/CSS DOM overlay for all menus, buttons, dialogs, and HUD. Phaser Text objects are acceptable for in-world spatial labels (e.g., map node names, distance markers) where positioning relative to game objects is required.
-- **Tutorial System:** Tutorial dialogues use a dedicated UI system (`UIManager.showTutorialDialogue()`) that is visually distinct and positioned separately from game modals to prevent conflicts. Tutorial dialogues have gold/amber styling and appear at the bottom of the screen.
+- **Tutorial System:** Tutorial progression lives in `TutorialManager`, which emits tutorial UI events via `EventBus`. Scenes render tutorial dialogues via `UIManager.showTutorialDialogue()`; they are visually distinct and positioned separately from game modals to prevent conflicts.
 
 ## DOM Overlay (Implementation Notes)
 - Construct UI via `UIManager.getInstance()` (singleton) inside each Scene `create()`; clear UI on entry.
 - The overlay root is `#ui-overlay` and the Phaser canvas container is `#phaser-game`.
 - Keep the overlay container `pointer-events: none`; set interactive children to `pointer-events: auto`.
-- Tutorial dialogues are rendered via `UIManager.showTutorialDialogue()` and styled with `.tutorial-dialogue` CSS class.
+- Tutorial dialogues are rendered via `UIManager.showTutorialDialogue()` (triggered from scenes) and styled with `.tutorial-dialogue` CSS class.
 - **Custom Modals:** Complex UIs (e.g., restoration specialist selection) use dedicated modal methods (e.g., `UIManager.showRestorationModal()`) with custom layouts instead of generic button-based modals for better UX.
 
 ## Scenes & Transitions

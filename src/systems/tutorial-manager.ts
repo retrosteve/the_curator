@@ -19,7 +19,8 @@ export type TutorialStep =
  * TutorialManager - Singleton managing tutorial progression.
  * Tracks tutorial state and triggers appropriate dialogue/guidance.
  * Tutorial follows the script defined in docs/game-design.md.
- * Tutorial dialogues use a dedicated UI system separate from game modals.
+ * Tutorial UI is emitted via EventBus events and rendered by the scene/UI layer.
+ * Tutorial dialogues are visually distinct and positioned separately from game modals.
  */
 export class TutorialManager {
   private static instance: TutorialManager;
@@ -27,18 +28,6 @@ export class TutorialManager {
   private isActive: boolean = false;
 
   private constructor() {
-    this.setupKeyboardListener();
-  }
-
-  /**
-   * Setup ESC key listener to skip tutorial.
-   */
-  private setupKeyboardListener(): void {
-    window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && this.isActive && this.currentStep !== 'complete') {
-        this.showSkipTutorialPrompt();
-      }
-    });
   }
 
   /**
@@ -52,6 +41,15 @@ export class TutorialManager {
       },
       onContinue: () => {},
     });
+  }
+
+  /**
+   * Request the skip tutorial prompt.
+   * UI is handled elsewhere; this only emits an event when appropriate.
+   */
+  public requestSkipTutorialPrompt(): void {
+    if (!this.isActive || this.currentStep === 'complete') return;
+    this.showSkipTutorialPrompt();
   }
 
   public static getInstance(): TutorialManager {

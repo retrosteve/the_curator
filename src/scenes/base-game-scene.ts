@@ -38,6 +38,12 @@ export abstract class BaseGameScene extends Phaser.Scene {
     this.uiManager.updateHUD({ location });
   };
 
+  protected readonly handleEscapeKey = (): void => {
+    if (!this.tutorialManager.isTutorialActive()) return;
+    if (this.tutorialManager.getCurrentStep() === 'complete') return;
+    this.tutorialManager.requestSkipTutorialPrompt();
+  };
+
   /**
    * Initialize common managers used by all gameplay scenes.
    * Call this in your scene's create() method before setupBackground() and setupUI().
@@ -52,7 +58,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
   }
 
   /**
-   * Setup common event listeners for HUD updates.
+    * Setup common event listeners for HUD updates and cross-scene UI notifications.
    * Call this in your scene's create() method after setupUI().
    * Automatically cleans up on scene shutdown.
    */
@@ -70,6 +76,8 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.on('tutorial-dialogue-show', this.handleTutorialDialogueShow);
     eventBus.on('tutorial-dialogue-hide', this.handleTutorialDialogueHide);
     eventBus.on('tutorial-skip-prompt', this.handleTutorialSkipPrompt);
+
+    this.input.keyboard?.on('keydown-ESC', this.handleEscapeKey);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupCommonEventListeners();
@@ -163,6 +171,8 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('tutorial-dialogue-show', this.handleTutorialDialogueShow);
     eventBus.off('tutorial-dialogue-hide', this.handleTutorialDialogueHide);
     eventBus.off('tutorial-skip-prompt', this.handleTutorialSkipPrompt);
+
+    this.input.keyboard?.off('keydown-ESC', this.handleEscapeKey);
     
     // Clear cached HUD on cleanup
     this.clearCachedHUD();

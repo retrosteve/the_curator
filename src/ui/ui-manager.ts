@@ -50,6 +50,9 @@ export class UIManager {
     return UIManager.instance;
   }
 
+  /**
+   * Returns true if a modal is currently displayed.
+   */
   public isModalOpen(): boolean {
     return document.querySelector('.modal-backdrop') !== null;
   }

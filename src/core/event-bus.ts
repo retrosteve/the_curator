@@ -4,6 +4,8 @@ import type { Car } from '@/data/car-database';
  * Central event contract for the game.
  * Defines all event types and their payload structures for type-safe event handling.
  * Keep keys aligned with `.github/copilot-instructions.md`.
+ * Note: Some events may include callback functions in their payload; events are not intended
+ * for persistence/serialization.
  */
 export type GameEvents = {
   'money-changed': number;

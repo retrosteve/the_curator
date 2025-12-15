@@ -45,6 +45,22 @@ export class AuctionScene extends BaseGameScene {
     console.log('Auction Scene: Loaded');
 
     this.initializeManagers('auction');
+
+    // Defensive guard: this scene should not start if the garage is already full.
+    // Entry points (e.g., MapScene) should prevent this, but keep this to avoid bypasses.
+    const player = this.gameManager.getPlayerState();
+    if (player.inventory.length >= player.garageSlots) {
+      this.uiManager.showModal(
+        'Garage Full',
+        'Your garage is full. Sell or scrap a car before entering an auction.',
+        [
+          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+          { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
+        ]
+      );
+      return;
+    }
+
     this.setupBackground('AUCTION BATTLE!', {
       topColor: 0x8b0000,
       bottomColor: 0x4b0000,

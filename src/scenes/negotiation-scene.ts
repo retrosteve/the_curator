@@ -44,6 +44,22 @@ export class NegotiationScene extends BaseGameScene {
     console.log('Negotiation Scene: Loaded');
 
     this.initializeManagers('negotiation');
+
+    // Defensive guard: this scene should not start if the garage is already full.
+    // Entry points (e.g., MapScene) should prevent this, but keep this to avoid bypasses.
+    const player = this.gameManager.getPlayerState();
+    if (player.inventory.length >= player.garageSlots) {
+      this.uiManager.showModal(
+        'Garage Full',
+        'Your garage is full. Sell or scrap a car before negotiating another purchase.',
+        [
+          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+          { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
+        ]
+      );
+      return;
+    }
+
     // Greenish/Neutral background for negotiation
     this.setupBackground('NEGOTIATION', {
       topColor: 0x2c3e50,

@@ -438,6 +438,10 @@ export class MapScene extends BaseGameScene {
         // Force Rusty Sedan for first inspection/buy
         if (step === 'first_visit_scrapyard' || step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
           const car = getCarById('tutorial_rusty_sedan') || getRandomCar();
+          if (!this.hasGarageSpace()) {
+            this.showGarageFullGate();
+            return;
+          }
           this.scene.start('NegotiationScene', { car });
           return;
         }
@@ -453,6 +457,11 @@ export class MapScene extends BaseGameScene {
             "Sterling Vance",
             "*smirks* Sorry kid, but this Muscle Car is mine. You'll need more than just money to beat me in a bidding war. Watch and learn.",
             () => {
+              if (!this.hasGarageSpace()) {
+                this.showGarageFullGate();
+                return;
+              }
+
               // After dialogue is dismissed, advance step and start auction
               this.tutorialManager.advanceStep('first_loss');
               // Use scene.switch to properly transition - this stops current scene and starts new one
@@ -504,6 +513,10 @@ export class MapScene extends BaseGameScene {
           {
             text: 'Start Auction',
             onClick: () => {
+              if (!this.hasGarageSpace()) {
+                this.showGarageFullGate();
+                return;
+              }
               this.timeSystem.spendAP(AUCTION_AP);
               this.scene.start('AuctionScene', { car, rival, interest });
             },
@@ -517,6 +530,11 @@ export class MapScene extends BaseGameScene {
         this.uiManager.showModal(block.title, block.message, [
           { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
         ]);
+        return;
+      }
+
+      if (!this.hasGarageSpace()) {
+        this.showGarageFullGate();
         return;
       }
 
@@ -552,6 +570,11 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
+    if (!this.hasGarageSpace()) {
+      this.showGarageFullGate();
+      return;
+    }
+
     this.timeSystem.spendAP(INSPECT_AP);
 
     // Show special event description
@@ -562,6 +585,10 @@ export class MapScene extends BaseGameScene {
         {
           text: 'Negotiate Purchase',
           onClick: () => {
+            if (!this.hasGarageSpace()) {
+              this.showGarageFullGate();
+              return;
+            }
             // Remove the event since it's been completed
             this.gameManager.removeSpecialEvent(specialEvent.id);
             this.scene.start('NegotiationScene', {
@@ -570,6 +597,22 @@ export class MapScene extends BaseGameScene {
             });
           },
         },
+      ]
+    );
+  }
+
+  private hasGarageSpace(): boolean {
+    const player = this.gameManager.getPlayerState();
+    return player.inventory.length < player.garageSlots;
+  }
+
+  private showGarageFullGate(): void {
+    this.uiManager.showModal(
+      'Garage Full',
+      'Your garage is full. Sell or scrap a car before acquiring another.',
+      [
+        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+        { text: 'Stay Here', onClick: () => {} },
       ]
     );
   }

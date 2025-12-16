@@ -476,8 +476,9 @@ export class MapScene extends BaseGameScene {
     // Spend AP
     this.timeSystem.spendAP(requiredAP);
 
-    // Update current location for downstream systems/UI
-    this.gameManager.setLocation(node.type);
+    // Update HUD location to the specific place the player is visiting.
+    // (Previously this used node.type which produced generic labels like "scrapyard".)
+    this.gameManager.setLocation(node.name);
 
     // Award Network XP for visiting location (first visit only)
     const isFirstVisit = this.gameManager.visitLocation(node.id);

@@ -197,18 +197,7 @@ export class NegotiationScene extends BaseGameScene {
     
     // Award Tongue XP for haggling
     const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.haggle;
-    const leveledUp = this.gameManager.addSkillXP('tongue', tongueXPGain);
-    this.uiManager.showXPGain('tongue', tongueXPGain);
-    if (leveledUp) {
-      const progress = this.gameManager.getSkillProgress('tongue');
-      setTimeout(() => {
-        this.uiManager.showSkillLevelUpModal(
-          'tongue',
-          progress.level,
-          'You can now haggle more effectively.'
-        );
-      }, 100);
-    }
+    this.gameManager.addSkillXP('tongue', tongueXPGain);
     
     // Simple reduction logic
     const reduction = Math.floor(this.askingPrice * GAME_CONFIG.negotiation.haggleReductionRate);
@@ -229,17 +218,7 @@ export class NegotiationScene extends BaseGameScene {
     this.hasAwardedInspectXP = true;
 
     const eyeXPGain = GAME_CONFIG.player.skillProgression.xpGains.inspect;
-    const leveledUp = this.gameManager.addSkillXP('eye', eyeXPGain);
-    this.uiManager.showXPGain('eye', eyeXPGain);
-
-    if (leveledUp) {
-      const progress = this.gameManager.getSkillProgress('eye');
-      this.uiManager.showSkillLevelUpModal(
-        'eye',
-        progress.level,
-        'You can now spot more details when inspecting cars.'
-      );
-    }
+    this.gameManager.addSkillXP('eye', eyeXPGain);
   }
 
   private handleBuy(): void {

@@ -337,6 +337,7 @@ export class GameManager {
       this.world.dayStats.moneyEarned += amount;
     }
     eventBus.emit('money-changed', this.player.money);
+    this.debouncedSave();
   }
 
   /**
@@ -367,6 +368,7 @@ export class GameManager {
     this.player.bankLoanTaken = true;
     this.player.money += BANK_LOAN_AMOUNT;
     eventBus.emit('money-changed', this.player.money);
+    this.debouncedSave();
     return true;
   }
 
@@ -382,6 +384,7 @@ export class GameManager {
     this.player.money -= amount;
     this.world.dayStats.moneySpent += amount;
     eventBus.emit('money-changed', this.player.money);
+    this.debouncedSave();
     return true;
   }
 
@@ -403,7 +406,11 @@ export class GameManager {
   public addPrestige(amount: number): void {
     if (!Number.isFinite(amount) || amount === 0) return;
     this.player.prestige = Math.max(0, this.player.prestige + amount);
+    if (amount > 0) {
+      this.world.dayStats.prestigeGained += amount;
+    }
     eventBus.emit('prestige-changed', this.player.prestige);
+    this.debouncedSave();
   }
 
   /**
@@ -764,6 +771,7 @@ export class GameManager {
     }
     this.world.currentAP = Math.max(0, this.world.currentAP - cost);
     eventBus.emit('ap-changed', this.world.currentAP);
+    this.debouncedSave();
   }
 
   /**
@@ -865,10 +873,11 @@ export class GameManager {
       this.player.skills[skill] += 1;
       this.player.skillXP[skill] = 0; // Reset XP for next level
       eventBus.emit('skill-levelup', { skill, level: this.player.skills[skill] });
-      this.debouncedSave(); // Auto-save on level-up
+      this.debouncedSave();
       return true;
     }
 
+    this.debouncedSave();
     return false;
   }
 
@@ -904,6 +913,9 @@ export class GameManager {
     // Award Network XP for discovering new location (addSkillXP emits xp-gained event)
     const networkXPGain = GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation;
     this.addSkillXP('network', networkXPGain);
+
+    // Ensure the new visited location persists even if XP is maxed.
+    this.debouncedSave();
 
     return true; // First visit
   }

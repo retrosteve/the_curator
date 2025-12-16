@@ -27,7 +27,6 @@ export class AuctionScene extends BaseGameScene {
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
   private auctionMarketEstimateValue: number = 0;
-  private auctionMarketEstimateModifier: number = 1;
   private auctionMarketEstimateFactors: string[] = [];
 
   private activeRivalBubble?: HTMLDivElement;
@@ -64,7 +63,6 @@ export class AuctionScene extends BaseGameScene {
     this.stallUsesThisAuction = 0;
     this.powerBidStreak = 0;
     this.auctionMarketEstimateValue = 0;
-    this.auctionMarketEstimateModifier = 1;
     this.auctionMarketEstimateFactors = [];
 
     this.activeRivalBubble = undefined;
@@ -84,7 +82,6 @@ export class AuctionScene extends BaseGameScene {
     // Market-aware estimate (cache once for this auction to avoid UI drift).
     const baseValue = calculateCarValue(this.car);
     const marketInfo = this.gameManager.getCarMarketInfo(this.car.tags);
-    this.auctionMarketEstimateModifier = marketInfo.modifier;
     this.auctionMarketEstimateFactors = marketInfo.factors;
     this.auctionMarketEstimateValue = Math.floor(baseValue * marketInfo.modifier);
 
@@ -104,6 +101,25 @@ export class AuctionScene extends BaseGameScene {
       this.uiManager.showModal(
         'Garage Full',
         'Your garage is full. Sell or scrap a car before entering an auction.',
+        [
+          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+          { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
+        ]
+      );
+      return;
+    }
+
+    // Defensive guard: don't start an auction if the player can't even afford the opening bid.
+    // Important: do NOT consume the daily offer in this case (player never meaningfully participated).
+    if (player.money < this.currentBid) {
+      this.uiManager.showModal(
+        'Not Enough Money',
+        `You can't afford the opening bid for this auction.
+
+Opening bid: ${formatCurrency(this.currentBid)}
+Your money: ${formatCurrency(player.money)}
+
+Tip: Visit the Garage to sell something, then come back.`,
         [
           { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
           { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
@@ -215,7 +231,7 @@ export class AuctionScene extends BaseGameScene {
     const marketValue = this.auctionMarketEstimateValue;
 
     const carPanel = this.uiManager.createCarInfoPanel(this.car, {
-      showValue: true,
+      showValue: false,
       titleColor: '#ffd700',
       style: {
         marginBottom: '12px',
@@ -225,7 +241,7 @@ export class AuctionScene extends BaseGameScene {
 
     leftPanel.appendChild(
       this.uiManager.createText(
-        `Your estimate: ${formatCurrency(marketValue)} (market x${this.auctionMarketEstimateModifier.toFixed(2)})`,
+        `Estimated Value: ${formatCurrency(marketValue)}`,
         { fontSize: '13px', color: '#ccc', textAlign: 'center', margin: '0 0 12px 0' }
       )
     );
@@ -353,27 +369,42 @@ export class AuctionScene extends BaseGameScene {
       fontSize: '15px',
     };
 
-    buttonGrid.appendChild(
-      this.uiManager.createButton(
-        `Bid\n+${formatCurrency(AuctionScene.BID_INCREMENT)}`,
-        () => this.playerBid(AuctionScene.BID_INCREMENT),
-        { variant: 'primary', style: buttonTextStyle }
-      )
+    const bidBtn = this.uiManager.createButton(
+      `Bid\n+${formatCurrency(AuctionScene.BID_INCREMENT)}`,
+      () => this.playerBid(AuctionScene.BID_INCREMENT),
+      { variant: 'primary', style: buttonTextStyle }
     );
+    const bidTotal = this.currentBid + AuctionScene.BID_INCREMENT;
+    if (player.money < bidTotal) {
+      bidBtn.disabled = true;
+      bidBtn.style.opacity = '0.6';
+      bidBtn.textContent = `Bid\nNeed ${formatCurrency(bidTotal)}`;
+    }
+    buttonGrid.appendChild(bidBtn);
 
-    buttonGrid.appendChild(
-      this.uiManager.createButton(
-        `Power Bid\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} · Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY}`,
-        () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
-        { variant: 'warning', style: buttonTextStyle }
-      )
+    const powerBidBtn = this.uiManager.createButton(
+      `Power Bid\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} · Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY}`,
+      () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
+      { variant: 'warning', style: buttonTextStyle }
     );
+    const powerBidTotal = this.currentBid + AuctionScene.POWER_BID_INCREMENT;
+    if (player.money < powerBidTotal) {
+      powerBidBtn.disabled = true;
+      powerBidBtn.style.opacity = '0.6';
+      powerBidBtn.textContent = `Power Bid\nNeed ${formatCurrency(powerBidTotal)}`;
+    }
+    buttonGrid.appendChild(powerBidBtn);
 
     const kickTiresBtn = this.uiManager.createButton(
       `Kick Tires\nEye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ · Budget -${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)}`,
       () => this.playerKickTires(),
       { variant: 'info', style: buttonTextStyle }
     );
+    if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
+      kickTiresBtn.disabled = true;
+      kickTiresBtn.style.opacity = '0.6';
+      kickTiresBtn.textContent = `Kick Tires\nRequires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+`;
+    }
     buttonGrid.appendChild(kickTiresBtn);
 
     const maxStalls = player.skills.tongue;
@@ -417,11 +448,11 @@ export class AuctionScene extends BaseGameScene {
       position: 'sticky',
       top: '0',
       zIndex: '1',
-      backgroundColor: 'rgba(0,0,0,0.35)',
-      margin: '-18px -18px 10px -18px',
+      // Opaque header so log text doesn't show through underneath while scrolling.
+      backgroundColor: 'rgba(0,0,0,0.92)',
+      margin: '0 -18px 10px -18px',
       padding: '10px 18px',
       borderBottom: '1px solid rgba(255,255,255,0.12)',
-      backdropFilter: 'blur(2px)',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const logHeading = this.uiManager.createHeading('Log', 3, {
@@ -433,16 +464,37 @@ export class AuctionScene extends BaseGameScene {
 
     const entries = this.auctionLog.slice(-20);
     for (const entry of entries) {
-      const style = this.getLogStyle(entry.kind);
-      logPanel.appendChild(
-        this.uiManager.createText(`• ${entry.text}`, {
-          fontSize: '13px',
-          color: style.color,
-          fontWeight: style.fontWeight,
-          margin: '0 0 6px 0',
-          lineHeight: '1.3',
-        })
-      );
+      const kindStyle = this.getLogStyle(entry.kind);
+      const line = document.createElement('div');
+      Object.assign(line.style, {
+        fontSize: '13px',
+        margin: '0 0 6px 0',
+        lineHeight: '1.3',
+        color: '#ccc',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const bullet = document.createElement('span');
+      bullet.textContent = '• ';
+      line.appendChild(bullet);
+
+      const colonIndex = entry.text.indexOf(':');
+      if (colonIndex > 0) {
+        const prefix = document.createElement('span');
+        prefix.textContent = entry.text.slice(0, colonIndex + 1);
+        prefix.style.color = kindStyle.color;
+        if (kindStyle.fontWeight) prefix.style.fontWeight = kindStyle.fontWeight;
+        line.appendChild(prefix);
+
+        const rest = document.createElement('span');
+        rest.textContent = entry.text.slice(colonIndex + 1);
+        line.appendChild(rest);
+      } else {
+        const whole = document.createElement('span');
+        whole.textContent = entry.text;
+        line.appendChild(whole);
+      }
+
+      logPanel.appendChild(line);
     }
 
     bottomGrid.appendChild(actionsPanel);
@@ -467,7 +519,12 @@ export class AuctionScene extends BaseGameScene {
     log?: string,
     logKind: AuctionLogKind = 'warning'
   ): void {
-    const logEntry = (log ?? toast).trim();
+    let logEntry = (log ?? toast).trim();
+    // Ensure non-speech lines still get the prefix-based coloring.
+    if (logEntry && !logEntry.includes(':')) {
+      if (logKind === 'error') logEntry = `Error: ${logEntry}`;
+      else if (logKind === 'warning') logEntry = `Warning: ${logEntry}`;
+    }
     if (logEntry) {
       const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
       if (!last || last.text !== logEntry) {
@@ -611,9 +668,9 @@ export class AuctionScene extends BaseGameScene {
     this.currentBid = newBid;
 
     if (options?.power) {
-      this.appendAuctionLog(`You power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
+      this.appendAuctionLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
     } else {
-      this.appendAuctionLog(`You bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
+      this.appendAuctionLog(`You: Bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
     }
 
     // Trigger rival reaction to being outbid
@@ -659,7 +716,7 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
 
-    this.appendAuctionLog(`You kick tires (pressure applied; they look less willing to spend).`, 'player');
+    this.appendAuctionLog(`You: Kick tires (pressure applied; they look less willing to spend).`, 'player');
 
     if (this.currentBid > this.rivalAI.getBudget()) {
       this.endAuction(true, `${this.rival.name} is out of budget and quits!`);
@@ -697,7 +754,7 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerStall();
 
-    this.appendAuctionLog(`You stall (-${AuctionScene.STALL_PATIENCE_PENALTY} rival patience).`, 'player');
+    this.appendAuctionLog(`You: Stall (-${AuctionScene.STALL_PATIENCE_PENALTY} rival patience).`, 'player');
     this.maybeToastPatienceWarning();
     
     // Check for patience reaction
@@ -729,7 +786,7 @@ export class AuctionScene extends BaseGameScene {
     const decision = this.rivalAI.decideBid(this.currentBid);
 
     if (!decision.shouldBid) {
-      this.appendAuctionLog(`${this.rival.name} ${decision.reason}.`, 'rival');
+      this.appendAuctionLog(`${this.rival.name}: ${decision.reason}.`, 'rival');
       this.endAuction(true, `${this.rival.name} ${decision.reason}!`);
     } else {
       this.currentBid += decision.bidAmount;
@@ -742,17 +799,18 @@ export class AuctionScene extends BaseGameScene {
       let flavorText = '';
       
       if (patience < 20) {
-        flavorText = '\n\n"This is my FINAL offer!"';
+        flavorText = '\n\nFinal offer!';
       } else if (patience < 30) {
-        flavorText = '\n\n"I\'m getting tired of this..."';
+        flavorText = '\n\nGetting tired of this...';
       } else if (patience < 50) {
-        flavorText = '\n\n"You\'re really pushing it."';
+        flavorText = '\n\nYou\'re really pushing it.';
       }
 
       const flavorInline = flavorText.replace(/\n+/g, ' ').trim();
       this.appendAuctionLog(
-        `${this.rival.name} bids +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`
-      , 'rival');
+        `${this.rival.name}: Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
+        'rival'
+      );
       
       setTimeout(() => {
         // Non-blocking update: refresh UI and keep momentum.

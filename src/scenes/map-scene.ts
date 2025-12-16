@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
-import { getCarById, getRandomCar } from '@/data/car-database';
+import { calculateCarValue, getCarById, getRandomCar, type Car } from '@/data/car-database';
 import { calculateRivalInterest, getRivalById } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { BASE_LOCATIONS, type LocationType } from '@/data/location-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
 import { buildSpecialEventCar, routeRegularEncounter } from '@/systems/map-encounter-router';
+import { formatCurrency } from '@/utils/format';
 
 const AUCTION_AP = GAME_CONFIG.timeCosts.auctionAP;
 const INSPECT_AP = GAME_CONFIG.timeCosts.inspectAP;
@@ -33,6 +34,25 @@ interface MapNode {
 export class MapScene extends BaseGameScene {
   private nodes: MapNode[] = [];
   private dashboardContainer: HTMLElement | null = null;
+
+  private getAuctionOpeningBid(car: Car): number {
+    const baseValue = calculateCarValue(car);
+    const marketInfo = this.gameManager.getCarMarketInfo(car.tags);
+    const estimate = Math.floor(baseValue * marketInfo.modifier);
+    return Math.floor(estimate * GAME_CONFIG.auction.startingBidMultiplier);
+  }
+
+  private showCannotAffordAuctionModal(openingBid: number): void {
+    const player = this.gameManager.getPlayerState();
+    this.uiManager.showModal(
+      'Not Enough Money',
+      `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nTip: Visit the Garage to sell something, then come back.`,
+      [
+        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+        { text: 'OK', onClick: () => {} },
+      ]
+    );
+  }
 
   constructor() {
     super({ key: 'MapScene' });
@@ -341,6 +361,13 @@ export class MapScene extends BaseGameScene {
                 return;
               }
 
+              const player = this.gameManager.getPlayerState();
+              const openingBid = this.getAuctionOpeningBid(car);
+              if (player.money < openingBid) {
+                this.showCannotAffordAuctionModal(openingBid);
+                return;
+              }
+
               // After dialogue is dismissed, advance step and start auction
               this.tutorialManager.advanceStep('first_loss');
               this.timeSystem.spendAP(AUCTION_AP);
@@ -412,6 +439,13 @@ export class MapScene extends BaseGameScene {
             onClick: () => {
               if (!this.hasGarageSpace()) {
                 this.showGarageFullGate();
+                return;
+              }
+
+              const player = this.gameManager.getPlayerState();
+              const openingBid = this.getAuctionOpeningBid(car);
+              if (player.money < openingBid) {
+                this.showCannotAffordAuctionModal(openingBid);
                 return;
               }
               this.timeSystem.spendAP(routed.apCost);

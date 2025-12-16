@@ -152,6 +152,18 @@ export class MapScene extends BaseGameScene {
     const canSeeRivals = player.skills.network >= 2;
     const apCost = isGarage ? 0 : (node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelAP);
 
+    // Check for locks
+    let isLocked = false;
+    let lockReason = '';
+    
+    if (node.type === 'dealership' && player.prestige < GAME_CONFIG.progression.unlocks.dealership) {
+      isLocked = true;
+      lockReason = `Requires ${GAME_CONFIG.progression.unlocks.dealership} Prestige`;
+    } else if (node.type === 'auction' && player.prestige < GAME_CONFIG.progression.unlocks.auction) {
+      isLocked = true;
+      lockReason = `Requires ${GAME_CONFIG.progression.unlocks.auction} Prestige`;
+    }
+
     const world = this.gameManager.getWorldState();
     const offerMap = world.carOfferByLocation ?? {};
     const isExhaustedToday =
@@ -181,6 +193,12 @@ export class MapScene extends BaseGameScene {
       card.style.cursor = 'not-allowed';
       card.style.opacity = '0.65';
     }
+    
+    if (isLocked) {
+      card.style.cursor = 'not-allowed';
+      card.style.opacity = '0.5';
+      card.style.filter = 'grayscale(0.8)';
+    }
 
     // Add color accent bar
     const accent = document.createElement('div');
@@ -190,7 +208,7 @@ export class MapScene extends BaseGameScene {
       left: 0;
       width: 4px;
       height: 100%;
-      background: ${hexColor};
+      background: ${isLocked ? '#999' : hexColor};
     `;
     card.appendChild(accent);
 
@@ -204,7 +222,7 @@ export class MapScene extends BaseGameScene {
       padding-left: 8px;
     `;
     
-    const icon = this.getLocationIcon(node);
+    const icon = isLocked ? '🔒' : this.getLocationIcon(node);
     const iconSpan = document.createElement('span');
     iconSpan.textContent = icon;
     iconSpan.style.cssText = 'font-size: 28px;';
@@ -224,7 +242,7 @@ export class MapScene extends BaseGameScene {
 
     // Description
     const desc = document.createElement('div');
-    desc.textContent = this.getLocationDescription(node);
+    desc.textContent = isLocked ? 'Increase your Prestige to gain access to this location.' : this.getLocationDescription(node);
     desc.style.cssText = `
       color: rgba(255,255,255,0.7);
       font-size: 13px;
@@ -244,134 +262,169 @@ export class MapScene extends BaseGameScene {
       padding-left: 8px;
     `;
 
-    // AP cost badge
-    if (!isGarage) {
-      const apBadge = document.createElement('span');
-      apBadge.textContent = `⚡ ${apCost} AP`;
-      apBadge.style.cssText = `
-        background: rgba(255,215,0,0.2);
-        color: #ffd700;
+    if (isLocked) {
+      const lockBadge = document.createElement('span');
+      lockBadge.textContent = `🔒 ${lockReason}`;
+      lockBadge.style.cssText = `
+        background: rgba(100,100,100,0.5);
+        color: #fff;
         padding: 4px 8px;
         border-radius: 4px;
         font-size: 12px;
         font-weight: bold;
       `;
-      statusBar.appendChild(apBadge);
+      statusBar.appendChild(lockBadge);
     } else {
-      const homeBadge = document.createElement('span');
-      homeBadge.textContent = 'FREE';
-      homeBadge.style.cssText = `
-        background: rgba(46,204,113,0.2);
-        color: #2ecc71;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-      `;
-      statusBar.appendChild(homeBadge);
-    }
+      // AP cost badge
+      if (!isGarage) {
+        const apBadge = document.createElement('span');
+        apBadge.textContent = `⚡ ${apCost} AP`;
+        apBadge.style.cssText = `
+          background: rgba(255,215,0,0.2);
+          color: #ffd700;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+        `;
+        statusBar.appendChild(apBadge);
+      } else {
+        const homeBadge = document.createElement('span');
+        homeBadge.textContent = 'FREE';
+        homeBadge.style.cssText = `
+          background: rgba(46,204,113,0.2);
+          color: #2ecc71;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+        `;
+        statusBar.appendChild(homeBadge);
+      }
 
-    // Exhausted badge (only after the location's daily offer has been consumed)
-    if (isExhaustedToday) {
-      const exhaustedBadge = document.createElement('span');
-      exhaustedBadge.textContent = '🚫 EXHAUSTED TODAY';
-      exhaustedBadge.style.cssText = `
-        background: rgba(244, 67, 54, 0.2);
-        color: #f44336;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-      `;
-      statusBar.appendChild(exhaustedBadge);
-    }
+      // Exhausted badge (only after the location's daily offer has been consumed)
+      if (isExhaustedToday) {
+        const exhaustedBadge = document.createElement('span');
+        exhaustedBadge.textContent = '🚫 EXHAUSTED TODAY';
+        exhaustedBadge.style.cssText = `
+          background: rgba(244, 67, 54, 0.2);
+          color: #f44336;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+        `;
+        statusBar.appendChild(exhaustedBadge);
+      }
 
-    // Rival indicator (requires Network 2+)
-    if (hasRival && canSeeRivals) {
-      const rivalBadge = document.createElement('span');
-      rivalBadge.textContent = '⚔️ RIVAL PRESENT TODAY';
-      rivalBadge.style.cssText = `
-        background: rgba(255,69,58,0.2);
-        color: #ff453a;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-      `;
-      rivalBadge.title = 'This is locked in for the current day.';
-      statusBar.appendChild(rivalBadge);
-    }
+      // Rival indicator (requires Network 2+)
+      if (hasRival && canSeeRivals) {
+        const rivalBadge = document.createElement('span');
+        rivalBadge.textContent = '⚔️ RIVAL PRESENT TODAY';
+        rivalBadge.style.cssText = `
+          background: rgba(255,69,58,0.2);
+          color: #ff453a;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+        `;
+        rivalBadge.title = 'This is locked in for the current day.';
+        statusBar.appendChild(rivalBadge);
+      }
 
-    // Special event indicator
-    if (node.type === 'special') {
-      const specialBadge = document.createElement('span');
-      specialBadge.textContent = '✨ SPECIAL';
-      specialBadge.style.cssText = `
-        background: rgba(191,64,191,0.2);
-        color: #bf40bf;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-      `;
-      statusBar.appendChild(specialBadge);
+      // Special event indicator
+      if (node.type === 'special') {
+        const specialBadge = document.createElement('span');
+        specialBadge.textContent = '✨ SPECIAL';
+        specialBadge.style.cssText = `
+          background: rgba(191,64,191,0.2);
+          color: #bf40bf;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: bold;
+        `;
+        statusBar.appendChild(specialBadge);
+      }
     }
 
     card.appendChild(statusBar);
 
     // Visit button
     const button = document.createElement('button');
-    button.textContent = isGarage ? 'Return Home' : 'Visit Location';
+    button.textContent = isLocked ? 'Locked' : (isGarage ? 'Return Home' : 'Visit Location');
+    button.disabled = isLocked;
     button.style.cssText = `
       width: 100%;
       padding: 10px;
-      background: ${hexColor};
-      color: #fff;
+      background: ${isLocked ? '#555' : hexColor};
+      color: ${isLocked ? '#aaa' : '#fff'};
       border: none;
       border-radius: 6px;
       font-size: 14px;
       font-weight: bold;
-      cursor: pointer;
+      cursor: ${isLocked ? 'not-allowed' : 'pointer'};
       transition: all 0.2s ease;
       margin-top: 8px;
     `;
 
-    button.addEventListener('mouseenter', () => {
-      if (isExhaustedToday) return;
-      button.style.transform = 'translateY(-2px)';
-      button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-    });
+    if (!isLocked) {
+      button.addEventListener('mouseenter', () => {
+        if (isExhaustedToday) return;
+        button.style.transform = 'translateY(-2px)';
+        button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+      });
 
-    button.addEventListener('mouseleave', () => {
-      button.style.transform = 'translateY(0)';
-      button.style.boxShadow = 'none';
-    });
+      button.addEventListener('mouseleave', () => {
+        button.style.transform = 'translateY(0)';
+        button.style.boxShadow = 'none';
+      });
+    }
 
     button.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.visitNode(node);
+      if (isLocked) {
+        this.uiManager.showModal(
+          'Location Locked',
+          `You need ${lockReason} to access this location.\n\nEarn Prestige by restoring and selling cars, or by displaying them in your museum.`,
+          [{ text: 'OK', onClick: () => {} }]
+        );
+      } else {
+        this.visitNode(node);
+      }
     });
 
     card.appendChild(button);
 
     // Hover effect for entire card
-    card.addEventListener('mouseenter', () => {
-      if (isExhaustedToday) return;
-      card.style.transform = 'translateY(-4px)';
-      card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4)';
-      card.style.borderColor = 'rgba(255,255,255,0.4)';
-    });
+    if (!isLocked) {
+      card.addEventListener('mouseenter', () => {
+        if (isExhaustedToday) return;
+        card.style.transform = 'translateY(-4px)';
+        card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4)';
+        card.style.borderColor = 'rgba(255,255,255,0.4)';
+      });
 
-    card.addEventListener('mouseleave', () => {
-      if (isExhaustedToday) return;
-      card.style.transform = 'translateY(0)';
-      card.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
-      card.style.borderColor = 'rgba(255,255,255,0.2)';
-    });
+      card.addEventListener('mouseleave', () => {
+        if (isExhaustedToday) return;
+        card.style.transform = 'translateY(0)';
+        card.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
+        card.style.borderColor = 'rgba(255,255,255,0.2)';
+      });
+    }
 
     // Click card to visit
     card.addEventListener('click', () => {
-      this.visitNode(node);
+      if (isLocked) {
+        this.uiManager.showModal(
+          'Location Locked',
+          `You need ${lockReason} to access this location.\n\nEarn Prestige by restoring and selling cars, or by displaying them in your museum.`,
+          [{ text: 'OK', onClick: () => {} }]
+        );
+      } else {
+        this.visitNode(node);
+      }
     });
 
     return card;

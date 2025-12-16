@@ -15,6 +15,53 @@ export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 export type RivalMood = 'Desperate' | 'Cautious' | 'Confident' | 'Normal';
 
 /**
+ * Rival Bark Triggers
+ */
+export type BarkTrigger = 'bid' | 'outbid' | 'win' | 'lose' | 'patience_low';
+
+/**
+ * Get a bark (dialogue line) for a rival based on their mood and the situation.
+ * @param mood - The rival's current mood
+ * @param trigger - The event triggering the bark
+ * @returns A string of dialogue
+ */
+export function getRivalBark(mood: RivalMood, trigger: BarkTrigger): string {
+  const barks: Record<RivalMood, Record<BarkTrigger, string[]>> = {
+    Desperate: {
+      bid: ["I... I really need this win!", "Don't push me!", "I'm all in on this one!"],
+      outbid: ["No! That's too much!", "You're ruining me!", "Please, just let me have it!"],
+      win: ["Finally! A win!", "Thank goodness...", "I needed that."],
+      lose: ["Disaster... absolute disaster.", "What am I going to do now?", "You'll regret this!"],
+      patience_low: ["I can't take this anymore!", "My nerves are shot!", "Just end it already!"]
+    },
+    Cautious: {
+      bid: ["Let's be reasonable here.", "A calculated offer.", "I'm watching the margins."],
+      outbid: ["That's getting expensive.", "Is it really worth that much?", "I might have to fold."],
+      win: ["A sensible acquisition.", "Good value for money.", "Glad we didn't overpay."],
+      lose: ["Too rich for my blood.", "I'll find a better deal elsewhere.", "You overpaid."],
+      patience_low: ["This is taking too long.", "I'm losing interest.", "Time is money."]
+    },
+    Confident: {
+      bid: ["Is that all you've got?", "Top that!", "I'm just getting started."],
+      outbid: ["Cute. Watch this.", "You're playing with the big dogs now.", "Pocket change."],
+      win: ["Too easy!", "Another trophy for the collection.", "Knew I'd win."],
+      lose: ["Whatever, I didn't want it anyway.", "Keep your junk.", "I have better cars at home."],
+      patience_low: ["You're boring me.", "Are we done yet?", "Stop wasting my time."]
+    },
+    Normal: {
+      bid: ["I'll bid.", "Here's my offer.", "Let's keep this moving."],
+      outbid: ["Higher? Fine.", "I can match that.", "Okay, let's go."],
+      win: ["Good auction.", "I'll take it.", "Nice doing business."],
+      lose: ["Fair play.", "It's yours.", "I'm out."],
+      patience_low: ["Getting tired of this.", "Make up your mind.", "Last chance."]
+    }
+  };
+
+  const options = barks[mood][trigger];
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+/**
  * Get mood modifiers for rival behavior.
  * @param mood - The rival's current mood
  * @returns Object with patience and budget modifiers

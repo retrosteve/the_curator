@@ -14,7 +14,7 @@ export class UIManager {
   private container: HTMLElement;
   private tutorialDialogueElement: HTMLElement | null = null;
   private tutorialBackdropElement: HTMLElement | null = null;
-  private activeToasts: HTMLElement[] = []; // Track active XP toasts for stacking
+  private activeToasts: HTMLElement[] = []; // Track active toasts for stacking
 
   private static ensureStyleElement(id: string, cssText: string): void {
     if (document.getElementById(id)) return;
@@ -205,6 +205,85 @@ export class UIManager {
       // Reposition remaining toasts
       this.repositionToasts();
     }, GAME_CONFIG.ui.toast.animationDuration);
+  }
+
+  /**
+   * Show a generic toast notification.
+   * Intended for lightweight feedback that should not block gameplay.
+   */
+  public showToast(
+    message: string,
+    options?: { backgroundColor?: string; durationMs?: number }
+  ): void {
+    const safeMessage = message?.trim();
+    if (!safeMessage) return;
+
+    const durationMs = options?.durationMs ?? GAME_CONFIG.ui.toast.animationDuration;
+    const backgroundColor = options?.backgroundColor ?? 'rgba(44, 62, 80, 0.95)';
+
+    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
+    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
+
+    const toast = document.createElement('div');
+    toast.textContent = safeMessage;
+    toast.style.cssText = `
+      position: fixed;
+      top: ${topPosition}px;
+      right: 20px;
+      padding: 12px 20px;
+      background: ${backgroundColor};
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      pointer-events: none;
+      z-index: 10000;
+      animation: toastSlideInFadeOut ${durationMs}ms ease-out forwards;
+      transition: top 0.3s ease;
+      max-width: 380px;
+      white-space: pre-wrap;
+    `;
+
+    this.activeToasts.push(toast);
+
+    UIManager.ensureStyleElement(
+      'genericToastAnimation',
+      `
+        @keyframes toastSlideInFadeOut {
+          0% {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+          15% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          85% {
+            opacity: 1;
+            transform: translateX(0);
+          }
+          100% {
+            opacity: 0;
+            transform: translateX(100px);
+          }
+        }
+      `
+    );
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+
+      const index = this.activeToasts.indexOf(toast);
+      if (index > -1) {
+        this.activeToasts.splice(index, 1);
+      }
+      this.repositionToasts();
+    }, durationMs);
   }
 
   /**

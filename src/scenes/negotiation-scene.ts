@@ -18,6 +18,10 @@ export class NegotiationScene extends BaseGameScene {
   private lowestPrice: number = 0;
   private negotiationCount: number = 0;
   private hasAwardedInspectXP: boolean = false;
+  private marketModifier: number = 1;
+  private marketFactors: string[] = [];
+  private baseEstimatedValue: number = 0;
+  private marketEstimatedValue: number = 0;
 
   constructor() {
     super({ key: 'NegotiationScene' });
@@ -28,28 +32,33 @@ export class NegotiationScene extends BaseGameScene {
     this.specialEvent = data.specialEvent;
     this.locationId = data.locationId;
     this.encounterStarted = false;
-    // Seller starts asking for 120% of value (or market value)
-    const value = calculateCarValue(this.car);
-    this.askingPrice = Math.floor(value * GAME_CONFIG.negotiation.askingPriceMultiplier);
-    // Seller won't go below 90% of value
-    this.lowestPrice = Math.floor(value * GAME_CONFIG.negotiation.lowestPriceMultiplier);
+    // Prices will be calculated in create() once managers are initialized (market system depends on day).
+    this.askingPrice = 0;
+    this.lowestPrice = 0;
     this.negotiationCount = 0;
     this.hasAwardedInspectXP = false;
-
-    // Handle special event modifiers
-    if (this.specialEvent) {
-      // Apply special event price modifiers
-      if (this.specialEvent.reward.priceMultiplier) {
-        this.askingPrice = Math.floor(this.askingPrice * this.specialEvent.reward.priceMultiplier);
-        this.lowestPrice = Math.floor(this.lowestPrice * this.specialEvent.reward.priceMultiplier);
-      }
-    }
+    this.marketModifier = 1;
+    this.marketFactors = [];
+    this.baseEstimatedValue = 0;
+    this.marketEstimatedValue = 0;
   }
 
   create(): void {
     console.log('Negotiation Scene: Loaded');
 
     this.initializeManagers('negotiation');
+
+    // Market-aware pricing.
+    this.baseEstimatedValue = calculateCarValue(this.car);
+    const marketInfo = this.gameManager.getCarMarketInfo(this.car.tags);
+    this.marketModifier = marketInfo.modifier;
+    this.marketFactors = marketInfo.factors;
+    this.marketEstimatedValue = Math.floor(this.baseEstimatedValue * this.marketModifier);
+
+    // Seller starts asking for 120% of market-adjusted value.
+    this.askingPrice = Math.floor(this.marketEstimatedValue * GAME_CONFIG.negotiation.askingPriceMultiplier);
+    // Seller won't go below 90% of market-adjusted value.
+    this.lowestPrice = Math.floor(this.marketEstimatedValue * GAME_CONFIG.negotiation.lowestPriceMultiplier);
 
     // Defensive guard: this scene should not start if the garage is already full.
     // Entry points (e.g., MapScene) should prevent this, but keep this to avoid bypasses.
@@ -114,6 +123,22 @@ export class NegotiationScene extends BaseGameScene {
     priceTag.id = 'asking-price';
     // Insert price after title (first child is title)
     infoPanel.insertBefore(priceTag, infoPanel.children[1]);
+
+    // Market breakdown (why this price)
+    const factorText = this.marketFactors.length > 0
+      ? this.marketFactors.join(' | ')
+      : 'No active market modifiers.';
+    const marketBreakdown = this.uiManager.createText(
+      `Estimated Value: ${formatCurrency(this.baseEstimatedValue)} | Market: x${this.marketModifier.toFixed(2)} (${factorText}) | Market Value: ${formatCurrency(this.marketEstimatedValue)}`,
+      {
+        color: '#bdc3c7',
+        fontSize: '13px',
+        textAlign: 'center',
+        lineHeight: '1.4',
+        marginBottom: '10px',
+      }
+    );
+    infoPanel.insertBefore(marketBreakdown, priceTag.nextSibling);
 
     // Hidden details (Eye Skill)
     if (player.skills.eye >= 2 && this.car.history && this.car.history.length > 0) {
@@ -203,13 +228,6 @@ export class NegotiationScene extends BaseGameScene {
     const reduction = Math.floor(this.askingPrice * GAME_CONFIG.negotiation.haggleReductionRate);
     this.askingPrice = Math.max(this.lowestPrice, this.askingPrice - reduction);
 
-    // Update UI
-    const priceTag = document.getElementById('asking-price');
-    if (priceTag) {
-      priceTag.textContent = `Asking Price: ${formatCurrency(this.askingPrice)}`;
-    }
-
-    // Refresh buttons
     this.setupUI();
   }
 

@@ -41,6 +41,13 @@ export const GAME_CONFIG = {
     maxAP: 18, // Action Points per day (increased from 15 for better pacing)
   },
 
+  progression: {
+    unlocks: {
+      dealership: 50, // Prestige required to access Dealership
+      auction: 150,   // Prestige required to access Auction House
+    }
+  },
+
   player: {
     startingMoney: 8000,
     startingGarageSlots: 1,

@@ -142,15 +142,14 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 ### Special Events System
 Special Events add dynamic variety to the exploration phase, appearing as temporary map nodes that offer unique opportunities.
 
-- **Event Generation:** 15% chance per day for 1-2 special events to spawn on the map.
+- **Event Generation:** Checked at day end. If no event has spawned in the last 2+ days, there is a 30% chance to spawn 1 new special event.
 - **Event Types:**
-  - **Estate Sale:** High-value cars at discounted prices (0.8x asking price multiplier).
-  - **Barn Find:** Rare cars with guaranteed tags, but may have hidden damage.
-  - **Private Collection:** Prestige cars with money bonuses upon purchase.
-  - **Clearance Event:** Multiple cheap cars available at once.
-- **Event Duration:** Events last 1-2 days before disappearing.
-- **Rewards:** Events can provide bonuses like money rewards, prestige boosts, or guaranteed car tags.
-- **Time Cost:** Visiting special events costs inspection time (30 minutes) instead of travel time.
+  - **Police Impound Auction** (`policeAuction`): discounted cars with risk tags; prestige bonus.
+  - **Abandoned Barn Discovery** (`barnFind`): premium value multiplier with guaranteed tags; prestige bonus.
+  - **VIP Collector Showcase** (`vipEvent`): very high value multiplier with large prestige bonus; short duration.
+  - **Dealer Liquidation Sale** (`dealerClearance`): discounted cars plus a small money bonus; longer duration.
+- **Event Duration:** Events expire after a small number of days (varies by type; currently 1-4 days).
+- **Rewards:** Events can modify the generated car (e.g., guaranteed tags and value multipliers) and may grant money/prestige bonuses on purchase.
 - **Time Cost:** Visiting special events costs a fixed Action Point cost (varies by event) and does not additionally charge the normal inspection cost.
 - **No Rivals:** Special events are always solo encounters (no auctions).
 

@@ -2,7 +2,10 @@ import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/Economy';
+import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
+import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car } from '@/data/car-database';
+import { getRivalMood, getRivalById } from '@/data/rival-database';
 import { GAME_CONFIG, SKILL_METADATA } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
 
@@ -114,6 +117,116 @@ export class GarageScene extends BaseGameScene {
     }
   }
 
+  private createMorningPaper(parent: HTMLElement): void {
+    const paperPanel = document.createElement('div');
+    paperPanel.style.cssText = `
+      background: #fdfbf7;
+      color: #2c3e50;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      font-family: "Times New Roman", serif;
+      border: 1px solid #dcdcdc;
+    `;
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = `
+      border-bottom: 2px solid #2c3e50;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    `;
+    header.innerHTML = `
+      <span style="font-size: 24px; font-weight: bold; text-transform: uppercase;">The Daily Curator</span>
+      <span style="font-size: 14px; font-style: italic;">Day ${this.gameManager.getWorldState().day}</span>
+    `;
+    paperPanel.appendChild(header);
+
+    // 1. Market Section
+    const marketSystem = MarketFluctuationSystem.getInstance();
+    const marketState = marketSystem.getState();
+    const marketEvent = marketState.currentEvent;
+
+    const marketSection = document.createElement('div');
+    marketSection.style.marginBottom = '10px';
+    
+    if (marketEvent) {
+      const trendIcon = marketEvent.type === 'boom' || marketEvent.type === 'nicheBoom' ? '📈' : '📉';
+      marketSection.innerHTML = `
+        <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">${trendIcon} MARKET UPDATE</div>
+        <div style="font-size: 14px;">${marketEvent.description}</div>
+        <div style="font-size: 12px; color: #666; margin-top: 2px;">Expires in ${marketEvent.daysRemaining} days</div>
+      `;
+    } else {
+      marketSection.innerHTML = `
+        <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">📊 MARKET STABLE</div>
+        <div style="font-size: 14px;">No major fluctuations reported today. Standard prices apply.</div>
+      `;
+    }
+    paperPanel.appendChild(marketSection);
+
+    // 2. Special Events Section
+    const eventsSystem = SpecialEventsSystem.getInstance();
+    const activeEvents = eventsSystem.getActiveEvents();
+
+    if (activeEvents.length > 0) {
+      const eventSection = document.createElement('div');
+      eventSection.style.cssText = `
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #eee;
+      `;
+      
+      const event = activeEvents[0]; // Just show the first one to save space
+      eventSection.innerHTML = `
+        <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">🌟 SPECIAL REPORT</div>
+        <div style="font-size: 14px;">${event.name}: ${event.description}</div>
+        ${activeEvents.length > 1 ? `<div style="font-size: 12px; font-style: italic; margin-top: 2px;">+${activeEvents.length - 1} other events reported</div>` : ''}
+      `;
+      paperPanel.appendChild(eventSection);
+    }
+
+    // 3. Rival Rumor Section
+    const rumorSection = document.createElement('div');
+    rumorSection.style.cssText = `
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    `;
+    
+    // Generate a random rumor
+    const rumor = this.generateRivalRumor();
+    rumorSection.innerHTML = `
+      <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">🗣️ GOSSIP COLUMN</div>
+      <div style="font-size: 14px; font-style: italic;">"${rumor}"</div>
+    `;
+    paperPanel.appendChild(rumorSection);
+
+    parent.appendChild(paperPanel);
+  }
+
+  private generateRivalRumor(): string {
+    const rivals = ['rival_1', 'rival_2', 'rival_3']; // IDs from database
+    const randomRivalId = rivals[Math.floor(Math.random() * rivals.length)];
+    const mood = getRivalMood(randomRivalId, this.gameManager.getWorldState().day);
+    const rivalName = getRivalById(randomRivalId)?.name || 'Unknown Rival';
+
+    switch (mood) {
+      case 'Desperate':
+        return `Sources say ${rivalName} is desperate for a win after recent losses.`;
+      case 'Confident':
+        return `${rivalName} was seen celebrating. They seem overly confident today.`;
+      case 'Cautious':
+        return `Rumor has it ${rivalName} is playing it safe with their budget.`;
+      default:
+        return `${rivalName} has been spotted scouting the local dealerships.`;
+    }
+  }
+
   private setupUI(): void {
     this.resetUIWithHUD();
     this.currentView = 'menu';
@@ -128,6 +241,9 @@ export class GarageScene extends BaseGameScene {
       transform: 'translate(-50%, -50%)',
       minWidth: '400px',
     });
+
+    // Add Morning Paper
+    this.createMorningPaper(menuPanel);
 
     const heading = this.uiManager.createHeading('What would you like to do?', 2, {
       textAlign: 'center',

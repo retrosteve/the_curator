@@ -148,9 +148,13 @@ export class MapScene extends BaseGameScene {
     const card = document.createElement('div');
     const isGarage = node.id === 'garage';
     const player = this.gameManager.getPlayerState();
-    const hasRival = node.hasRival;
+    const hasRival = Boolean(node.hasRival);
     const canSeeRivals = player.skills.network >= 2;
-    const apCost = isGarage ? 0 : (node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelAP);
+    // AP is charged once, at encounter start (no extra travel AP for regular locations).
+    // If the player can't see rivals yet, avoid revealing rival presence via AP cost.
+    const apCost = isGarage
+      ? 0
+      : (node.specialEvent?.timeCost ?? ((canSeeRivals && hasRival) ? AUCTION_AP : INSPECT_AP));
 
     // Check for locks
     let isLocked = false;
@@ -515,38 +519,41 @@ export class MapScene extends BaseGameScene {
       }
     }
 
-    // Special events have custom AP costs, regular nodes use travel AP
-    const requiredAP = node.specialEvent?.timeCost ?? GAME_CONFIG.timeCosts.travelAP;
+    // Special events have custom AP costs and should still charge immediately.
+    if (node.type === 'special') {
+      const requiredAP = node.specialEvent?.timeCost ?? 0;
+      const block = this.timeSystem.getAPBlockModal(requiredAP, `attending ${node.name}`);
+      if (block) {
+        this.uiManager.showModal(block.title, block.message, [
+          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+        ]);
+        return;
+      }
 
-    const block = this.timeSystem.getAPBlockModal(requiredAP, `visiting ${node.name}`);
-    if (block) {
-      this.uiManager.showModal(block.title, block.message, [
-        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-      ]);
+      this.timeSystem.spendAP(requiredAP);
+      this.applyArrivalEffects(node);
+      this.generateEncounter(node);
       return;
     }
 
-    // Spend AP
-    this.timeSystem.spendAP(requiredAP);
+    // Regular locations: no travel AP. AP is charged once when the encounter starts.
+    this.generateEncounter(node);
+  }
 
+  private applyArrivalEffects(node: MapNode): void {
     // Update HUD location to the specific place the player is visiting.
-    // (Previously this used node.type which produced generic labels like "scrapyard".)
     this.gameManager.setLocation(node.name);
 
     // Award Network XP for visiting location (first visit only)
     const isFirstVisit = this.gameManager.visitLocation(node.id);
     if (isFirstVisit) {
-      // Show subtle notification for first visit
       setTimeout(() => {
         const message = `New location discovered! Network +${GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation} XP`;
         this.uiManager.showModal('Location Discovered', message, [
-          { text: 'Continue', onClick: () => {} }
+          { text: 'Continue', onClick: () => {} },
         ]);
       }, 100);
     }
-
-    // Generate encounter based on node type
-    this.generateEncounter(node);
   }
 
   private generateEncounter(node: MapNode): void {
@@ -569,6 +576,17 @@ export class MapScene extends BaseGameScene {
             this.showGarageFullGate();
             return;
           }
+
+          const apBlock = this.timeSystem.getAPBlockModal(INSPECT_AP, 'inspecting this car');
+          if (apBlock) {
+            this.uiManager.showModal(apBlock.title, apBlock.message, [
+              { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+            ]);
+            return;
+          }
+
+          this.timeSystem.spendAP(INSPECT_AP);
+          this.applyArrivalEffects(node);
           this.scene.start('NegotiationScene', { car, locationId: node.id });
           return;
         }
@@ -578,6 +596,14 @@ export class MapScene extends BaseGameScene {
           const car = getCarById('tutorial_muscle_car') || getRandomCar();
           const sterlingVance = getRivalById('sterling_vance');
           const interest = calculateRivalInterest(sterlingVance, car.tags);
+
+          const apBlock = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
+          if (apBlock) {
+            this.uiManager.showModal(apBlock.title, apBlock.message, [
+              { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+            ]);
+            return;
+          }
           
           // Show Sterling's dramatic intro dialogue, then start auction
           this.tutorialManager.showDialogueWithCallback(
@@ -591,6 +617,8 @@ export class MapScene extends BaseGameScene {
 
               // After dialogue is dismissed, advance step and start auction
               this.tutorialManager.advanceStep('first_loss');
+              this.timeSystem.spendAP(AUCTION_AP);
+              this.applyArrivalEffects(node);
               // Use scene.switch to properly transition - this stops current scene and starts new one
               this.scene.stop('MapScene');
               this.scene.start('AuctionScene', { car, rival: sterlingVance, interest, locationId: node.id });
@@ -627,7 +655,7 @@ export class MapScene extends BaseGameScene {
     const hasRival = node.hasRival || false;
 
     if (hasRival) {
-      // Auction consumes additional AP
+      // Auction encounter (single AP charge)
       const block = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
       if (block) {
         this.uiManager.showModal(block.title, block.message, [
@@ -654,6 +682,7 @@ export class MapScene extends BaseGameScene {
                 return;
               }
               this.timeSystem.spendAP(AUCTION_AP);
+              this.applyArrivalEffects(node);
               this.scene.start('AuctionScene', { car, rival, interest, locationId: node.id });
             },
           },
@@ -675,6 +704,7 @@ export class MapScene extends BaseGameScene {
       }
 
       this.timeSystem.spendAP(INSPECT_AP);
+      this.applyArrivalEffects(node);
 
       // Solo negotiation
       this.scene.start('NegotiationScene', { car, locationId: node.id });

@@ -117,32 +117,16 @@ export class GarageScene extends BaseGameScene {
     }
   }
 
-  private createMorningPaper(parent: HTMLElement): void {
+  private createMorningPaper(): HTMLElement {
     const paperPanel = document.createElement('div');
-    paperPanel.style.cssText = `
-      background: #fdfbf7;
-      color: #2c3e50;
-      padding: 15px;
-      margin-bottom: 20px;
-      border-radius: 4px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      font-family: "Times New Roman", serif;
-      border: 1px solid #dcdcdc;
-    `;
+    paperPanel.className = 'garage-brief';
 
     // Header
     const header = document.createElement('div');
-    header.style.cssText = `
-      border-bottom: 2px solid #2c3e50;
-      margin-bottom: 10px;
-      padding-bottom: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    `;
+    header.className = 'garage-brief-header';
     header.innerHTML = `
-      <span style="font-size: 24px; font-weight: bold; text-transform: uppercase;">The Daily Curator</span>
-      <span style="font-size: 14px; font-style: italic;">Day ${this.gameManager.getWorldState().day}</span>
+      <span class="garage-brief-title">Morning Brief</span>
+      <span class="garage-brief-day">Day ${this.gameManager.getWorldState().day}</span>
     `;
     paperPanel.appendChild(header);
 
@@ -152,19 +136,19 @@ export class GarageScene extends BaseGameScene {
     const marketEvent = marketState.currentEvent;
 
     const marketSection = document.createElement('div');
-    marketSection.style.marginBottom = '10px';
+    marketSection.className = 'garage-brief-section';
     
     if (marketEvent) {
       const trendIcon = marketEvent.type === 'boom' || marketEvent.type === 'nicheBoom' ? '📈' : '📉';
       marketSection.innerHTML = `
-        <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">${trendIcon} MARKET UPDATE</div>
-        <div style="font-size: 14px;">${marketEvent.description}</div>
-        <div style="font-size: 12px; color: #666; margin-top: 2px;">Expires in ${marketEvent.daysRemaining} days</div>
+        <div class="garage-brief-kicker">${trendIcon} Market</div>
+        <div class="garage-brief-body">${marketEvent.description}</div>
+        <div class="garage-brief-muted">Expires in ${marketEvent.daysRemaining} days</div>
       `;
     } else {
       marketSection.innerHTML = `
-        <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">📊 MARKET STABLE</div>
-        <div style="font-size: 14px;">No major fluctuations reported today. Standard prices apply.</div>
+        <div class="garage-brief-kicker">📊 Market</div>
+        <div class="garage-brief-body">Stable. Standard prices apply.</div>
       `;
     }
     paperPanel.appendChild(marketSection);
@@ -175,38 +159,30 @@ export class GarageScene extends BaseGameScene {
 
     if (activeEvents.length > 0) {
       const eventSection = document.createElement('div');
-      eventSection.style.cssText = `
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid #eee;
-      `;
+      eventSection.className = 'garage-brief-section';
       
       const event = activeEvents[0]; // Just show the first one to save space
       eventSection.innerHTML = `
-        <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">🌟 SPECIAL REPORT</div>
-        <div style="font-size: 14px;">${event.name}: ${event.description}</div>
-        ${activeEvents.length > 1 ? `<div style="font-size: 12px; font-style: italic; margin-top: 2px;">+${activeEvents.length - 1} other events reported</div>` : ''}
+        <div class="garage-brief-kicker">🌟 Special</div>
+        <div class="garage-brief-body">${event.name}: ${event.description}</div>
+        ${activeEvents.length > 1 ? `<div class="garage-brief-muted">+${activeEvents.length - 1} other events</div>` : ''}
       `;
       paperPanel.appendChild(eventSection);
     }
 
     // 3. Rival Rumor Section
     const rumorSection = document.createElement('div');
-    rumorSection.style.cssText = `
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #eee;
-    `;
+    rumorSection.className = 'garage-brief-section garage-brief-section--wide';
     
     // Generate a random rumor
     const rumor = this.generateRivalRumor();
     rumorSection.innerHTML = `
-      <div style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">🗣️ GOSSIP COLUMN</div>
-      <div style="font-size: 14px; font-style: italic;">"${rumor}"</div>
+      <div class="garage-brief-kicker">🗣️ Gossip</div>
+      <div class="garage-brief-body garage-brief-body--quote">"${rumor}"</div>
     `;
     paperPanel.appendChild(rumorSection);
 
-    parent.appendChild(paperPanel);
+    return paperPanel;
   }
 
   private generateRivalRumor(): string {
@@ -239,83 +215,48 @@ export class GarageScene extends BaseGameScene {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      minWidth: '400px',
+      width: 'min(980px, calc(100% - 40px))',
+      minWidth: '0',
+      maxHeight: '82vh',
+      overflowY: 'auto',
+      padding: '18px',
     });
-
-    // Add Morning Paper
-    this.createMorningPaper(menuPanel);
+    menuPanel.classList.add('garage-menu-panel');
 
     const heading = this.uiManager.createHeading('What would you like to do?', 2, {
       textAlign: 'center',
-      marginBottom: '20px',
+      marginBottom: '12px',
     });
     menuPanel.appendChild(heading);
 
     // Garage status
     const garageStatus = this.uiManager.createText(
       `Garage: ${player.inventory.length}/${player.garageSlots} slots used`,
-      { textAlign: 'center', marginBottom: '10px', fontWeight: 'bold' }
+      { textAlign: 'center', marginBottom: '10px', fontWeight: 'bold', opacity: '0.95' }
     );
     menuPanel.appendChild(garageStatus);
 
-    // Skill XP Progress Bars
-    const skillsPanel = document.createElement('div');
-    skillsPanel.style.cssText = 'margin: 15px 0; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px;';
-    
-    const skillsHeading = this.uiManager.createText('Skills', { fontWeight: 'bold', marginBottom: '8px' });
-    skillsPanel.appendChild(skillsHeading);
-
-    const skills: Array<'eye' | 'tongue' | 'network'> = ['eye', 'tongue', 'network'];
-    const skillTooltips = {
-      eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
-      tongue: 'Lvl 1: Basic negotiation\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master negotiator (max Stall uses)',
-      network: 'Lvl 1: Access public opportunities\nLvl 2: See rival movements\nLvl 3: Unlock private sales\nLvl 4: Earlier event notifications\nLvl 5: Insider deals & exclusive leads'
+    // Buttons: show only primary actions up-front; tuck the rest under "More".
+    const compactButtonStyle: Partial<CSSStyleDeclaration> = {
+      width: '100%',
+      padding: '10px 12px',
+      fontSize: '13px',
+      borderRadius: '10px',
     };
-    
-    skills.forEach(skill => {
-      const progress = this.gameManager.getSkillProgress(skill);
-      const isMaxLevel = progress.level >= 5;
-      const skillMeta = SKILL_METADATA[skill];
-      
-      const skillRow = document.createElement('div');
-      skillRow.style.cssText = 'margin-bottom: 8px; cursor: help; position: relative;';
-      skillRow.title = skillTooltips[skill];
-      
-      // Skill label with level and XP
-      const label = document.createElement('div');
-      label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px;';
-      label.innerHTML = `
-        <span>${skillMeta.icon} ${skillMeta.name} Lvl ${progress.level} ℹ️</span>
-        <span>${isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`}</span>
-      `;
-      skillRow.appendChild(label);
-      
-      // Progress bar
-      if (!isMaxLevel) {
-        const progressBar = document.createElement('div');
-        progressBar.style.cssText = 'width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden;';
-        
-        const progressFill = document.createElement('div');
-        const percentage = (progress.current / progress.required) * 100;
-        progressFill.style.cssText = `width: ${percentage}%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: width 0.3s ease;`;
-        
-        progressBar.appendChild(progressFill);
-        skillRow.appendChild(progressBar);
-      }
-      
-      skillsPanel.appendChild(skillRow);
-    });
-    
-    menuPanel.appendChild(skillsPanel);
 
-    // Button container
-    const buttonContainer = this.uiManager.createButtonContainer();
+    const primaryActions = this.uiManager.createButtonContainer({
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '10px',
+      marginTop: '12px',
+    });
+    primaryActions.classList.add('garage-actions-primary');
 
     // Explore Map button (primary action)
     const mapBtn = this.uiManager.createButton(
       'Explore Map',
       () => this.goToMap(),
-      { style: { width: '100%' } }
+      { variant: 'primary', style: { ...compactButtonStyle, gridColumn: '1 / -1' } }
     );
     this.mapButton = mapBtn;
     
@@ -330,16 +271,16 @@ export class GarageScene extends BaseGameScene {
       `;
     }
     
-    buttonContainer.appendChild(mapBtn);
+    primaryActions.appendChild(mapBtn);
 
     // View Inventory button
     const inventoryBtn = this.createTutorialAwareButton(
       `View Inventory (${player.inventory.length} cars)`,
       () => this.showInventory(),
-      { style: { width: '100%' } }
+      { variant: 'info', style: compactButtonStyle }
     );
     this.inventoryButton = inventoryBtn;
-    buttonContainer.appendChild(inventoryBtn);
+    primaryActions.appendChild(inventoryBtn);
 
     // View Museum button
     const museumCars = this.gameManager.getMuseumCars();
@@ -348,10 +289,10 @@ export class GarageScene extends BaseGameScene {
       () => this.showMuseum(),
       { 
         variant: 'special', 
-        style: { width: '100%' }
+        style: compactButtonStyle
       }
     );
-    buttonContainer.appendChild(museumBtn);
+    primaryActions.appendChild(museumBtn);
 
     // End Day button
     const endDayBtn = this.createTutorialAwareButton(
@@ -359,10 +300,21 @@ export class GarageScene extends BaseGameScene {
       () => this.endDay(),
       { 
         variant: 'danger', 
-        style: { width: '100%' }
+        style: { ...compactButtonStyle, gridColumn: '1 / -1' }
       }
     );
-    buttonContainer.appendChild(endDayBtn);
+    primaryActions.appendChild(endDayBtn);
+
+    menuPanel.appendChild(primaryActions);
+
+    const moreActions = document.createElement('details');
+    moreActions.className = 'garage-collapsible garage-actions-more';
+    const moreSummary = document.createElement('summary');
+    moreSummary.textContent = 'More';
+    moreActions.appendChild(moreSummary);
+
+    const secondaryActions = document.createElement('div');
+    secondaryActions.className = 'garage-actions-secondary';
 
     // Upgrade Garage button (if available)
     const upgradeCost = this.gameManager.getNextGarageSlotCost();
@@ -371,13 +323,11 @@ export class GarageScene extends BaseGameScene {
         `Upgrade Garage (${upgradeCost} Prestige)`,
         () => this.upgradeGarage(),
         { 
-          style: { 
-            width: '100%', 
-            backgroundColor: '#9b59b6'
-          }
+          variant: 'info',
+          style: compactButtonStyle,
         }
       );
-      buttonContainer.appendChild(upgradeBtn);
+      secondaryActions.appendChild(upgradeBtn);
     }
 
     // Victory Progress button
@@ -385,44 +335,120 @@ export class GarageScene extends BaseGameScene {
       'Check Victory Progress',
       () => this.showVictoryProgress(),
       { 
-        style: { 
-          width: '100%', 
-          backgroundColor: '#f39c12'
-        }
+        variant: 'special',
+        style: compactButtonStyle,
       }
     );
-    buttonContainer.appendChild(victoryBtn);
+    secondaryActions.appendChild(victoryBtn);
 
     // Skills Reference button
     const skillsRefBtn = this.createTutorialAwareButton(
       '📚 Skills Reference',
       () => this.showSkillsReference(),
       { 
-        style: { 
-          width: '100%', 
-          backgroundColor: '#8e44ad'
-        }
+        variant: 'info',
+        style: compactButtonStyle,
       }
     );
-    buttonContainer.appendChild(skillsRefBtn);
+    secondaryActions.appendChild(skillsRefBtn);
 
     // Rival Info button
-    const rivalInfoBtn = this.uiManager.createButton(
+    const rivalInfoBtn = this.createTutorialAwareButton(
       '🏆 Rival Tiers',
       () => this.showRivalTierInfo(),
-      { style: { width: '100%', backgroundColor: '#3498db' } }
+      { variant: 'info', style: compactButtonStyle }
     );
-    buttonContainer.appendChild(rivalInfoBtn);
+    secondaryActions.appendChild(rivalInfoBtn);
 
     // Game Menu button (Save, Load, Return to Main Menu)
-    const menuBtn = this.uiManager.createButton(
+    const menuBtn = this.createTutorialAwareButton(
       '⚙ Menu',
       () => this.showGameMenu(),
-      { style: { width: '100%', backgroundColor: '#34495e' } }
+      { variant: 'info', style: compactButtonStyle }
     );
-    buttonContainer.appendChild(menuBtn);
+    secondaryActions.appendChild(menuBtn);
 
-    menuPanel.appendChild(buttonContainer);
+    moreActions.appendChild(secondaryActions);
+
+    // Less info up-front: tuck brief + skills into collapsible sections below actions.
+    const infoContainer = document.createElement('div');
+    infoContainer.className = 'garage-menu-info';
+
+    const marketSystem = MarketFluctuationSystem.getInstance();
+    const marketState = marketSystem.getState();
+    const marketEvent = marketState.currentEvent;
+    const marketSummary = marketEvent
+      ? `${marketEvent.type.replace(/([A-Z])/g, ' $1').trim()} (${marketEvent.daysRemaining}d)`
+      : 'Stable';
+
+    const eventsSystem = SpecialEventsSystem.getInstance();
+    const activeEvents = eventsSystem.getActiveEvents();
+
+    const morningBriefDetails = document.createElement('details');
+    morningBriefDetails.className = 'garage-collapsible';
+    const morningBriefSummary = document.createElement('summary');
+    morningBriefSummary.textContent = `Morning Brief — Market: ${marketSummary} · Events: ${activeEvents.length}`;
+    morningBriefDetails.appendChild(morningBriefSummary);
+    morningBriefDetails.appendChild(this.createMorningPaper());
+    infoContainer.appendChild(morningBriefDetails);
+
+    const skillsDetails = document.createElement('details');
+    skillsDetails.className = 'garage-collapsible';
+    const skillsSummary = document.createElement('summary');
+    skillsSummary.textContent = `Skills — ${SKILL_METADATA.eye.icon} Eye ${player.skills.eye} · ${SKILL_METADATA.tongue.icon} Tongue ${player.skills.tongue} · ${SKILL_METADATA.network.icon} Network ${player.skills.network}`;
+    skillsDetails.appendChild(skillsSummary);
+
+    // Skill XP Progress Bars (collapsed by default)
+    const skillsPanel = document.createElement('div');
+    skillsPanel.className = 'garage-skills-panel';
+
+    const skillsHeading = this.uiManager.createText('Skill Progress', { fontWeight: 'bold', margin: '0 0 8px 0', opacity: '0.9' });
+    skillsPanel.appendChild(skillsHeading);
+
+    const skills: Array<'eye' | 'tongue' | 'network'> = ['eye', 'tongue', 'network'];
+    const skillTooltips = {
+      eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
+      tongue: 'Lvl 1: Basic negotiation\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master negotiator (max Stall uses)',
+      network: 'Lvl 1: Access public opportunities\nLvl 2: See rival movements\nLvl 3: Unlock private sales\nLvl 4: Earlier event notifications\nLvl 5: Insider deals & exclusive leads'
+    };
+
+    skills.forEach((skill) => {
+      const progress = this.gameManager.getSkillProgress(skill);
+      const isMaxLevel = progress.level >= 5;
+      const skillMeta = SKILL_METADATA[skill];
+
+      const skillRow = document.createElement('div');
+      skillRow.style.cssText = 'margin-bottom: 8px; cursor: help; position: relative;';
+      skillRow.title = skillTooltips[skill];
+
+      const label = document.createElement('div');
+      label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; opacity: 0.95;';
+      label.innerHTML = `
+        <span>${skillMeta.icon} ${skillMeta.name} Lv ${progress.level}</span>
+        <span>${isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`}</span>
+      `;
+      skillRow.appendChild(label);
+
+      if (!isMaxLevel) {
+        const progressBar = document.createElement('div');
+        progressBar.style.cssText = 'width: 100%; height: 6px; background: rgba(0,0,0,0.28); border-radius: 999px; overflow: hidden;';
+
+        const progressFill = document.createElement('div');
+        const percentage = (progress.current / progress.required) * 100;
+        progressFill.style.cssText = `width: ${percentage}%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: width 0.3s ease;`;
+
+        progressBar.appendChild(progressFill);
+        skillRow.appendChild(progressBar);
+      }
+
+      skillsPanel.appendChild(skillRow);
+    });
+
+    skillsDetails.appendChild(skillsPanel);
+    infoContainer.appendChild(skillsDetails);
+
+    menuPanel.appendChild(infoContainer);
+    menuPanel.appendChild(moreActions);
     this.uiManager.append(menuPanel);
   }
 
@@ -488,49 +514,61 @@ export class GarageScene extends BaseGameScene {
     context: 'inventory' | 'museum',
     refreshCallback: () => void
   ): HTMLDivElement {
+    const compactButtonStyle: Partial<CSSStyleDeclaration> = {
+      padding: '8px 12px',
+      fontSize: '12px',
+      borderRadius: '8px',
+    };
+
     const carPanel = this.uiManager.createPanel({
-      margin: context === 'inventory' ? '10px 0' : '15px 0',
+      margin: '0',
+      padding: '14px',
       backgroundColor: context === 'inventory' 
         ? 'rgba(52, 73, 94, 0.6)' 
         : 'rgba(243, 156, 18, 0.1)',
       border: context === 'museum' ? '2px solid #f39c12' : undefined,
     });
 
+    carPanel.classList.add('garage-car-card');
+
     const carName = this.uiManager.createHeading(car.name, 3, {
       color: context === 'museum' ? '#f39c12' : undefined,
+      margin: '0 0 6px 0',
+      fontSize: '18px',
     });
 
     const salePrice = Economy.getSalePrice(car, this.gameManager);
 
-    if (context === 'inventory') {
-      const carCondition = this.uiManager.createText(`Condition: ${car.condition}/100`);
-      const carValue = this.uiManager.createText(`Value: ${formatCurrency(salePrice)}`);
-      carPanel.appendChild(carName);
-      carPanel.appendChild(carCondition);
-      carPanel.appendChild(carValue);
-    } else {
-      const carDetails = this.uiManager.createText(
-        `Tier: ${car.tier} | Condition: ${car.condition}/100 | Value: ${formatCurrency(salePrice)}`,
-        { fontSize: '14px' }
-      );
+    const metaText = this.uiManager.createText(
+      `Tier ${car.tier} · Cond ${car.condition}/100 · Value ${formatCurrency(salePrice)}`,
+      { margin: '0', fontSize: '13px', lineHeight: '1.35', opacity: '0.95' }
+    );
+
+    carPanel.appendChild(carName);
+    carPanel.appendChild(metaText);
+
+    if (context === 'museum') {
       const carTags = this.uiManager.createText(
         `Tags: ${car.tags.join(', ')}`,
-        { fontSize: '13px', color: '#bdc3c7', marginTop: '5px' }
+        { fontSize: '12px', color: '#bdc3c7', margin: '6px 0 0 0', lineHeight: '1.35' }
       );
-      carPanel.appendChild(carName);
-      carPanel.appendChild(carDetails);
       carPanel.appendChild(carTags);
     }
 
     if (context === 'inventory') {
       const buttonContainer = this.uiManager.createButtonContainer({
         marginTop: '10px',
+        flexDirection: 'row',
         flexWrap: 'wrap',
+        gap: '8px',
       });
+      buttonContainer.classList.add('garage-card-actions');
 
       const restoreBtn = this.uiManager.createButton(
         'Restore',
         () => this.restoreCar(car.id)
+        ,
+        { style: compactButtonStyle }
       );
       buttonContainer.appendChild(restoreBtn);
 
@@ -552,6 +590,7 @@ export class GarageScene extends BaseGameScene {
           },
           {
             variant: isDisplayed ? 'special' : undefined,
+            style: compactButtonStyle,
           }
         );
         buttonContainer.appendChild(museumBtn);
@@ -560,12 +599,12 @@ export class GarageScene extends BaseGameScene {
       const sellBtn = this.uiManager.createButton(
         'Sell',
         () => this.sellCar(car.id),
-        { variant: 'success' }
+        { variant: 'success', style: compactButtonStyle }
       );
       const sellAsIsBtn = this.uiManager.createButton(
         'Sell As-Is',
         () => this.sellCarAsIs(car.id),
-        { variant: 'warning' }
+        { variant: 'warning', style: compactButtonStyle }
       );
       buttonContainer.appendChild(sellBtn);
       buttonContainer.appendChild(sellAsIsBtn);
@@ -576,7 +615,7 @@ export class GarageScene extends BaseGameScene {
       if (!isMuseumEligible) {
         const notEligibleText = this.uiManager.createText(
           `Requires 80%+ condition for museum display (currently ${car.condition}%)`,
-          { fontSize: '12px', color: '#95a5a6', fontStyle: 'italic', marginTop: '5px' }
+          { fontSize: '12px', color: '#95a5a6', fontStyle: 'italic', margin: '6px 0 0 0', lineHeight: '1.35' }
         );
         carPanel.appendChild(notEligibleText);
       }
@@ -588,7 +627,7 @@ export class GarageScene extends BaseGameScene {
           this.gameManager.toggleMuseumDisplay(car.id);
           refreshCallback();
         },
-        { variant: 'danger', style: { marginTop: '10px' } }
+        { variant: 'danger', style: { ...compactButtonStyle, marginTop: '10px' } }
       );
       carPanel.appendChild(removeBtn);
     }
@@ -632,10 +671,13 @@ export class GarageScene extends BaseGameScene {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      minWidth: '600px',
+      width: 'min(960px, calc(100% - 40px))',
+      minWidth: '0',
       maxHeight: '80vh',
       overflowY: 'auto',
+      padding: '18px',
     });
+    panel.classList.add('garage-inventory-panel');
 
     const heading = this.uiManager.createHeading('Your Inventory', 2, {
       textAlign: 'center',
@@ -649,10 +691,13 @@ export class GarageScene extends BaseGameScene {
       });
       panel.appendChild(emptyText);
     } else {
+      const grid = document.createElement('div');
+      grid.className = 'garage-inventory-grid';
       player.inventory.forEach((car) => {
         const carPanel = this.createCarCard(car, 'inventory', () => this.showInventory());
-        panel.appendChild(carPanel);
+        grid.appendChild(carPanel);
       });
+      panel.appendChild(grid);
     }
 
     const backBtn = this.uiManager.createButton(
@@ -1339,19 +1384,7 @@ export class GarageScene extends BaseGameScene {
         {
           text: 'Main Menu',
           onClick: () => {
-            this.uiManager.showModal(
-              'Return to Main Menu?',
-              'Make sure to save your game first! Any unsaved progress will be lost.',
-              [
-                {
-                  text: 'Return to Menu',
-                  onClick: () => {
-                    this.scene.start('MainMenuScene');
-                  },
-                },
-                { text: 'Cancel', onClick: () => {} },
-              ]
-            );
+            this.scene.start('MainMenuScene');
           },
         },
         { text: 'Back', onClick: () => {} },

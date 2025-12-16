@@ -1033,47 +1033,96 @@ export class UIManager {
   }): HTMLDivElement {
     const hud = document.createElement('div');
     hud.id = 'game-hud';
-    
-    Object.assign(hud.style, {
-      position: 'absolute',
-      top: '20px',
-      left: '20px',
-      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.92), rgba(30, 30, 50, 0.92))',
-      border: '2px solid rgba(100, 200, 255, 0.3)',
-      borderRadius: '12px',
-      padding: '16px 20px',
-      color: '#e0e6ed',
-      fontSize: '15px',
-      fontFamily: 'Rajdhani, monospace',
-      fontWeight: '600',
-      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-      backdropFilter: 'blur(10px)',
-    });
+
+    hud.className = 'game-panel game-hud';
+
+    const locationLabel = data.location !== undefined ? UIManager.formatLocationLabel(data.location) : undefined;
+    const skillsLabel = data.skills !== undefined
+      ? `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`
+      : undefined;
 
     hud.innerHTML = `
-      <div data-hud="money">💰 Money: ${formatCurrency(data.money)}</div>
-      ${data.prestige !== undefined ? `<div data-hud="prestige">🏆 Prestige: ${data.prestige}</div>` : ''}
-      ${data.museumIncome !== undefined && data.museumIncome.carCount > 0 ? `<div data-hud="museum-income" style="color: #f39c12; font-size: 13px;" title="Museum cars generate prestige daily based on condition quality">🏛️ Museum: +${data.museumIncome.totalPerDay} prestige/day (${data.museumIncome.carCount} cars)</div>` : ''}
-      ${data.garage !== undefined ? `<div data-hud="garage">🏠 Garage: ${data.garage.used}/${data.garage.total}</div>` : ''}
-      ${data.dailyRent !== undefined ? `<div data-hud="daily-rent" style="color: #ff6b6b; font-size: 13px;" title="Rent increases as you upgrade your garage">💸 Daily Rent: ${formatCurrency(data.dailyRent)}</div>` : ''}
-      ${data.skills !== undefined ? `<div data-hud="skills">🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}</div>` : ''}
-      <div data-hud="day">📅 Day: ${data.day}</div>
-      <div data-hud="ap">⚡ ${data.ap}</div>
-      ${data.location !== undefined ? `<div data-hud="location">📍 Location: ${UIManager.formatLocationLabel(data.location)}</div>` : ''}
-      ${data.market !== undefined ? `<div data-hud="market">📈 ${data.market}</div>` : ''}
+      <div class="hud-grid">
+        <div class="hud-item" data-hud="money">
+          <span class="hud-icon">💰</span>
+          <span class="hud-label">Money</span>
+          <span class="hud-value" data-hud-value="money">${formatCurrency(data.money)}</span>
+        </div>
+
+        ${data.prestige !== undefined ? `
+          <div class="hud-item" data-hud="prestige">
+            <span class="hud-icon">🏆</span>
+            <span class="hud-label">Prestige</span>
+            <span class="hud-value" data-hud-value="prestige">${data.prestige}</span>
+          </div>
+        ` : ''}
+
+        <div class="hud-item" data-hud="day">
+          <span class="hud-icon">📅</span>
+          <span class="hud-label">Day</span>
+          <span class="hud-value" data-hud-value="day">${data.day}</span>
+        </div>
+
+        <div class="hud-item" data-hud="ap">
+          <span class="hud-icon">⚡</span>
+          <span class="hud-label">AP</span>
+          <span class="hud-value" data-hud-value="ap">${data.ap}</span>
+        </div>
+
+        ${data.location !== undefined ? `
+          <div class="hud-item hud-item--wide" data-hud="location">
+            <span class="hud-icon">📍</span>
+            <span class="hud-label">Location</span>
+            <span class="hud-value" data-hud-value="location">${locationLabel}</span>
+          </div>
+        ` : ''}
+
+        ${data.market !== undefined ? `
+          <div class="hud-item" data-hud="market">
+            <span class="hud-icon">📈</span>
+            <span class="hud-label">Market</span>
+            <span class="hud-value" data-hud-value="market">${data.market}</span>
+          </div>
+        ` : ''}
+
+        ${data.garage !== undefined ? `
+          <div class="hud-item" data-hud="garage">
+            <span class="hud-icon">🏠</span>
+            <span class="hud-label">Garage</span>
+            <span class="hud-value" data-hud-value="garage">${data.garage.used}/${data.garage.total}</span>
+          </div>
+        ` : ''}
+
+        ${data.skills !== undefined ? `
+          <div class="hud-item hud-item--wide" data-hud="skills" title="Skills: Eye, Tongue, Network">
+            <span class="hud-icon">🧠</span>
+            <span class="hud-label">Skills</span>
+            <span class="hud-value" data-hud-value="skills">${skillsLabel}</span>
+          </div>
+        ` : ''}
+
+        ${data.dailyRent !== undefined ? `
+          <div class="hud-item hud-item--subtle hud-item--danger" data-hud="daily-rent" title="Rent increases as you upgrade your garage">
+            <span class="hud-icon">💸</span>
+            <span class="hud-label">Rent</span>
+            <span class="hud-value">${formatCurrency(data.dailyRent)}</span>
+          </div>
+        ` : ''}
+
+        ${data.museumIncome !== undefined && data.museumIncome.carCount > 0 ? `
+          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="museum-income" title="Museum cars generate prestige daily based on condition quality">
+            <span class="hud-icon">🏛️</span>
+            <span class="hud-label">Museum</span>
+            <span class="hud-value">+${data.museumIncome.totalPerDay} prestige/day (${data.museumIncome.carCount} cars)</span>
+          </div>
+        ` : ''}
+      </div>
     `;
 
     // Add victory progress tracker if provided
     if (data.victoryProgress) {
       const progressDiv = document.createElement('div');
-      progressDiv.style.cssText = `
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid rgba(100, 200, 255, 0.2);
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      `;
+      progressDiv.className = 'hud-progress';
       
       const prestigeIcon = data.victoryProgress.prestige.met ? '✅' : '⬜';
       const unicornIcon = data.victoryProgress.unicorns.met ? '✅' : '⬜';
@@ -1081,25 +1130,16 @@ export class UIManager {
       const skillIcon = data.victoryProgress.skillLevel.met ? '✅' : '⬜';
       
       progressDiv.innerHTML = `
-        <div style="font-weight: bold; margin-bottom: 4px; color: #ffd700;">🏆 Victory Progress (click for details)</div>
-        <div style="line-height: 1.4;">
-          ${prestigeIcon} Prestige: ${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}<br>
-          ${unicornIcon} Unicorns: ${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}<br>
-          ${museumIcon} Museum: ${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}<br>
-          ${skillIcon} Max Skill: ${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}
+        <div class="hud-progress-title">🏆 Victory (click)</div>
+        <div class="hud-progress-items">
+          <div class="hud-progress-item">${prestigeIcon} Prestige <span>${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}</span></div>
+          <div class="hud-progress-item">${unicornIcon} Unicorns <span>${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}</span></div>
+          <div class="hud-progress-item">${museumIcon} Museum <span>${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}</span></div>
+          <div class="hud-progress-item">${skillIcon} Max Skill <span>${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}</span></div>
         </div>
       `;
       
       if (data.victoryProgress.onClickProgress) {
-        progressDiv.addEventListener('mouseenter', () => {
-          progressDiv.style.backgroundColor = 'rgba(100, 200, 255, 0.1)';
-          progressDiv.style.borderRadius = '8px';
-          progressDiv.style.padding = '4px';
-        });
-        progressDiv.addEventListener('mouseleave', () => {
-          progressDiv.style.backgroundColor = 'transparent';
-          progressDiv.style.padding = '0';
-        });
         progressDiv.addEventListener('click', data.victoryProgress.onClickProgress);
       }
       
@@ -1134,38 +1174,38 @@ export class UIManager {
     const hud = document.getElementById('game-hud');
     if (!hud) return;
 
-    const moneyEl = hud.querySelector<HTMLDivElement>('[data-hud="money"]');
-    const prestigeEl = hud.querySelector<HTMLDivElement>('[data-hud="prestige"]');
-    const garageEl = hud.querySelector<HTMLDivElement>('[data-hud="garage"]');
-    const skillsEl = hud.querySelector<HTMLDivElement>('[data-hud="skills"]');
-    const dayEl = hud.querySelector<HTMLDivElement>('[data-hud="day"]');
-    const apEl = hud.querySelector<HTMLDivElement>('[data-hud="ap"]');
-    const locationEl = hud.querySelector<HTMLDivElement>('[data-hud="location"]');
-    const marketEl = hud.querySelector<HTMLDivElement>('[data-hud="market"]');
+    const moneyValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="money"]');
+    const prestigeValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="prestige"]');
+    const garageValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="garage"]');
+    const skillsValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="skills"]');
+    const dayValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="day"]');
+    const apValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="ap"]');
+    const locationValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="location"]');
+    const marketValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="market"]');
 
-    if (data.money !== undefined && moneyEl) {
-      moneyEl.textContent = `💰 Money: ${formatCurrency(data.money)}`;
+    if (data.money !== undefined && moneyValueEl) {
+      moneyValueEl.textContent = formatCurrency(data.money);
     }
-    if (data.prestige !== undefined && prestigeEl) {
-      prestigeEl.textContent = `🏆 Prestige: ${data.prestige}`;
+    if (data.prestige !== undefined && prestigeValueEl) {
+      prestigeValueEl.textContent = `${data.prestige}`;
     }
-    if (data.garage !== undefined && garageEl) {
-      garageEl.textContent = `🏠 Garage: ${data.garage.used}/${data.garage.total}`;
+    if (data.garage !== undefined && garageValueEl) {
+      garageValueEl.textContent = `${data.garage.used}/${data.garage.total}`;
     }
-    if (data.skills !== undefined && skillsEl) {
-      skillsEl.textContent = `🧠 Skills: Eye ${data.skills.eye} | Tongue ${data.skills.tongue} | Network ${data.skills.network}`;
+    if (data.skills !== undefined && skillsValueEl) {
+      skillsValueEl.textContent = `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`;
     }
-    if (data.day !== undefined && dayEl) {
-      dayEl.textContent = `📅 Day: ${data.day}`;
+    if (data.day !== undefined && dayValueEl) {
+      dayValueEl.textContent = `${data.day}`;
     }
-    if (data.ap !== undefined && apEl) {
-      apEl.textContent = `⚡ ${data.ap}`;
+    if (data.ap !== undefined && apValueEl) {
+      apValueEl.textContent = data.ap;
     }
-    if (data.location !== undefined && locationEl) {
-      locationEl.textContent = `📍 Location: ${UIManager.formatLocationLabel(data.location)}`;
+    if (data.location !== undefined && locationValueEl) {
+      locationValueEl.textContent = UIManager.formatLocationLabel(data.location);
     }
-    if (data.market !== undefined && marketEl) {
-      marketEl.textContent = `📈 ${data.market}`;
+    if (data.market !== undefined && marketValueEl) {
+      marketValueEl.textContent = data.market;
     }
   }
 

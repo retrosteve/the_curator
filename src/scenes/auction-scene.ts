@@ -661,6 +661,25 @@ export class AuctionScene extends BaseGameScene {
     }
 
     if (playerWon) {
+      const player = this.gameManager.getPlayerState();
+
+      // Important edge-case: the rival can outbid you, then quit due to tactics (Kick Tires / Stall)
+      // leaving the winning bid above your available money.
+      if (player.money < this.currentBid) {
+        this.consumeOfferIfNeeded();
+        this.uiManager.showModal(
+          "Won But Can't Pay",
+          `${message}\n\nYou pressured ${this.rival.name} into quitting, but the winning bid is ${formatCurrency(this.currentBid)} and you only have ${formatCurrency(player.money)}.\n\nYou forfeit the car.`,
+          [
+            {
+              text: 'Back to Map',
+              onClick: () => this.scene.start('MapScene'),
+            },
+          ]
+        );
+        return;
+      }
+
       if (this.gameManager.spendMoney(this.currentBid)) {
         if (!this.gameManager.addCar(this.car)) {
           // Garage is full

@@ -53,6 +53,100 @@ body {
   backdrop-filter: blur(10px);
 }
 
+/* HUD (compact, less cluttered) */
+.game-hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  max-width: 440px;
+}
+
+.game-hud .hud-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.game-hud .hud-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.game-hud .hud-item--wide {
+  grid-column: 1 / -1;
+}
+
+.game-hud .hud-icon {
+  flex: 0 0 auto;
+  opacity: 0.95;
+}
+
+.game-hud .hud-label {
+  flex: 0 0 auto;
+  font-size: 11px;
+  opacity: 0.72;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.game-hud .hud-value {
+  font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-hud .hud-item--warning .hud-value {
+  color: #f39c12;
+}
+
+.game-hud .hud-item--danger .hud-value {
+  color: #ff6b6b;
+}
+
+.game-hud .hud-progress {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(100, 200, 255, 0.2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.game-hud .hud-progress:hover {
+  background-color: rgba(100, 200, 255, 0.06);
+  border-radius: 10px;
+}
+
+.game-hud .hud-progress-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #ffd700;
+}
+
+.game-hud .hud-progress-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  line-height: 1.25;
+}
+
+.game-hud .hud-progress-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.game-hud .hud-progress-item span {
+  opacity: 0.9;
+}
+
 /* Game Button Styles */
 .game-button {
   position: relative;
@@ -70,23 +164,12 @@ body {
   pointer-events: auto;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3),
               inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  text-transform: uppercase;
+  text-transform: none;
   overflow: hidden;
 }
 
 .game-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.game-button:hover::before {
-  left: 100%;
+  content: none;
 }
 
 .game-button:hover {
@@ -159,7 +242,6 @@ body {
   background: linear-gradient(135deg, #f39c12, #e67e22);
   box-shadow: 0 4px 15px rgba(243, 156, 18, 0.5),
               inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  animation: pulse-gold 2s infinite;
 }
 
 .game-button.btn-special:hover {
@@ -301,4 +383,199 @@ p {
   margin-bottom: 8px;
   padding-bottom: 8px;
   border-bottom: 2px solid rgba(243, 156, 18, 0.3);
+}
+
+/* Garage declutter */
+.garage-inventory-panel {
+  max-width: 960px;
+}
+
+.garage-inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.garage-car-card {
+  padding: 14px;
+}
+
+.garage-car-card h3 {
+  margin-bottom: 6px;
+}
+
+.garage-card-actions {
+  margin-top: 10px;
+}
+
+@media (max-width: 900px) {
+  .garage-inventory-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Garage main menu declutter */
+.garage-menu-panel {
+  max-width: 980px;
+}
+
+.garage-brief {
+  margin: 0 0 12px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(100, 200, 255, 0.18);
+}
+
+.garage-brief-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.garage-brief-title {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.garage-brief-day {
+  opacity: 0.75;
+  font-size: 12px;
+}
+
+.garage-brief-section {
+  margin-top: 10px;
+}
+
+.garage-brief-section--wide {
+  margin-top: 10px;
+}
+
+.garage-brief-kicker {
+  font-weight: 800;
+  font-size: 12px;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.garage-brief-body {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.garage-brief-body--quote {
+  font-style: italic;
+  opacity: 0.95;
+}
+
+.garage-brief-muted {
+  margin-top: 3px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.garage-skills-panel {
+  margin: 10px 0 12px 0;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(100, 200, 255, 0.14);
+}
+
+.garage-actions-grid {
+  margin-top: 12px;
+}
+
+.garage-actions-primary {
+  margin-top: 12px;
+}
+
+.garage-actions-more {
+  margin-top: 10px;
+}
+
+.garage-actions-secondary {
+  padding: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 700px) {
+  .garage-actions-secondary {
+    grid-template-columns: 1fr;
+  }
+}
+
+.garage-menu-info {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.garage-collapsible {
+  border-radius: 12px;
+  border: 1px solid rgba(100, 200, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.garage-collapsible > summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.9;
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.garage-collapsible[open] > summary {
+  border-bottom: 1px solid rgba(100, 200, 255, 0.14);
+  background: rgba(100, 200, 255, 0.04);
+}
+
+.garage-collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+.garage-collapsible > summary::after {
+  content: '▾';
+  float: right;
+  opacity: 0.75;
+}
+
+.garage-collapsible[open] > summary::after {
+  content: '▴';
+}
+
+.garage-collapsible > .garage-brief,
+.garage-collapsible > .garage-skills-panel {
+  margin: 0;
+  border: none;
+}
+
+.garage-collapsible > .garage-brief {
+  padding: 12px;
+  background: transparent;
+}
+
+.garage-collapsible > .garage-skills-panel {
+  padding: 12px;
+  background: transparent;
+}
+
+@media (max-width: 700px) {
+  .garage-actions-grid {
+    grid-template-columns: 1fr !important;
+  }
 }

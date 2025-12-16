@@ -138,6 +138,11 @@ export const GAME_CONFIG = {
       3: 250,  // Was 400
       4: 400,  // Was 800
       5: 600,  // Was 1600
+      6: 850,
+      7: 1150,
+      8: 1500,
+      9: 1900,
+      10: 2400,
     },
 
     // Emergency cash injection - one-time use only

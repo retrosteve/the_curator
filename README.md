@@ -154,8 +154,8 @@ npm run preview
 
 ### Garage Capacity
 - Start with **1 garage slot**
-- **Upgrade Cost:** Prestige points (100 for 1→2, 200 for 2→3, 400 for 3→4, 800 for 4→5)
-- **Maximum:** 5 slots
+- **Upgrade Cost (Prestige):** 100 (1→2), 200 (2→3), 400 (3→4), 800 (4→5), 1000 (5→6), 1200 (6→7), 1400 (7→8), 1600 (8→9), 1800 (9→10)
+- **Maximum:** 10 slots
 - Cannot buy cars when garage is full
 - Shows current usage in HUD: "🏠 Garage: 2/3"
 
@@ -166,7 +166,7 @@ npm run preview
 - **Display:** View museum in garage to see your collection
 
 ### Save/Load System
-- **Auto-Save:** Game state automatically saves to browser localStorage on every change
+- **Auto-Save:** Game state automatically saves to browser localStorage when you **End Day** (end-of-day checkpoint)
 - **Manual Save/Load:** Buttons in garage scene for explicit save/load operations
 - **Saved Data:** Money, prestige, inventory, garage slots, day/time, museum display status
 

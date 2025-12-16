@@ -63,7 +63,9 @@ const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
 const MAX_AP = GAME_CONFIG.day.maxAP;
 
 const SAVE_KEY = 'theCuratorSave';
-const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second
+const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for on-change autosave)
+
+type AutosavePolicy = 'on-change' | 'end-of-day';
 
 /**
  * Saved game data structure.
@@ -118,6 +120,7 @@ export class GameManager {
   private marketSystem: MarketFluctuationSystem;
   private specialEventsSystem: SpecialEventsSystem;
   private saveDebounceTimer: number | null = null;
+  private readonly autosavePolicy: AutosavePolicy = 'end-of-day';
 
   private constructor() {
     this.marketSystem = MarketFluctuationSystem.getInstance();
@@ -342,7 +345,7 @@ export class GameManager {
 
   /**
    * Get current daily rent based on garage slots.
-   * Rent scales with capacity: 1 slot = $100, 2 = $200, 3 = $400, 4 = $800, 5 = $1600
+   * Rent scales with capacity via GAME_CONFIG.economy.rentByGarageSlots.
    */
   public getDailyRent(): number {
     const slots = this.player.garageSlots;
@@ -419,12 +422,14 @@ export class GameManager {
    */
   public getNextGarageSlotCost(): number | null {
     const currentSlots = this.player.garageSlots;
-    // Exponential progression as per design: Slot 2: 100, Slot 3: 200, Slot 4: 400, Slot 5: 800
-    const costs = [100, 200, 400, 800];
-    const costIndex = currentSlots - 1; // Current slots = 1 → index 0 (cost 100)
-    
-    if (currentSlots >= 5) return null;
-    return costs[costIndex];
+    // Prestige progression for expanding storage (1->2, 2->3, ...).
+    // Keep early upgrades familiar, then slow the ramp past 5 slots.
+    const costs = [100, 200, 400, 800, 1000, 1200, 1400, 1600, 1800];
+    const maxSlots = costs.length + 1;
+    const costIndex = currentSlots - 1; // Current slots = 1 → index 0
+
+    if (currentSlots >= maxSlots) return null;
+    return costs[costIndex] ?? null;
   }
 
   /**
@@ -1027,6 +1032,13 @@ export class GameManager {
    * Multiple calls within the debounce window will result in a single save.
    */
   private debouncedSave(): void {
+    if (this.autosavePolicy !== 'on-change') {
+      if (this.saveDebounceTimer !== null) {
+        clearTimeout(this.saveDebounceTimer);
+        this.saveDebounceTimer = null;
+      }
+      return;
+    }
     if (this.saveDebounceTimer !== null) {
       clearTimeout(this.saveDebounceTimer);
     }

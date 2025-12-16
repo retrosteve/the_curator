@@ -46,7 +46,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 ## Persistence & Progression
 
 ### Save/Load System
-- **Persistence:** Game state is automatically saved to localStorage on every state mutation.
+- **Persistence:** Game state is automatically saved to localStorage at the end of each day (end-of-day checkpoint).
 - **Manual Save/Load:** Players can manually save/load game state via buttons in the Garage scene.
 - **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and museum display status.
 
@@ -126,6 +126,11 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
     - 3 slots: $250/day
     - 4 slots: $400/day
     - 5 slots: $600/day
+    - 6 slots: $850/day
+    - 7 slots: $1150/day
+    - 8 slots: $1500/day
+    - 9 slots: $1900/day
+    - 10 slots: $2400/day
   - No debt: `money` never goes below $0.
   - If you can’t afford rent, you must raise cash before ending the day:
     - Sell a car (if you have one), or

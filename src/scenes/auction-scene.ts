@@ -383,6 +383,22 @@ export class AuctionScene extends BaseGameScene {
     }
   }
 
+  private showToastAndLog(
+    toast: string,
+    options?: { backgroundColor?: string; durationMs?: number },
+    log?: string
+  ): void {
+    const logEntry = (log ?? toast).trim();
+    if (logEntry) {
+      const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
+      if (last !== logEntry) {
+        this.appendAuctionLog(logEntry);
+      }
+    }
+
+    this.uiManager.showToast(toast, options);
+  }
+
   private maybeToastPatienceWarning(): void {
     const patience = this.rivalAI.getPatience();
     if (patience <= 0) return;
@@ -391,7 +407,7 @@ export class AuctionScene extends BaseGameScene {
     if (patience < thresholds.critical) {
       if (this.lastPatienceToastBand !== 'critical') {
         this.lastPatienceToastBand = 'critical';
-        this.uiManager.showToast('Warning: Rival is about to quit!', { backgroundColor: '#f44336' });
+        this.showToastAndLog('Warning: Rival is about to quit!', { backgroundColor: '#f44336' });
       }
       return;
     }
@@ -399,7 +415,7 @@ export class AuctionScene extends BaseGameScene {
     if (patience < thresholds.low) {
       if (this.lastPatienceToastBand === 'normal' || this.lastPatienceToastBand === 'medium') {
         this.lastPatienceToastBand = 'low';
-        this.uiManager.showToast('Rival is getting impatient…', { backgroundColor: '#ff9800' });
+        this.showToastAndLog('Rival is getting impatient…', { backgroundColor: '#ff9800' });
       }
       return;
     }
@@ -407,7 +423,7 @@ export class AuctionScene extends BaseGameScene {
     if (patience < thresholds.medium) {
       if (this.lastPatienceToastBand === 'normal') {
         this.lastPatienceToastBand = 'medium';
-        this.uiManager.showToast('Rival looks annoyed.', { backgroundColor: '#FFC107' });
+        this.showToastAndLog('Rival looks annoyed.', { backgroundColor: '#FFC107' });
       }
     }
   }
@@ -415,10 +431,16 @@ export class AuctionScene extends BaseGameScene {
   private showRivalBark(trigger: BarkTrigger): void {
     const mood = this.rival.mood || 'Normal';
     const text = getRivalBark(mood, trigger);
+
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    // Mirror bubble dialogue into the auction log so players don't miss it.
+    this.appendAuctionLog(`${this.rival.name}: “${trimmed}”`);
     
     // Create speech bubble
     const bubble = document.createElement('div');
-    bubble.textContent = text;
+    bubble.textContent = trimmed;
     bubble.style.cssText = `
       position: absolute;
       top: 30%;
@@ -477,7 +499,11 @@ export class AuctionScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
 
     if (player.money < newBid) {
-      this.uiManager.showInsufficientFundsModal();
+      this.showToastAndLog(
+        'Not enough money to bid that high.',
+        { backgroundColor: '#f44336' },
+        `Not enough money to bid ${formatCurrency(newBid)} (you have ${formatCurrency(player.money)}).`
+      );
       return;
     }
 
@@ -520,10 +546,10 @@ export class AuctionScene extends BaseGameScene {
   private playerKickTires(): void {
     const player = this.gameManager.getPlayerState();
     if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
-      this.uiManager.showModal(
-        'Requires Skill',
-        `Kick Tires requires Eye level ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES} (you have ${player.skills.eye}).`,
-        [{ text: 'OK', onClick: () => {} }]
+      this.showToastAndLog(
+        `Requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ to Kick Tires.`,
+        { backgroundColor: '#f44336' },
+        `Kick Tires blocked: requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ (you have Eye ${player.skills.eye}).`
       );
       return;
     }
@@ -531,7 +557,9 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
 
-    this.appendAuctionLog(`You kick tires (-${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)} rival budget).`);
+    this.appendAuctionLog(
+      `You kick tires (pressure applied; they look less willing to spend).`
+    );
 
     if (this.currentBid > this.rivalAI.getBudget()) {
       this.endAuction(true, `${this.rival.name} is out of budget and quits!`);
@@ -546,19 +574,19 @@ export class AuctionScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
     const tongue = player.skills.tongue;
     if (tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
-      this.uiManager.showModal(
-        'Requires Skill',
-        `Stall requires Tongue level ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL} (you have ${tongue}).`,
-        [{ text: 'OK', onClick: () => {} }]
+      this.showToastAndLog(
+        `Requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ to Stall.`,
+        { backgroundColor: '#f44336' },
+        `Stall blocked: requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ (you have Tongue ${tongue}).`
       );
       return;
     }
 
     if (this.stallUsesThisAuction >= tongue) {
-      this.uiManager.showModal(
-        'No More Stalling',
-        `You've used Stall ${this.stallUsesThisAuction}/${tongue} times in this auction.`,
-        [{ text: 'OK', onClick: () => {} }]
+      this.showToastAndLog(
+        'No Stall uses left this auction.',
+        { backgroundColor: '#ff9800' },
+        `No Stall uses left (${this.stallUsesThisAuction}/${tongue}).`
       );
       return;
     }

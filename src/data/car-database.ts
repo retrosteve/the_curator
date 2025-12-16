@@ -21,7 +21,7 @@ export interface Car {
   tier: CarTier; // Car's rarity tier
   /** @deprecated Use calculateCarValue(car) instead - this is a computed field */
   currentValue?: number;
-  displayInMuseum?: boolean; // Whether car is displayed in museum (requires condition >= 80)
+  displayInMuseum?: boolean; // Whether car is on display (requires condition >= 80)
 }
 
 /**
@@ -447,7 +447,7 @@ export const CarDatabase: Car[] = [
     baseValue: 220000,
     condition: 82,
     tags: ['JDM', 'Exotic', 'Classic', 'Legendary', 'Rare'],
-    history: ['One of 351 Built', 'Museum Quality'],
+    history: ['One of 351 Built', 'Gallery Quality'],
     tier: 'Unicorn',
   },
   {

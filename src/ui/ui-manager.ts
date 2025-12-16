@@ -598,9 +598,9 @@ export class UIManager {
         ` : ''}
 
         ${data.museumIncome !== undefined && data.museumIncome.carCount > 0 ? `
-          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="museum-income" title="Museum cars generate prestige daily based on condition quality">
+          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="museum-income" title="Cars on display generate prestige daily based on condition quality">
             <span class="hud-icon">🏛️</span>
-            <span class="hud-label">Museum</span>
+            <span class="hud-label">Gallery</span>
             <span class="hud-value">+${data.museumIncome.totalPerDay} prestige/day (${data.museumIncome.carCount} cars)</span>
           </div>
         ` : ''}
@@ -622,7 +622,7 @@ export class UIManager {
         <div class="hud-progress-items">
           <div class="hud-progress-item">${prestigeIcon} Prestige <span>${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}</span></div>
           <div class="hud-progress-item">${unicornIcon} Unicorns <span>${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}</span></div>
-          <div class="hud-progress-item">${museumIcon} Museum <span>${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}</span></div>
+          <div class="hud-progress-item">${museumIcon} Gallery <span>${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}</span></div>
           <div class="hud-progress-item">${skillIcon} Max Skill <span>${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}</span></div>
         </div>
       `;

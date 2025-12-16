@@ -65,7 +65,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // Subtitle
     const subtitle = this.uiManager.createText(
-      'Master the Art of Car Collection',
+      'Master the Art of Car Curation',
       {
         fontSize: '20px',
         color: '#ecf0f1',
@@ -215,12 +215,12 @@ export class MainMenuScene extends Phaser.Scene {
     this.uiManager.showModal(
       'About The Curator',
       'You are an aspiring car collector starting with a single garage slot.\n\n' +
-        'Your goal: Curate the world\'s most prestigious car museum.\n\n' +
+        'Your goal: Curate the world\'s most prestigious private gallery.\n\n' +
         'This game is about Access, Valuation, and Timing.\n\n' +
         '• Scout locations for rare finds\n' +
         '• Battle rivals in tense auctions\n' +
-        '• Restore cars to museum quality\n' +
-        '• Build your reputation and collection\n\n' +
+        '• Restore cars to display quality\n' +
+        '• Build your reputation and complete sets\n\n' +
         'Developed with Phaser 3 + TypeScript\n' +
         'Designed by The Curator Team',
       [{ text: 'Back', onClick: () => {} }]

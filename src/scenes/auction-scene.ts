@@ -804,7 +804,7 @@ Tip: Visit the Garage to sell something, then come back.`,
                   // Show tutorial completion dialogue before returning to map
                   this.tutorialManager.showDialogueWithCallback(
                     "Uncle Ray",
-                    "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car museum! Remember: every car tells a story, and you're the curator.",
+                    "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car gallery! Remember: every car tells a story, and you're the curator.",
                     () => {
                       this.tutorialManager.advanceStep('complete');
                       this.scene.start('MapScene');

@@ -9,7 +9,7 @@ applyTo: "**"
 This document covers gameplay rules; implementation constraints (Phaser/DOM split, state/events, scene boundaries) live in `docs/architecture.md`.
 
 ## High Concept
-You are an aspiring car collector starting with a single garage slot. Your goal is to curate the world’s most prestigious car museum.
+You are an aspiring car collector starting with a single garage slot. Your goal is to curate the world’s most prestigious car gallery.
 
 This game is not about driving physics; it is about **Access, Valuation, and Timing**.
 
@@ -41,14 +41,14 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - **Restoration:** Spend Time + Money on restoration services. This increases the car’s condition.
   - **The Choice:**
     - **Flip:** Sell immediately for Cash (operating capital).
-    - **Hold:** Keep in the Museum for Prestige (unlocks better access over time).
+    - **Hold:** Put on Display (Gallery) for Prestige (unlocks better access over time).
 
 ## Persistence & Progression
 
 ### Save/Load System
 - **Persistence:** Game state is automatically saved to localStorage at the end of each day (end-of-day checkpoint).
 - **Manual Save/Load:** Players can manually save/load game state via buttons in the Garage scene.
-- **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and museum display status.
+- **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and display status.
 
 ### Garage Expansion
 - **Starting Capacity:** 1 garage slot.
@@ -56,28 +56,28 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Upgrade Costs:** Slot 2: 100 prestige, Slot 3: 200 prestige, Slot 4: 400 prestige, Slot 5: 800 prestige.
 - **Garage Full:** Players cannot acquire new cars when garage is full; must sell or scrap existing cars first.
 
-### Museum Display Mechanic
-- **Eligibility:** Cars with condition >= 80% can be displayed in the museum.
-- **Passive Prestige:** Displayed cars generate prestige based on quality tiers:
+### Gallery Display Mechanic
+- **Eligibility:** Cars with condition >= 80% can be put on display in your gallery.
+- **Passive Prestige:** Cars on display generate prestige based on quality tiers:
   - Good (80-89%): +1 prestige/day
   - Excellent (90-99%): +2 prestige/day
   - Perfect (100%): +3 prestige/day
-- **Management:** Players can toggle cars between garage storage and museum display.
-- **Garage vs Museum Slots:** Displayed museum cars do **not** consume garage slots.
-- **Capacity:** Museum display capacity scales with garage capacity (museum slots = garage slots).
-  - If the museum is full, you must remove a displayed car before adding another.
-  - If the garage is full, you must display or sell a garage car before removing a car from the museum.
+- **Management:** Players can toggle cars between garage storage and gallery display.
+- **Garage vs Gallery Slots:** Cars on display do **not** consume garage slots.
+- **Capacity:** Gallery display capacity scales with garage capacity (gallery slots = garage slots).
+  - If the gallery is full, you must remove a displayed car before adding another.
+  - If the garage is full, you must put a garage car on display (or sell one) before removing a car from display.
 
-### Car Collections System
-- **Collection Sets:** Players can complete themed collections for one-time prestige bonuses:
+### Car Sets System
+- **Sets:** Players can complete themed sets for one-time prestige bonuses:
   - **JDM Legends** (5 JDM cars): +50 prestige
   - **Muscle Masters** (5 Muscle cars): +50 prestige
   - **European Elite** (5 European cars): +50 prestige
   - **Exotic Collection** (4 Exotic cars): +75 prestige
   - **Classics Curator** (6 Classic cars): +60 prestige
-- **Auto-Detection:** Collections automatically check for completion when cars are added to inventory.
-- **Museum Integration:** Collection progress displayed in museum view.
-- **Total Reward Potential:** +285 prestige from all collections.
+- **Auto-Detection:** Sets automatically check for completion when cars are added to inventory.
+- **Gallery Integration:** Set progress displayed in the gallery view.
+- **Total Reward Potential:** +285 prestige from all sets.
 
 ## Data Structures
 
@@ -264,7 +264,7 @@ As the player levels up, they improve three core tools:
 ## Car Progression Tiers (Design)
 - **Tier 1: Daily Drivers** (grind cash via flips)
 - **Tier 2: Cult Classics** (trade leverage; mid-tier rival battles)
-- **Tier 3: Icons** (prestige museum anchors)
+- **Tier 3: Icons** (prestige gallery anchors)
 - **Tier 4: Unicorns** (win-condition vehicles)
 
 ## Valuation & Costs (Implementation-Friendly)

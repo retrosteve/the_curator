@@ -81,7 +81,7 @@ export const GAME_CONFIG = {
     // Win conditions: must meet ALL of these
     requiredPrestige: 500, // Reduced from 1000 with 15 AP economy and more content
     requiredUnicorns: 2, // Reduced from 3 (more achievable)
-    requiredMuseumCars: 5, // Must be achievable with current max garage slots
+    requiredMuseumCars: 5, // Must be achievable with museum capacity (currently scales with garage slots)
     requiredSkillLevel: 4, // Reduced from 5 (max level still valuable but not required)
   },
 

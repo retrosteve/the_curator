@@ -4,6 +4,15 @@ import { Rival, getTierName, getRivalById, calculateRivalInterest, getMoodModifi
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
+import {
+  createEncounterCenteredLayoutRoot,
+  createEncounterActionsPanel,
+  createEncounterLogPanel,
+  createEncounterTwoColGrid,
+  disableEncounterActionButton,
+  formatEncounterNeedLabel,
+  ensureEncounterLayoutStyles,
+} from '@/ui/internal/ui-encounter';
 
 type AuctionLogKind = 'system' | 'player' | 'rival' | 'market' | 'warning' | 'error';
 
@@ -97,7 +106,7 @@ export class AuctionScene extends BaseGameScene {
     // Defensive guard: this scene should not start if the garage is already full.
     // Entry points (e.g., MapScene) should prevent this, but keep this to avoid bypasses.
     const player = this.gameManager.getPlayerState();
-    if (player.inventory.length >= player.garageSlots) {
+    if (!this.gameManager.hasGarageSpace()) {
       this.uiManager.showModal(
         'Garage Full',
         'Your garage is full. Sell or scrap a car before entering an auction.',
@@ -188,42 +197,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     const player = this.gameManager.getPlayerState();
 
     // Minimal responsive layout tweaks for the auction UI.
-    if (!document.getElementById('auctionLayoutStyles')) {
-      const style = document.createElement('style');
-      style.id = 'auctionLayoutStyles';
-      style.textContent = `
-        .auction-layout { width: min(94vw, 1100px); }
-        @media (max-width: 860px) {
-          .auction-layout__top { grid-template-columns: 1fr !important; }
-          .auction-layout__bottom { grid-template-columns: 1fr !important; }
-        }
-      `;
-      document.head.appendChild(style);
-    }
+    ensureEncounterLayoutStyles({
+      styleId: 'auctionLayoutStyles',
+      rootClass: 'auction-layout',
+      topClass: 'auction-layout__top',
+      bottomClass: 'auction-layout__bottom',
+    });
 
-    const layoutRoot = document.createElement('div');
-    layoutRoot.className = 'auction-layout';
-    Object.assign(layoutRoot.style, {
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      maxHeight: 'calc(100vh - 140px)',
-      overflowY: 'auto',
-      boxSizing: 'border-box',
-      display: 'grid',
-      gap: '14px',
-      pointerEvents: 'auto',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const topGrid = document.createElement('div');
-    topGrid.className = 'auction-layout__top';
-    Object.assign(topGrid.style, {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '14px',
-      alignItems: 'start',
-    } satisfies Partial<CSSStyleDeclaration>);
+    const layoutRoot = createEncounterCenteredLayoutRoot('auction-layout');
+    const topGrid = createEncounterTwoColGrid('auction-layout__top');
 
     // LEFT: car + your numbers
     const leftPanel = this.uiManager.createPanel({ padding: '18px' });
@@ -337,37 +319,9 @@ Tip: Visit the Garage to sell something, then come back.`,
     layoutRoot.appendChild(topGrid);
 
     // BOTTOM: actions + log
-    const bottomGrid = document.createElement('div');
-    bottomGrid.className = 'auction-layout__bottom';
-    Object.assign(bottomGrid.style, {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '14px',
-      alignItems: 'start',
-    } satisfies Partial<CSSStyleDeclaration>);
+    const bottomGrid = createEncounterTwoColGrid('auction-layout__bottom');
 
-    const actionsPanel = this.uiManager.createPanel({ padding: '18px' });
-    actionsPanel.appendChild(
-      this.uiManager.createHeading('Actions', 3, {
-        textAlign: 'center',
-        marginBottom: '10px',
-      })
-    );
-
-    const buttonGrid = this.uiManager.createButtonContainer({
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '10px',
-    });
-
-    const buttonTextStyle: Partial<CSSStyleDeclaration> = {
-      width: '100%',
-      whiteSpace: 'pre-line',
-      textAlign: 'left',
-      lineHeight: '1.2',
-      padding: '14px 16px',
-      fontSize: '15px',
-    };
+    const { actionsPanel, buttonGrid, buttonTextStyle } = createEncounterActionsPanel(this.uiManager);
 
     const bidBtn = this.uiManager.createButton(
       `Bid\n+${formatCurrency(AuctionScene.BID_INCREMENT)}`,
@@ -376,9 +330,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     );
     const bidTotal = this.currentBid + AuctionScene.BID_INCREMENT;
     if (player.money < bidTotal) {
-      bidBtn.disabled = true;
-      bidBtn.style.opacity = '0.6';
-      bidBtn.textContent = `Bid\nNeed ${formatCurrency(bidTotal)}`;
+      disableEncounterActionButton(bidBtn, formatEncounterNeedLabel('Bid', formatCurrency(bidTotal)));
     }
     buttonGrid.appendChild(bidBtn);
 
@@ -389,9 +341,10 @@ Tip: Visit the Garage to sell something, then come back.`,
     );
     const powerBidTotal = this.currentBid + AuctionScene.POWER_BID_INCREMENT;
     if (player.money < powerBidTotal) {
-      powerBidBtn.disabled = true;
-      powerBidBtn.style.opacity = '0.6';
-      powerBidBtn.textContent = `Power Bid\nNeed ${formatCurrency(powerBidTotal)}`;
+      disableEncounterActionButton(
+        powerBidBtn,
+        formatEncounterNeedLabel('Power Bid', formatCurrency(powerBidTotal))
+      );
     }
     buttonGrid.appendChild(powerBidBtn);
 
@@ -401,9 +354,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       { variant: 'info', style: buttonTextStyle }
     );
     if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
-      kickTiresBtn.disabled = true;
-      kickTiresBtn.style.opacity = '0.6';
-      kickTiresBtn.textContent = `Kick Tires\nRequires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+`;
+      disableEncounterActionButton(
+        kickTiresBtn,
+        `Kick Tires\nRequires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+`
+      );
     }
     buttonGrid.appendChild(kickTiresBtn);
 
@@ -415,12 +369,13 @@ Tip: Visit the Garage to sell something, then come back.`,
       { variant: 'special', style: buttonTextStyle }
     );
     if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL || stallsRemaining <= 0) {
-      stallBtn.disabled = true;
-      stallBtn.style.opacity = '0.6';
       if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
-        stallBtn.textContent = `Stall\nRequires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+`;
+        disableEncounterActionButton(
+          stallBtn,
+          `Stall\nRequires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+`
+        );
       } else {
-        stallBtn.textContent = 'Stall\nNo uses left';
+        disableEncounterActionButton(stallBtn, 'Stall\nNo uses left');
       }
     }
     buttonGrid.appendChild(stallBtn);
@@ -437,65 +392,10 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     actionsPanel.appendChild(buttonGrid);
 
-    const logPanel = this.uiManager.createPanel({
-      padding: '18px',
-      maxHeight: '260px',
-      overflowY: 'auto',
+    const logPanel = createEncounterLogPanel(this.uiManager, {
+      entries: this.auctionLog,
+      getStyle: (kind) => this.getLogStyle(kind),
     });
-
-    const logHeader = document.createElement('div');
-    Object.assign(logHeader.style, {
-      position: 'sticky',
-      top: '0',
-      zIndex: '1',
-      // Opaque header so log text doesn't show through underneath while scrolling.
-      backgroundColor: 'rgba(0,0,0,0.92)',
-      margin: '0 -18px 10px -18px',
-      padding: '10px 18px',
-      borderBottom: '1px solid rgba(255,255,255,0.12)',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const logHeading = this.uiManager.createHeading('Log', 3, {
-      textAlign: 'center',
-      marginBottom: '0',
-    });
-    logHeader.appendChild(logHeading);
-    logPanel.appendChild(logHeader);
-
-    const entries = this.auctionLog.slice(-20);
-    for (const entry of entries) {
-      const kindStyle = this.getLogStyle(entry.kind);
-      const line = document.createElement('div');
-      Object.assign(line.style, {
-        fontSize: '13px',
-        margin: '0 0 6px 0',
-        lineHeight: '1.3',
-        color: '#ccc',
-      } satisfies Partial<CSSStyleDeclaration>);
-
-      const bullet = document.createElement('span');
-      bullet.textContent = '• ';
-      line.appendChild(bullet);
-
-      const colonIndex = entry.text.indexOf(':');
-      if (colonIndex > 0) {
-        const prefix = document.createElement('span');
-        prefix.textContent = entry.text.slice(0, colonIndex + 1);
-        prefix.style.color = kindStyle.color;
-        if (kindStyle.fontWeight) prefix.style.fontWeight = kindStyle.fontWeight;
-        line.appendChild(prefix);
-
-        const rest = document.createElement('span');
-        rest.textContent = entry.text.slice(colonIndex + 1);
-        line.appendChild(rest);
-      } else {
-        const whole = document.createElement('span');
-        whole.textContent = entry.text;
-        line.appendChild(whole);
-      }
-
-      logPanel.appendChild(line);
-    }
 
     bottomGrid.appendChild(actionsPanel);
     bottomGrid.appendChild(logPanel);

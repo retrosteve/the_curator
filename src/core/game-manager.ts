@@ -465,10 +465,12 @@ export class GameManager {
    * @returns True if car was added, false if garage is full
    */
   public addCar(car: Car): boolean {
-    if (this.player.inventory.length >= this.player.garageSlots) {
+    if (!this.hasGarageSpace()) {
       return false;
     }
 
+    // New cars always enter the garage first (not displayed in museum).
+    car.displayInMuseum = false;
     this.player.inventory.push(car);
     this.world.dayStats.carsAcquired += 1;
     eventBus.emit('inventory-changed', this.player.inventory);
@@ -478,6 +480,38 @@ export class GameManager {
     
     this.debouncedSave();
     return true;
+  }
+
+  /**
+   * Get all cars currently in the garage (i.e., not displayed in museum).
+   * Museum-displayed cars are still owned but do not consume garage slots.
+   */
+  public getGarageCars(): Car[] {
+    return this.player.inventory.filter((car) => car.displayInMuseum !== true);
+  }
+
+  /**
+   * Get the number of garage cars (non-museum) currently occupying slots.
+   */
+  public getGarageCarCount(): number {
+    return this.getGarageCars().length;
+  }
+
+  /**
+   * Returns true if the player has at least one free garage slot.
+   */
+  public hasGarageSpace(): boolean {
+    return this.getGarageCarCount() < this.player.garageSlots;
+  }
+
+  /**
+   * Museum display capacity.
+   * 
+   * Current rule: museum slots scale with garage slots (same number).
+   * This keeps progression simple while still separating garage vs museum storage.
+   */
+  public getMuseumSlots(): number {
+    return this.player.garageSlots;
   }
 
   /**
@@ -631,11 +665,33 @@ export class GameManager {
       return { success: false, message: 'Car not found' };
     }
 
-    if (!car.displayInMuseum && car.condition < 80) {
+    const currentlyDisplayed = car.displayInMuseum === true;
+
+    if (!currentlyDisplayed && car.condition < 80) {
       return { success: false, message: 'Car must be in excellent condition (80%+) to display in museum' };
     }
 
-    car.displayInMuseum = !car.displayInMuseum;
+    if (!currentlyDisplayed) {
+      // Moving Garage -> Museum: enforce museum capacity.
+      const museumCount = this.getMuseumCars().length;
+      if (museumCount >= this.getMuseumSlots()) {
+        return {
+          success: false,
+          message: `Museum is full (${museumCount}/${this.getMuseumSlots()} displayed). Remove a car from display to make space.`,
+        };
+      }
+      car.displayInMuseum = true;
+    } else {
+      // Moving Museum -> Garage: enforce garage capacity.
+      if (!this.hasGarageSpace()) {
+        return {
+          success: false,
+          message: `Garage is full (${this.getGarageCarCount()}/${this.player.garageSlots} slots used). Sell a car or add another to the museum before removing this display.`,
+        };
+      }
+      car.displayInMuseum = false;
+    }
+
     eventBus.emit('inventory-changed', this.player.inventory);
     this.debouncedSave(); // Auto-save on museum status change
 

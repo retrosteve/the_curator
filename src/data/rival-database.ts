@@ -267,7 +267,15 @@ export function getRandomRival(day: number = 1): Rival {
  * @returns The rival if found, or a random rival as fallback
  */
 export function getRivalById(id: string, day: number = 1): Rival {
-  const rival = RivalDatabase.find(r => r.id === id);
+  // Backward-compatible ID normalization.
+  // Earlier builds used IDs like "rival_1" / "rival_2"; current DB uses "rival_001" style.
+  const normalizedId = id.replace(/^rival_(\d{1,3})$/i, (_m, digits: string) => {
+    const n = Number(digits);
+    if (!Number.isFinite(n)) return id;
+    return `rival_${String(n).padStart(3, '0')}`;
+  });
+
+  const rival = RivalDatabase.find((r) => r.id === normalizedId);
   if (!rival) {
     console.warn(`Rival with ID "${id}" not found, returning random rival`);
     return getRandomRival(day);

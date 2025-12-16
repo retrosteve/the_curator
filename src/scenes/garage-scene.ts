@@ -13,7 +13,7 @@ import type { DeepReadonly } from '@/utils/types';
 
 /**
  * Garage Scene - Player's home base for managing cars.
- * Hub scene where players can view inventory, restore cars, sell cars, and end the day.
+ * Hub scene where players can manage their garage, restore cars, sell cars, and end the day.
  * Provides access to the map for exploring locations.
  */
 export class GarageScene extends BaseGameScene {
@@ -24,14 +24,15 @@ export class GarageScene extends BaseGameScene {
 
   private readonly handleInventoryChanged = (): void => {
     const player = this.gameManager.getPlayerState();
+    const garageCarCount = this.gameManager.getGarageCarCount();
     if (this.inventoryButton) {
-      this.inventoryButton.textContent = `View Inventory (${player.inventory.length} cars)`;
+      this.inventoryButton.textContent = `View Garage (${garageCarCount} cars)`;
     }
 
     // Update garage info in HUD
     this.uiManager.updateHUD({
       garage: {
-        used: player.inventory.length,
+        used: garageCarCount,
         total: player.garageSlots,
       },
     });
@@ -188,7 +189,7 @@ export class GarageScene extends BaseGameScene {
   }
 
   private generateRivalRumor(): string {
-    const rivals = ['rival_1', 'rival_2', 'rival_3']; // IDs from database
+    const rivals = ['rival_001', 'rival_002', 'rival_003']; // IDs from RivalDatabase
     const randomRivalId = rivals[Math.floor(Math.random() * rivals.length)];
     const mood = getRivalMood(randomRivalId, this.gameManager.getWorldState().day);
     const rivalName = getRivalById(randomRivalId)?.name || 'Unknown Rival';
@@ -210,6 +211,7 @@ export class GarageScene extends BaseGameScene {
     this.currentView = 'menu';
 
     const player = this.gameManager.getPlayerState();
+    const garageCarCount = this.gameManager.getGarageCarCount();
 
     // Create main menu panel
     const menuPanel = this.uiManager.createPanel({
@@ -233,7 +235,7 @@ export class GarageScene extends BaseGameScene {
 
     // Garage status
     const garageStatus = this.uiManager.createText(
-      `Garage: ${player.inventory.length}/${player.garageSlots} slots used`,
+      `Garage: ${garageCarCount}/${player.garageSlots} slots used`,
       { textAlign: 'center', marginBottom: '10px', fontWeight: 'bold', opacity: '0.95' }
     );
     menuPanel.appendChild(garageStatus);
@@ -275,9 +277,9 @@ export class GarageScene extends BaseGameScene {
     
     primaryActions.appendChild(mapBtn);
 
-    // View Inventory button
+    // View Garage button
     const inventoryBtn = this.createTutorialAwareButton(
-      `View Inventory (${player.inventory.length} cars)`,
+      `View Garage (${garageCarCount} cars)`,
       () => this.showInventory(),
       { variant: 'info', style: compactButtonStyle }
     );
@@ -626,8 +628,12 @@ export class GarageScene extends BaseGameScene {
       const removeBtn = this.uiManager.createButton(
         'Remove from Display',
         () => {
-          this.gameManager.toggleMuseumDisplay(car.id);
-          refreshCallback();
+          const result = this.gameManager.toggleMuseumDisplay(car.id);
+          if (result.success) {
+            refreshCallback();
+          } else {
+            this.uiManager.showModal('Cannot Remove', result.message, [{ text: 'OK', onClick: () => {} }]);
+          }
         },
         { variant: 'danger', style: { ...compactButtonStyle, marginTop: '10px' } }
       );
@@ -660,7 +666,7 @@ export class GarageScene extends BaseGameScene {
     this.uiManager.clear();
     this.currentView = 'inventory';
 
-    const player = this.gameManager.getPlayerState();
+    const garageCars = this.gameManager.getGarageCars();
 
     // Reuse cached HUD
     if (!this.cachedHUD) {
@@ -681,13 +687,13 @@ export class GarageScene extends BaseGameScene {
     });
     panel.classList.add('garage-inventory-panel');
 
-    const heading = this.uiManager.createHeading('Your Inventory', 2, {
+    const heading = this.uiManager.createHeading('Your Garage', 2, {
       textAlign: 'center',
     });
     panel.appendChild(heading);
 
-    if (player.inventory.length === 0) {
-      const emptyText = this.uiManager.createText('No cars in inventory. Visit the map to find some!', {
+    if (garageCars.length === 0) {
+      const emptyText = this.uiManager.createText('No cars in the garage. Visit the map to find some!', {
         textAlign: 'center',
         fontSize: '16px',
       });
@@ -695,7 +701,7 @@ export class GarageScene extends BaseGameScene {
     } else {
       const grid = document.createElement('div');
       grid.className = 'garage-inventory-grid';
-      player.inventory.forEach((car) => {
+      garageCars.forEach((car) => {
         const carPanel = this.createCarCard(car, 'inventory', () => this.showInventory());
         grid.appendChild(carPanel);
       });
@@ -1186,12 +1192,17 @@ export class GarageScene extends BaseGameScene {
     const museumIncome = this.gameManager.getMuseumIncomeInfo();
     const unusedAP = world.currentAP;
 
+    const garageCarCount = this.gameManager.getGarageCarCount();
+    const museumCarCount = this.gameManager.getMuseumCars().length;
+
     // Pre-check: Can player afford rent?
     if (playerBefore.money < rent) {
-      const canSell = playerBefore.inventory.length > 0;
+      const canSellFromGarage = garageCarCount > 0;
+      const canMoveFromMuseumToGarage = museumCarCount > 0 && this.gameManager.hasGarageSpace();
+      const hasAnyCars = canSellFromGarage || museumCarCount > 0;
       const canLoan = this.gameManager.canTakeBankLoan();
 
-      if (!canSell && !canLoan) {
+      if (!hasAnyCars && !canLoan) {
         this.uiManager.showModal(
           'Bankrupt',
           `You can't pay today's rent (${formatCurrency(rent)}).\n\nGame Over.`,
@@ -1211,10 +1222,15 @@ export class GarageScene extends BaseGameScene {
       const shortfall = rent - playerBefore.money;
       const buttons: { text: string; onClick: () => void }[] = [];
 
-      if (canSell) {
+      if (canSellFromGarage) {
         buttons.push({
           text: 'Sell a Car',
           onClick: () => this.showInventory(),
+        });
+      } else if (canMoveFromMuseumToGarage) {
+        buttons.push({
+          text: 'Go to Museum',
+          onClick: () => this.showMuseum(),
         });
       }
 
@@ -1570,7 +1586,7 @@ export class GarageScene extends BaseGameScene {
 
     if (museumCars.length === 0) {
       const emptyText = this.uiManager.createText(
-        'No cars displayed yet. Restore cars to excellent condition (80%+) and display them from your inventory!',
+        'No cars displayed yet. Restore cars to excellent condition (80%+) and display them from your garage!',
         { textAlign: 'center', fontSize: '16px', color: '#7f8c8d' }
       );
       panel.appendChild(emptyText);

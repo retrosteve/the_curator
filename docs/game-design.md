@@ -63,7 +63,10 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - Excellent (90-99%): +2 prestige/day
   - Perfect (100%): +3 prestige/day
 - **Management:** Players can toggle cars between garage storage and museum display.
-- **Capacity:** Museum display slots are unlimited (no hard cap).
+- **Garage vs Museum Slots:** Displayed museum cars do **not** consume garage slots.
+- **Capacity:** Museum display capacity scales with garage capacity (museum slots = garage slots).
+  - If the museum is full, you must remove a displayed car before adding another.
+  - If the garage is full, you must display or sell a garage car before removing a car from the museum.
 
 ### Car Collections System
 - **Collection Sets:** Players can complete themed collections for one-time prestige bonuses:

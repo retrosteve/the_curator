@@ -241,7 +241,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
       ap: this.timeSystem.getFormattedAP(),
       location: world.currentLocation,
       garage: {
-        used: player.inventory.length,
+        used: this.gameManager.getGarageCarCount(),
         total: player.garageSlots,
       },
       dailyRent,

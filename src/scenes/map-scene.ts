@@ -190,7 +190,7 @@ export class MapScene extends BaseGameScene {
 
   private getLocationDescription(node: MapNode): string {
     if (node.id === 'garage') {
-      return 'Your home base. Manage inventory, restore cars, and end the day.';
+      return 'Your home base. Manage your cars, restore cars, and end the day.';
     }
 
     if (node.specialEvent) {
@@ -201,7 +201,7 @@ export class MapScene extends BaseGameScene {
       case 'scrapyard':
         return 'Rough diamonds in the rough. Low prices, questionable condition.';
       case 'dealership':
-        return 'Higher quality inventory. Prices reflect the better condition.';
+        return 'Higher quality stock. Prices reflect the better condition.';
       case 'auction':
         return 'Competitive bidding. Face rivals for rare finds.';
       default:
@@ -514,8 +514,7 @@ export class MapScene extends BaseGameScene {
   }
 
   private hasGarageSpace(): boolean {
-    const player = this.gameManager.getPlayerState();
-    return player.inventory.length < player.garageSlots;
+    return this.gameManager.hasGarageSpace();
   }
 
   private showGarageFullGate(): void {

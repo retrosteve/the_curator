@@ -29,7 +29,7 @@ export type GameEvents = {
     onSkip: () => void;
     onContinue: () => void;
   };
-  'collection-complete': {
+  'set-complete': {
     id: string;
     name: string;
     description: string;

@@ -1,6 +1,6 @@
 ## The Curator
 
-A 2D Strategy/Management game about running a car museum. Buy, restore, and flip classic cars to fund your dream museum.
+A 2D Strategy/Management game about curating a private car collection. Buy, restore, and flip classic cars to build prestige and fund your growing collection.
 
 ## Tech Stack
 
@@ -26,8 +26,8 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 
 ### ✅ Garage Scene
 - View your car inventory (shows current/max garage slots)
-- View your car museum (display high-value restored cars)
-- **Car Collections:** Track and complete themed collections for prestige bonuses
+- View your private collection (move high-quality cars out of storage)
+- **Car Sets:** Track and complete themed sets for one-time prestige bonuses
 - Restore cars (costs money + time)
 - Sell cars for profit
 - Upgrade garage capacity (costs prestige, with rent increase warning)
@@ -38,25 +38,24 @@ A 2D Strategy/Management game about running a car museum. Buy, restore, and flip
 ### ✅ Victory Progress Tracker
 - Persistent HUD display showing all 4 win conditions:
   - Prestige progress (500 required)
-  - Unicorn cars in museum (2 required)
-  - Total museum cars (8 required)
+  - Unicorn cars in collection (2 required)
+  - Total collection cars (5 required)
   - Skill mastery level (4 required)
 - Click tracker for detailed breakdown
 - Visual checkmarks when conditions are met
 
 ### ✅ Map Scene
 - Three explorable locations:
-  - **Joe's Scrapyard** (Travel: 1 AP) - Find project cars
-  - **Classic Car Dealership** (Travel: 1 AP) - Browse inventory
-  - **Weekend Auction House** (Travel: 1 AP)
+  - **Joe's Scrapyard** - Find project cars
+  - **Classic Car Dealership** - Browse inventory
+  - **Weekend Auction House**
 - **Special Events:** Dynamic temporary locations (15% daily chance) with
   unique opportunities:
   - Estate Sales (discounted high-value cars)
   - Barn Finds (rare cars with guaranteed tags)
-  - Private Collections (prestige cars with bonuses)
+  - Collector Showcases (prestige cars with bonuses)
   - Clearance Events (multiple cheap cars)
 - Action Point costs:
-  - **Travel:** 1 AP
   - **Inspect (solo negotiation):** 1 AP
   - **Auction:** 2 AP
 - Random encounters:
@@ -88,9 +87,9 @@ Rivals have unique:
 
 ### ✅ Core Systems
 - **Economy** - Value calculations, restoration costs, balanced rent scaling
-- **Time Management** - 15 Action Points per day, action costs
+- **Time Management** - 18 Action Points per day, action costs
 - **Player State** - Money, inventory, prestige, skills (Eye/Tongue/Network)
-- **Car Collections** - 5 themed sets with prestige rewards (total +285 prestige)
+- **Car Sets** - 5 themed sets with prestige rewards (total +285 prestige)
 - **Victory Tracker** - Real-time progress toward becoming master curator
 - **Save/Load** - Persistent game progress via localStorage
 - **Event System** - Decoupled communication
@@ -131,9 +130,9 @@ npm run preview
    - Solo negotiations - Simple buy/pass decisions
    - Auctions - Strategic bidding against rivals
 4. **Restore Cars** - Improve condition to increase value
-5. **Build Museum** - Restore cars to excellent condition for prestige bonuses
+5. **Build Collection** - Add high-quality cars to your private collection for daily prestige
 6. **Sell for Profit** - Fund your operations and upgrades
-7. **End Day** - Rest and start fresh (collect museum prestige)
+7. **End Day** - Rest and start fresh (collect collection prestige)
 
 ## Game Mechanics
 
@@ -159,22 +158,25 @@ npm run preview
 - Cannot buy cars when garage is full
 - Shows current usage in HUD: "🏠 Garage: 2/3"
 
-### Museum Mechanic
-- **Museum Cars:** Cars with condition ≥80%
-- **Daily Prestige Bonus:** +1 prestige per museum car when you end the day
-- **Purpose:** Encourages long-term car restoration and collection building
-- **Display:** View museum in garage to see your collection
+### Private Collection Mechanic
+- **Eligibility:** Cars with condition ≥80% can be added to your collection
+- **Daily Prestige Bonus:** Collection cars generate prestige based on quality tiers:
+  - Good (80-89%): +1 prestige/day
+  - Excellent (90-99%): +2 prestige/day
+  - Perfect (100%): +3 prestige/day
+- **Storage Rules:** Cars in the collection do not consume garage slots
+- **Capacity:** Collection capacity scales with garage capacity (collection slots = garage slots)
 
 ### Save/Load System
 - **Auto-Save:** Game state automatically saves to browser localStorage when you **End Day** (end-of-day checkpoint)
 - **Manual Save/Load:** Buttons in garage scene for explicit save/load operations
-- **Saved Data:** Money, prestige, inventory, garage slots, day/time, museum display status
+- **Saved Data:** Money, prestige, inventory, garage slots, day/time, collection status
 
 ### Restoration
 - Two restoration services are available (AP cost is a major resource):
-  - **Cheap Charlie (Minor Service):** +10 condition, 3 AP, low cost, small
+  - **Cheap Charlie (Minor Service):** +10 condition, 2 AP, low cost, small
     risk
-  - **The Artisan (Major Overhaul):** +30 condition, 5 AP, high cost
+  - **The Artisan (Major Overhaul):** +30 condition, 4 AP, high cost
 - Max condition: 100
 
 ### Rival AI Strategies

@@ -85,9 +85,8 @@ export const GAME_CONFIG = {
     requiredSkillLevel: 4, // Reduced from 5 (max level still valuable but not required)
   },
 
-  collections: {
-    // Car collection sets that award prestige bonuses when completed
-    sets: {
+  // Car sets that award one-time prestige bonuses when completed.
+  sets: {
       jdmLegends: {
         name: 'JDM Legends',
         description: 'Collect iconic Japanese sports cars',
@@ -128,7 +127,6 @@ export const GAME_CONFIG = {
         prestigeReward: 60,
         icon: '🏛️',
       },
-    },
   },
 
   economy: {

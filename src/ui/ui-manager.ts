@@ -601,7 +601,7 @@ export class UIManager {
           <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="collection-prestige" title="Cars in your collection generate prestige daily based on condition quality">
             <span class="hud-icon">🏛️</span>
             <span class="hud-label">Collection</span>
-            <span class="hud-value">+${data.collectionPrestige.totalPerDay} prestige/day (${data.collectionPrestige.carCount} cars)</span>
+            <span class="hud-value" data-hud-value="collection-prestige">+${data.collectionPrestige.totalPerDay} prestige/day (${data.collectionPrestige.carCount} cars)</span>
           </div>
         ` : ''}
       </div>
@@ -620,10 +620,22 @@ export class UIManager {
       progressDiv.innerHTML = `
         <div class="hud-progress-title">🏆 Victory (click)</div>
         <div class="hud-progress-items">
-          <div class="hud-progress-item">${prestigeIcon} Prestige <span>${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}</span></div>
-          <div class="hud-progress-item">${unicornIcon} Unicorns <span>${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}</span></div>
-          <div class="hud-progress-item">${collectionIcon} Collection <span>${data.victoryProgress.collectionCars.current}/${data.victoryProgress.collectionCars.required}</span></div>
-          <div class="hud-progress-item">${skillIcon} Max Skill <span>${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}</span></div>
+          <div class="hud-progress-item">
+            <span data-hud-progress-icon="prestige">${prestigeIcon}</span>
+            Prestige <span data-hud-progress-value="prestige">${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}</span>
+          </div>
+          <div class="hud-progress-item">
+            <span data-hud-progress-icon="unicorns">${unicornIcon}</span>
+            Unicorns <span data-hud-progress-value="unicorns">${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}</span>
+          </div>
+          <div class="hud-progress-item">
+            <span data-hud-progress-icon="collection">${collectionIcon}</span>
+            Collection <span data-hud-progress-value="collection">${data.victoryProgress.collectionCars.current}/${data.victoryProgress.collectionCars.required}</span>
+          </div>
+          <div class="hud-progress-item">
+            <span data-hud-progress-icon="skill">${skillIcon}</span>
+            Max Skill <span data-hud-progress-value="skill">${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}</span>
+          </div>
         </div>
       `;
       
@@ -658,6 +670,13 @@ export class UIManager {
       total: number;
     };
     market?: string;
+    collectionPrestige?: { totalPerDay: number; carCount: number } | null;
+    victoryProgress?: {
+      prestige: { current: number; required: number; met: boolean };
+      unicorns: { current: number; required: number; met: boolean };
+      collectionCars: { current: number; required: number; met: boolean };
+      skillLevel: { current: number; required: number; met: boolean };
+    } | null;
   }): void {
     const hud = document.getElementById('game-hud');
     if (!hud) return;
@@ -670,6 +689,7 @@ export class UIManager {
     const apValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="ap"]');
     const locationValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="location"]');
     const marketValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="market"]');
+    const hudGrid = hud.querySelector<HTMLDivElement>('.hud-grid');
 
     if (data.money !== undefined && moneyValueEl) {
       moneyValueEl.textContent = formatCurrency(data.money);
@@ -694,6 +714,61 @@ export class UIManager {
     }
     if (data.market !== undefined && marketValueEl) {
       marketValueEl.textContent = data.market;
+    }
+
+    if (data.collectionPrestige !== undefined && hudGrid) {
+      const existing = hud.querySelector<HTMLDivElement>('[data-hud="collection-prestige"]');
+      const collectionPrestige = data.collectionPrestige;
+      const shouldShow = collectionPrestige !== null && collectionPrestige.carCount > 0;
+
+      if (!shouldShow) {
+        existing?.remove();
+      } else {
+        const ensure = existing ?? (() => {
+          const wrapper = document.createElement('div');
+          wrapper.className = 'hud-item hud-item--subtle hud-item--warning hud-item--wide';
+          wrapper.setAttribute('data-hud', 'collection-prestige');
+          wrapper.title = 'Cars in your collection generate prestige daily based on condition quality';
+          wrapper.innerHTML = `
+            <span class="hud-icon">🏛️</span>
+            <span class="hud-label">Collection</span>
+            <span class="hud-value" data-hud-value="collection-prestige"></span>
+          `;
+          hudGrid.appendChild(wrapper);
+          return wrapper;
+        })();
+
+        const valueEl = ensure.querySelector<HTMLSpanElement>('[data-hud-value="collection-prestige"]');
+        if (valueEl && collectionPrestige !== null) {
+          valueEl.textContent = `+${collectionPrestige.totalPerDay} prestige/day (${collectionPrestige.carCount} cars)`;
+        }
+      }
+    }
+
+    if (data.victoryProgress !== undefined) {
+      const progress = data.victoryProgress;
+      const prestigeIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="prestige"]');
+      const unicornIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="unicorns"]');
+      const collectionIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="collection"]');
+      const skillIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="skill"]');
+      const prestigeValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="prestige"]');
+      const unicornValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="unicorns"]');
+      const collectionValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="collection"]');
+      const skillValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="skill"]');
+
+      if (progress === null) {
+        // No-op: we currently always render victory progress from scenes.
+      } else {
+        if (prestigeIconEl) prestigeIconEl.textContent = progress.prestige.met ? '✅' : '⬜';
+        if (unicornIconEl) unicornIconEl.textContent = progress.unicorns.met ? '✅' : '⬜';
+        if (collectionIconEl) collectionIconEl.textContent = progress.collectionCars.met ? '✅' : '⬜';
+        if (skillIconEl) skillIconEl.textContent = progress.skillLevel.met ? '✅' : '⬜';
+
+        if (prestigeValueEl2) prestigeValueEl2.textContent = `${progress.prestige.current}/${progress.prestige.required}`;
+        if (unicornValueEl2) unicornValueEl2.textContent = `${progress.unicorns.current}/${progress.unicorns.required}`;
+        if (collectionValueEl2) collectionValueEl2.textContent = `${progress.collectionCars.current}/${progress.collectionCars.required}`;
+        if (skillValueEl2) skillValueEl2.textContent = `${progress.skillLevel.current}/${progress.skillLevel.required}`;
+      }
     }
   }
 

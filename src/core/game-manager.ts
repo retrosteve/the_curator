@@ -30,7 +30,7 @@ export interface PlayerState {
     network: number;
   };
   visitedLocations: Set<string>; // Track locations for Network XP (first visit only)
-  claimedCollections: Set<string>; // Track completed collections to avoid duplicate rewards
+  claimedSets: Set<string>; // Track completed sets to avoid duplicate rewards
 }
 
 /**
@@ -68,7 +68,7 @@ const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for
 
 type AutosavePolicy = 'on-change' | 'end-of-day';
 
-type CollectionConfig = {
+type SetConfig = {
   name: string;
   description: string;
   requiredTags: readonly string[];
@@ -132,7 +132,7 @@ export class GameManager {
       skills: { ...GAME_CONFIG.player.startingSkills },
       skillXP: { eye: 0, tongue: 0, network: 0 },
       visitedLocations: new Set(['garage']), // Start with garage as visited
-      claimedCollections: new Set<string>(), // Track completed collections (always initialized)
+      claimedSets: new Set<string>(), // Track completed sets (always initialized)
     };
 
     this.world = {
@@ -475,8 +475,8 @@ export class GameManager {
     this.world.dayStats.carsAcquired += 1;
     eventBus.emit('inventory-changed', this.player.inventory);
     
-    // Check for collection completions
-    this.checkNewCollectionCompletions();
+    // Check for set completions
+    this.checkNewSetCompletions();
     
     this.debouncedSave();
     return true;
@@ -515,101 +515,101 @@ export class GameManager {
   }
 
   /**
-   * Check if any new collections were just completed and award bonuses.
-    * Collections are checked against full inventory, not just cars in the collection.
+   * Check if any new sets were just completed and award bonuses.
+   * Sets are checked against full inventory, not just cars in the private collection.
    * @private
    */
-  private checkNewCollectionCompletions(): void {
-    const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
+  private checkNewSetCompletions(): void {
+    const sets: Record<string, SetConfig> = GAME_CONFIG.sets;
     
-    for (const [collectionId, collection] of Object.entries(collections)) {
+    for (const [setId, set] of Object.entries(sets)) {
       // Check against full inventory (not just the collection)
       const matchingCars = this.player.inventory.filter((car) =>
-        collection.requiredTags.some((tag) => car.tags.includes(tag))
+        set.requiredTags.some((tag) => car.tags.includes(tag))
       );
       
-      const isComplete = matchingCars.length >= collection.requiredCount;
+      const isComplete = matchingCars.length >= set.requiredCount;
       
       // Check if collection just completed
-      if (isComplete && !this.hasCollectionBeenClaimed(collectionId)) {
-        this.claimCollectionReward(collectionId, collection);
+      if (isComplete && !this.hasSetBeenClaimed(setId)) {
+        this.claimSetReward(setId, set);
       }
     }
   }
 
   /**
-   * Track claimed collections to avoid duplicate rewards.
+   * Track claimed sets to avoid duplicate rewards.
    * Uses a Set stored in player state (added on-the-fly if missing).
    */
-  private hasCollectionBeenClaimed(collectionId: string): boolean {
-    // Initialize claimed collections set if it doesn't exist (for old saves)
-    if (!this.player.claimedCollections) {
-      this.player.claimedCollections = new Set<string>();
+  private hasSetBeenClaimed(setId: string): boolean {
+    // Initialize claimed sets if it doesn't exist (for old saves)
+    if (!this.player.claimedSets) {
+      this.player.claimedSets = new Set<string>();
     }
-    return this.player.claimedCollections.has(collectionId);
+    return this.player.claimedSets.has(setId);
   }
 
   /**
-   * Award collection completion bonus.
+   * Award set completion bonus.
    */
-  private claimCollectionReward(collectionId: string, collection: CollectionConfig): void {
+  private claimSetReward(setId: string, set: SetConfig): void {
     // Mark as claimed
-    if (!this.player.claimedCollections) {
-      this.player.claimedCollections = new Set<string>();
+    if (!this.player.claimedSets) {
+      this.player.claimedSets = new Set<string>();
     }
-    this.player.claimedCollections.add(collectionId);
+    this.player.claimedSets.add(setId);
     
     // Award prestige
-    this.addPrestige(collection.prestigeReward);
+    this.addPrestige(set.prestigeReward);
 
     // Notify UI layer (scenes) to celebrate.
-    eventBus.emit('collection-complete', {
-      id: collectionId,
-      name: collection.name,
-      description: collection.description,
-      icon: collection.icon,
-      prestigeReward: collection.prestigeReward,
+    eventBus.emit('set-complete', {
+      id: setId,
+      name: set.name,
+      description: set.description,
+      icon: set.icon,
+      prestigeReward: set.prestigeReward,
     });
   }
 
   /**
-   * Get progress for a specific collection.
-    * Collections track all inventory cars with matching tags, not just cars in the collection.
-   * @param collectionId - The collection identifier from GAME_CONFIG
+   * Get progress for a specific set.
+   * Sets track all inventory cars with matching tags, not just cars in the private collection.
+   * @param setId - The set identifier from GAME_CONFIG
    * @returns Progress object with current count and completion status
    */
-  public getCollectionProgress(collectionId: string): {
+  public getSetProgress(setId: string): {
     current: number;
     required: number;
     isComplete: boolean;
     isClaimed: boolean;
     matchingCars: Car[];
   } {
-    const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
-    const collection = collections[collectionId];
+    const sets: Record<string, SetConfig> = GAME_CONFIG.sets;
+    const set = sets[setId];
     
-    if (!collection) {
+    if (!set) {
       return { current: 0, required: 0, isComplete: false, isClaimed: false, matchingCars: [] };
     }
     
     // Find all inventory cars that match the collection's required tags
     const matchingCars = this.player.inventory.filter((car) =>
-      collection.requiredTags.some((tag) => car.tags.includes(tag))
+      set.requiredTags.some((tag) => car.tags.includes(tag))
     );
     
     const current = matchingCars.length;
-    const required = collection.requiredCount;
+    const required = set.requiredCount;
     const isComplete = current >= required;
-    const isClaimed = this.hasCollectionBeenClaimed(collectionId);
+    const isClaimed = this.hasSetBeenClaimed(setId);
     
     return { current, required, isComplete, isClaimed, matchingCars };
   }
 
   /**
-   * Get all collection progress data.
-   * @returns Array of collection progress objects
+   * Get all set progress data.
+   * @returns Array of set progress objects
    */
-  public getAllCollectionsProgress(): Array<{
+  public getAllSetsProgress(): Array<{
     id: string;
     name: string;
     description: string;
@@ -620,20 +620,20 @@ export class GameManager {
     isClaimed: boolean;
     prestigeReward: number;
   }> {
-    const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
+    const sets: Record<string, SetConfig> = GAME_CONFIG.sets;
     
-    return Object.entries(collections).map(([id, collection]) => {
-      const progress = this.getCollectionProgress(id);
+    return Object.entries(sets).map(([id, set]) => {
+      const progress = this.getSetProgress(id);
       return {
         id,
-        name: collection.name,
-        description: collection.description,
-        icon: collection.icon,
+        name: set.name,
+        description: set.description,
+        icon: set.icon,
         current: progress.current,
         required: progress.required,
         isComplete: progress.isComplete,
         isClaimed: progress.isClaimed,
-        prestigeReward: collection.prestigeReward,
+        prestigeReward: set.prestigeReward,
       };
     });
   }
@@ -717,7 +717,7 @@ export class GameManager {
   }
 
   /**
-    * Get the quality tier for a displayed car.
+   * Get the quality tier for a collection-eligible car.
    * @param condition - Car's condition percentage
    * @returns Object with tier name and prestige per day
    */

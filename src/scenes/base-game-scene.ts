@@ -24,8 +24,40 @@ export abstract class BaseGameScene extends Phaser.Scene {
   };
 
   protected readonly handlePrestigeChanged = (prestige: number): void => {
-    this.uiManager.updateHUD({ prestige });
+    const victory = this.gameManager.checkVictory();
+    const collectionPrestige = this.gameManager.getCollectionPrestigeInfo();
+    this.uiManager.updateHUD({
+      prestige,
+      victoryProgress: {
+        prestige: victory.prestige,
+        unicorns: victory.unicorns,
+        collectionCars: victory.collectionCars,
+        skillLevel: victory.skillLevel,
+      },
+      collectionPrestige: collectionPrestige.carCount > 0 ? collectionPrestige : null,
+    });
   };
+  protected readonly handleInventoryChanged = (): void => {
+    const player = this.gameManager.getPlayerState();
+    const victory = this.gameManager.checkVictory();
+    const collectionPrestige = this.gameManager.getCollectionPrestigeInfo();
+
+    this.uiManager.updateHUD({
+      garage: {
+        used: this.gameManager.getGarageCarCount(),
+        total: player.garageSlots,
+      },
+      skills: player.skills,
+      victoryProgress: {
+        prestige: victory.prestige,
+        unicorns: victory.unicorns,
+        collectionCars: victory.collectionCars,
+        skillLevel: victory.skillLevel,
+      },
+      collectionPrestige: collectionPrestige.carCount > 0 ? collectionPrestige : null,
+    });
+  };
+
 
   protected readonly handleAPChanged = (_currentAP: number): void => {
     this.uiManager.updateHUD({ ap: this.timeSystem.getFormattedAP() });
@@ -69,11 +101,12 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.on('ap-changed', this.handleAPChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
+    eventBus.on('inventory-changed', this.handleInventoryChanged);
     
     // XP gain and level-up notifications
     eventBus.on('xp-gained', this.handleXPGained);
     eventBus.on('skill-levelup', this.handleSkillLevelUp);
-    eventBus.on('collection-complete', this.handleCollectionComplete);
+    eventBus.on('set-complete', this.handleSetComplete);
     eventBus.on('tutorial-dialogue-show', this.handleTutorialDialogueShow);
     eventBus.on('tutorial-dialogue-hide', this.handleTutorialDialogueHide);
     eventBus.on('tutorial-skip-prompt', this.handleTutorialSkipPrompt);
@@ -112,9 +145,22 @@ export abstract class BaseGameScene extends Phaser.Scene {
     level: number;
   }): void => {
     this.uiManager.showSkillLevelUp(data.skill, data.level);
+
+    // Keep HUD skill line + victory progress in sync.
+    const player = this.gameManager.getPlayerState();
+    const victory = this.gameManager.checkVictory();
+    this.uiManager.updateHUD({
+      skills: player.skills,
+      victoryProgress: {
+        prestige: victory.prestige,
+        unicorns: victory.unicorns,
+        collectionCars: victory.collectionCars,
+        skillLevel: victory.skillLevel,
+      },
+    });
   };
 
-  protected readonly handleCollectionComplete = (data: {
+  protected readonly handleSetComplete = (data: {
     id: string;
     name: string;
     description: string;
@@ -168,10 +214,11 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('location-changed', this.handleLocationChanged);
     eventBus.off('xp-gained', this.handleXPGained);
     eventBus.off('skill-levelup', this.handleSkillLevelUp);
-    eventBus.off('collection-complete', this.handleCollectionComplete);
+    eventBus.off('set-complete', this.handleSetComplete);
     eventBus.off('tutorial-dialogue-show', this.handleTutorialDialogueShow);
     eventBus.off('tutorial-dialogue-hide', this.handleTutorialDialogueHide);
     eventBus.off('tutorial-skip-prompt', this.handleTutorialSkipPrompt);
+    eventBus.off('inventory-changed', this.handleInventoryChanged);
 
     this.input.keyboard?.off('keydown-ESC', this.handleEscapeKey);
     

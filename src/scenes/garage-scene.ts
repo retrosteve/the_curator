@@ -22,7 +22,7 @@ export class GarageScene extends BaseGameScene {
   private mapButton?: HTMLButtonElement;
   private currentView: 'menu' | 'inventory' | 'collection' | 'rival-info' = 'menu';
 
-  private readonly handleInventoryChanged = (): void => {
+  private readonly handleGarageInventoryChanged = (): void => {
     const player = this.gameManager.getPlayerState();
     const garageCarCount = this.gameManager.getGarageCarCount();
     if (this.inventoryButton) {
@@ -460,7 +460,7 @@ export class GarageScene extends BaseGameScene {
     this.cleanupEventListeners();
     
     this.setupCommonEventListeners();
-    eventBus.on('inventory-changed', this.handleInventoryChanged);
+    eventBus.on('inventory-changed', this.handleGarageInventoryChanged);
     eventBus.on('victory', this.handleVictory);
     eventBus.on('tutorial-complete', this.handleTutorialComplete);
     eventBus.on('tutorial-step-changed', this.handleTutorialStepChanged);
@@ -471,7 +471,7 @@ export class GarageScene extends BaseGameScene {
   }
 
   private cleanupEventListeners(): void {
-    eventBus.off('inventory-changed', this.handleInventoryChanged);
+    eventBus.off('inventory-changed', this.handleGarageInventoryChanged);
     eventBus.off('victory', this.handleVictory);
     eventBus.off('tutorial-complete', this.handleTutorialComplete);
     eventBus.off('tutorial-step-changed', this.handleTutorialStepChanged);
@@ -1528,7 +1528,7 @@ export class GarageScene extends BaseGameScene {
     panel.appendChild(infoText);
 
     // Sets progress
-    const collections = this.gameManager.getAllCollectionsProgress();
+    const collections = this.gameManager.getAllSetsProgress();
     if (collections.length > 0) {
       const collectionsHeading = this.uiManager.createHeading('📚 Sets', 3, {
         marginTop: '20px',
@@ -1577,11 +1577,11 @@ export class GarageScene extends BaseGameScene {
     }
 
     // Collection Cars heading
-    const displayedHeading = this.uiManager.createHeading('🏛️ Collection Vehicles', 3, {
+    const collectionHeading = this.uiManager.createHeading('🏛️ Collection Vehicles', 3, {
       marginTop: '20px',
       marginBottom: '10px',
     });
-    panel.appendChild(displayedHeading);
+    panel.appendChild(collectionHeading);
 
     if (collectionCars.length === 0) {
       const emptyText = this.uiManager.createText(

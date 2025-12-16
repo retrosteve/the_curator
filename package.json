@@ -1,7 +1,7 @@
 {
   "name": "the-curator",
   "version": "0.1.0",
-  "description": "A 2D Strategy/Management game about running a car museum",
+  "description": "A 2D Strategy/Management game about curating a private car collection",
   "type": "module",
   "scripts": {
     "dev": "vite",

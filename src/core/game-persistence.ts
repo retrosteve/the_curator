@@ -38,13 +38,41 @@ function migrateLegacyInventoryFields(inventory: unknown): unknown {
   });
 }
 
+function migrateLegacyPlayerFields(player: unknown): unknown {
+  if (!player || typeof player !== 'object') return player;
+
+  const obj = player as Record<string, unknown>;
+  const migrated: Record<string, unknown> = { ...obj };
+
+  if ('inventory' in migrated) {
+    migrated.inventory = migrateLegacyInventoryFields(migrated.inventory);
+  }
+
+  // Legacy field name (pre-sets rename): `claimedCollections`.
+  // Normalize to `claimedSets` and strip the legacy key.
+  const hasClaimedSets = Array.isArray(migrated.claimedSets);
+  const hasClaimedCollections = Array.isArray(migrated.claimedCollections);
+
+  if (!hasClaimedSets && hasClaimedCollections) {
+    migrated.claimedSets = migrated.claimedCollections;
+  }
+
+  if ('claimedCollections' in migrated) {
+    delete migrated.claimedCollections;
+  }
+
+  return migrated;
+}
+
 /**
  * Saved game data structure.
  * Note: `Set` fields are serialized as arrays for persistence.
  */
 export interface SavedGameData {
-  player: Omit<PlayerState, 'visitedLocations' | 'claimedCollections'> & {
+  player: Omit<PlayerState, 'visitedLocations' | 'claimedSets'> & {
     visitedLocations?: string[];
+    claimedSets?: string[];
+    /** Legacy field name (pre-sets rename). */
     claimedCollections?: string[];
   };
   world: WorldState;
@@ -71,7 +99,7 @@ export function buildSaveData(params: {
     player: {
       ...player,
       visitedLocations: Array.from(player.visitedLocations),
-      claimedCollections: Array.from(player.claimedCollections),
+      claimedSets: Array.from(player.claimedSets),
     },
     world,
     market,
@@ -135,12 +163,7 @@ export function migrateSaveData(parsed: unknown): SavedGameData | null {
   // Legacy saves (pre-versioning): accept, migrate, and stamp current.
   if (version === undefined || version === null) {
     const legacy = obj as unknown as SavedGameData;
-    const migratedPlayer = legacy.player && typeof legacy.player === 'object'
-      ? {
-          ...(legacy.player as Record<string, unknown>),
-          inventory: migrateLegacyInventoryFields((legacy.player as Record<string, unknown>).inventory),
-        }
-      : legacy.player;
+    const migratedPlayer = migrateLegacyPlayerFields(legacy.player);
 
     return {
       ...legacy,
@@ -156,12 +179,7 @@ export function migrateSaveData(parsed: unknown): SavedGameData | null {
   switch (version) {
     case '1.0': {
       const v1 = obj as unknown as SavedGameData;
-      const migratedPlayer = v1.player && typeof v1.player === 'object'
-        ? {
-            ...(v1.player as Record<string, unknown>),
-            inventory: migrateLegacyInventoryFields((v1.player as Record<string, unknown>).inventory),
-          }
-        : v1.player;
+      const migratedPlayer = migrateLegacyPlayerFields(v1.player);
 
       return {
         ...v1,
@@ -200,9 +218,9 @@ export function hydrateLoadedState(saveData: SavedGameData): {
   specialEvents?: SpecialEventsState;
   tutorial?: { currentStep: TutorialStep; isActive: boolean };
 } {
-  const rawPlayer = saveData.player as unknown as Partial<PlayerState> & {
+  const rawPlayer = migrateLegacyPlayerFields(saveData.player) as unknown as Partial<PlayerState> & {
     visitedLocations?: string[];
-    claimedCollections?: string[];
+    claimedSets?: string[];
   };
 
   const player: PlayerState = {
@@ -216,7 +234,7 @@ export function hydrateLoadedState(saveData: SavedGameData): {
     skills: rawPlayer.skills ?? { eye: 1, tongue: 1, network: 1 },
     skillXP: rawPlayer.skillXP ?? { eye: 0, tongue: 0, network: 0 },
     visitedLocations: new Set(rawPlayer.visitedLocations ?? ['garage']),
-    claimedCollections: new Set(rawPlayer.claimedCollections ?? []),
+    claimedSets: new Set(rawPlayer.claimedSets ?? []),
   };
 
   const rawWorld = saveData.world as unknown as Partial<WorldState>;

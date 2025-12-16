@@ -39,7 +39,7 @@ export interface PlayerState {
  */
 export interface WorldState {
   day: number;
-  currentAP: number; // Remaining Action Points for today
+  currentAP: number;
   currentLocation: string;
   /**
    * Per-day car offer for each location id.
@@ -88,7 +88,7 @@ export interface VictoryResult {
   hasWon: boolean;
   prestige: { current: number; required: number; met: boolean };
   unicorns: { current: number; required: number; met: boolean };
-  museumCars: { current: number; required: number; met: boolean };
+  collectionCars: { current: number; required: number; met: boolean };
   skillLevel: { current: number; required: number; met: boolean };
 }
 
@@ -434,17 +434,17 @@ export class GameManager {
   }
 
   /**
-   * Calculate daily prestige bonus from cars on display.
+   * Calculate daily prestige bonus from cars in the private collection.
    * Quality tiers: 80-89% = 1 prestige, 90-99% = 2 prestige, 100% = 3 prestige
-   * @returns Number of prestige points earned from cars on display
+   * @returns Number of prestige points earned from the collection
    */
-  private calculateMuseumPrestigeBonus(): number {
-    // Only count cars actively on display
-    const museumCars = this.getMuseumCars();
+  private calculateCollectionPrestigeBonus(): number {
+    // Only count cars currently in the private collection
+    const collectionCars = this.getCollectionCars();
 
     // Calculate prestige based on quality tiers
     let totalPrestige = 0;
-    for (const car of museumCars) {
+    for (const car of collectionCars) {
       if (car.condition >= 100) {
         totalPrestige += 3; // Perfect condition
       } else if (car.condition >= 90) {
@@ -469,8 +469,8 @@ export class GameManager {
       return false;
     }
 
-    // New cars always enter the garage first (not on display).
-    car.displayInMuseum = false;
+    // New cars always enter the garage first (not in the collection).
+    car.inCollection = false;
     this.player.inventory.push(car);
     this.world.dayStats.carsAcquired += 1;
     eventBus.emit('inventory-changed', this.player.inventory);
@@ -483,15 +483,15 @@ export class GameManager {
   }
 
   /**
-   * Get all cars currently in the garage (i.e., not on display).
-   * Cars on display are still owned but do not consume garage slots.
+   * Get all cars currently in the garage (i.e., not in the collection).
+   * Cars in the collection are still owned but do not consume garage slots.
    */
   public getGarageCars(): Car[] {
-    return this.player.inventory.filter((car) => car.displayInMuseum !== true);
+    return this.player.inventory.filter((car) => car.inCollection !== true);
   }
 
   /**
-   * Get the number of garage cars (not on display) currently occupying slots.
+   * Get the number of garage cars (not in the collection) currently occupying slots.
    */
   public getGarageCarCount(): number {
     return this.getGarageCars().length;
@@ -505,25 +505,25 @@ export class GameManager {
   }
 
   /**
-   * Display capacity (gallery).
+   * Collection capacity.
    * 
-   * Current rule: display slots scale with garage slots (same number).
-   * This keeps progression simple while still separating garage vs display storage.
+   * Current rule: collection capacity scales with garage slots (same number).
+   * This keeps progression simple while still separating garage vs collection storage.
    */
-  public getMuseumSlots(): number {
+  public getCollectionSlots(): number {
     return this.player.garageSlots;
   }
 
   /**
    * Check if any new collections were just completed and award bonuses.
-    * Collections are checked against full inventory, not just cars on display.
+    * Collections are checked against full inventory, not just cars in the collection.
    * @private
    */
   private checkNewCollectionCompletions(): void {
     const collections: Record<string, CollectionConfig> = GAME_CONFIG.collections.sets;
     
     for (const [collectionId, collection] of Object.entries(collections)) {
-      // Check against full inventory (not just display)
+      // Check against full inventory (not just the collection)
       const matchingCars = this.player.inventory.filter((car) =>
         collection.requiredTags.some((tag) => car.tags.includes(tag))
       );
@@ -574,7 +574,7 @@ export class GameManager {
 
   /**
    * Get progress for a specific collection.
-    * Collections track all inventory cars with matching tags, not just cars on display.
+    * Collections track all inventory cars with matching tags, not just cars in the collection.
    * @param collectionId - The collection identifier from GAME_CONFIG
    * @returns Progress object with current count and completion status
    */
@@ -654,66 +654,66 @@ export class GameManager {
   }
 
   /**
-    * Toggle on-display (gallery) status for a car.
-    * Only cars with condition >= 80 can be displayed.
+   * Toggle collection status for a car.
+   * Only cars with condition >= 80 can be added.
    * @param carId - The unique ID of the car
    * @returns Object with success flag and message
    */
-  public toggleMuseumDisplay(carId: string): { success: boolean; message: string } {
+  public toggleCollectionStatus(carId: string): { success: boolean; message: string } {
     const car = this.player.inventory.find((c) => c.id === carId);
     if (!car) {
       return { success: false, message: 'Car not found' };
     }
 
-    const currentlyDisplayed = car.displayInMuseum === true;
+    const currentlyInCollection = car.inCollection === true;
 
-    if (!currentlyDisplayed && car.condition < 80) {
-      return { success: false, message: 'Car must be in excellent condition (80%+) to put on display' };
+    if (!currentlyInCollection && car.condition < 80) {
+      return { success: false, message: 'Car must be in excellent condition (80%+) to add to your collection' };
     }
 
-    if (!currentlyDisplayed) {
-      // Moving Garage -> Display: enforce display capacity.
-      const museumCount = this.getMuseumCars().length;
-      if (museumCount >= this.getMuseumSlots()) {
+    if (!currentlyInCollection) {
+      // Moving Garage -> Collection: enforce collection capacity.
+      const collectionCount = this.getCollectionCars().length;
+      if (collectionCount >= this.getCollectionSlots()) {
         return {
           success: false,
-          message: `Gallery is full (${museumCount}/${this.getMuseumSlots()} on display). Remove a car from display to make space.`,
+          message: `Collection is full (${collectionCount}/${this.getCollectionSlots()} items). Remove a car from the collection to make space.`,
         };
       }
-      car.displayInMuseum = true;
+      car.inCollection = true;
     } else {
-      // Moving Display -> Garage: enforce garage capacity.
+      // Moving Collection -> Garage: enforce garage capacity.
       if (!this.hasGarageSpace()) {
         return {
           success: false,
-          message: `Garage is full (${this.getGarageCarCount()}/${this.player.garageSlots} slots used). Sell a car or put another car on display before removing this one.`,
+          message: `Garage is full (${this.getGarageCarCount()}/${this.player.garageSlots} slots used). Sell a car or add another car to your collection before removing this one.`,
         };
       }
-      car.displayInMuseum = false;
+      car.inCollection = false;
     }
 
     eventBus.emit('inventory-changed', this.player.inventory);
-    this.debouncedSave(); // Auto-save on display status change
+    this.debouncedSave(); // Auto-save on collection status change
 
-    const action = car.displayInMuseum ? 'added to' : 'removed from';
-    return { success: true, message: `${car.name} ${action} display` };
+    const action = car.inCollection ? 'added to' : 'removed from';
+    return { success: true, message: `${car.name} ${action} collection` };
   }
 
   /**
-   * Check if a car is eligible to be put on display.
+   * Check if a car is eligible to be added to the collection.
    * @param car - The car to check
-   * @returns True if car meets display requirements (condition >= 80)
+   * @returns True if car meets collection requirements (condition >= 80)
    */
-  public isMuseumEligible(car: { condition: number }): boolean {
+  public isCollectionEligible(car: { condition: number }): boolean {
     return car.condition >= 80;
   }
 
   /**
-   * Get all cars currently on display.
-   * @returns Array of cars with displayInMuseum flag set
+   * Get all cars currently in the collection.
+   * @returns Array of cars with inCollection flag set
    */
-  public getMuseumCars(): Car[] {
-    return this.player.inventory.filter((car) => car.displayInMuseum === true);
+  public getCollectionCars(): Car[] {
+    return this.player.inventory.filter((car) => car.inCollection === true);
   }
 
   /**
@@ -721,7 +721,7 @@ export class GameManager {
    * @param condition - Car's condition percentage
    * @returns Object with tier name and prestige per day
    */
-  public getMuseumQualityTier(condition: number): { tier: string; prestigePerDay: number; color: string } {
+  public getCollectionQualityTier(condition: number): { tier: string; prestigePerDay: number; color: string } {
     if (condition >= 100) {
       return { tier: 'Perfect', prestigePerDay: 3, color: '#f39c12' };
     } else if (condition >= 90) {
@@ -732,19 +732,19 @@ export class GameManager {
   }
 
   /**
-    * Get daily prestige information for the Gallery UI.
+   * Get daily prestige information for the Collection UI.
    * @returns Object with total daily prestige, car count, and breakdown by quality
    */
-  public getMuseumIncomeInfo(): {
+  public getCollectionPrestigeInfo(): {
     totalPerDay: number;
     carCount: number;
     breakdown: { good: number; excellent: number; perfect: number };
   } {
-    const museumCars = this.getMuseumCars();
+    const collectionCars = this.getCollectionCars();
     const breakdown = { good: 0, excellent: 0, perfect: 0 };
     let totalPerDay = 0;
 
-    for (const car of museumCars) {
+    for (const car of collectionCars) {
       if (car.condition >= 100) {
         breakdown.perfect += 1;
         totalPerDay += 3;
@@ -759,7 +759,7 @@ export class GameManager {
 
     return {
       totalPerDay,
-      carCount: museumCars.length,
+      carCount: collectionCars.length,
       breakdown,
     };
   }
@@ -842,10 +842,10 @@ export class GameManager {
 
     const rentPaid = this.applyDailyRent();
 
-    // Apply gallery prestige bonus
-    const museumBonus = this.calculateMuseumPrestigeBonus();
-    if (museumBonus > 0) {
-      this.addPrestige(museumBonus);
+    // Apply collection prestige bonus
+    const collectionBonus = this.calculateCollectionPrestigeBonus();
+    if (collectionBonus > 0) {
+      this.addPrestige(collectionBonus);
     }
 
     // Advance market system (potentially trigger new events)
@@ -969,7 +969,7 @@ export class GameManager {
 
   /**
    * Check if player has met all victory conditions.
-    * Victory requires: prestige threshold, Unicorn count on display, display quality, max skill.
+   * Victory requires: prestige threshold, Unicorn count in collection, collection quality, max skill.
    * @returns Victory result with breakdown of each condition
    */
   public checkVictory(): VictoryResult {
@@ -978,13 +978,13 @@ export class GameManager {
     // Check prestige
     const prestigeMet = this.player.prestige >= config.requiredPrestige;
     
-    // Check Unicorn count on display
-    const museumCars = this.getMuseumCars();
-    const unicornCount = museumCars.filter(car => car.tier === 'Unicorn').length;
+    // Check Unicorn count in collection
+    const collectionCars = this.getCollectionCars();
+    const unicornCount = collectionCars.filter(car => car.tier === 'Unicorn').length;
     const unicornsMet = unicornCount >= config.requiredUnicorns;
     
-    // Check total cars on display
-    const museumCarsMet = museumCars.length >= config.requiredMuseumCars;
+    // Check total cars in collection
+    const collectionCarsMet = collectionCars.length >= config.requiredCollectionCars;
     
     // Check skill level (at least one skill at max)
     const maxSkill = Math.max(
@@ -994,7 +994,7 @@ export class GameManager {
     );
     const skillMet = maxSkill >= config.requiredSkillLevel;
     
-    const hasWon = prestigeMet && unicornsMet && museumCarsMet && skillMet;
+    const hasWon = prestigeMet && unicornsMet && collectionCarsMet && skillMet;
     
     return {
       hasWon,
@@ -1008,10 +1008,10 @@ export class GameManager {
         required: config.requiredUnicorns,
         met: unicornsMet,
       },
-      museumCars: {
-        current: museumCars.length,
-        required: config.requiredMuseumCars,
-        met: museumCarsMet,
+      collectionCars: {
+        current: collectionCars.length,
+        required: config.requiredCollectionCars,
+        met: collectionCarsMet,
       },
       skillLevel: {
         current: maxSkill,

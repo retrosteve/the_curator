@@ -20,7 +20,7 @@ export class GarageScene extends BaseGameScene {
   private autoEndDayOnEnter: boolean = false;
   private inventoryButton?: HTMLButtonElement;
   private mapButton?: HTMLButtonElement;
-  private currentView: 'menu' | 'inventory' | 'museum' | 'rival-info' = 'menu';
+  private currentView: 'menu' | 'inventory' | 'collection' | 'rival-info' = 'menu';
 
   private readonly handleInventoryChanged = (): void => {
     const player = this.gameManager.getPlayerState();
@@ -37,20 +37,19 @@ export class GarageScene extends BaseGameScene {
       },
     });
 
-    if (this.currentView === 'inventory') {
-      this.showInventory();
-    }
+    if (this.currentView === 'inventory') this.showInventory();
+    if (this.currentView === 'collection') this.showCollection();
   };
 
   private readonly handleVictory = (victoryResult: VictoryResult): void => {
-    const { prestige, unicorns, museumCars, skillLevel } = victoryResult;
+    const { prestige, unicorns, collectionCars, skillLevel } = victoryResult;
     
     const message = `🏆 CONGRATULATIONS! 🏆\n\nYou've become the world's greatest car curator!\n\n` +
       `✓ Prestige: ${formatNumber(prestige.current)} (Required: ${formatNumber(prestige.required)})\n` +
       `✓ Unicorn Cars: ${unicorns.current} (Required: ${unicorns.required})\n` +
-      `✓ Cars on Display: ${museumCars.current} cars (Required: ${museumCars.required})\n` +
+      `✓ Cars in Collection: ${collectionCars.current} cars (Required: ${collectionCars.required})\n` +
       `✓ Master Skill Level: ${skillLevel.current} (Required: ${skillLevel.required})\n\n` +
-      `You've built an extraordinary gallery and mastered the art of car curation!\n\n` +
+      `You've built an extraordinary private collection and mastered the art of car curation!\n\n` +
       `Days Played: ${this.gameManager.getWorldState().day}`;
 
     this.uiManager.showModal(
@@ -58,7 +57,7 @@ export class GarageScene extends BaseGameScene {
       message,
       [
         { text: 'Continue Playing', onClick: () => {} },
-        { text: 'View Gallery', onClick: () => this.showMuseum() },
+        { text: 'View Collection', onClick: () => this.showCollection() },
       ]
     );
   };
@@ -72,7 +71,7 @@ export class GarageScene extends BaseGameScene {
       `✓ Restore cars to increase their value\n` +
       `✓ Win auctions against rivals\n` +
       `✓ Manage your time and budget\n\n` +
-      `The world of car collecting awaits. Build your dream gallery!`,
+      `The world of car collecting awaits. Build your dream collection!`,
       [{ text: 'Start Collecting!', onClick: () => {} }]
     );
   };
@@ -286,17 +285,17 @@ export class GarageScene extends BaseGameScene {
     this.inventoryButton = inventoryBtn;
     primaryActions.appendChild(inventoryBtn);
 
-    // View Gallery button
-    const museumCars = this.gameManager.getMuseumCars();
-    const museumBtn = this.createTutorialAwareButton(
-      `View Gallery (${museumCars.length} cars)`,
-      () => this.showMuseum(),
+    // View Collection button
+    const collectionCars = this.gameManager.getCollectionCars();
+    const collectionBtn = this.createTutorialAwareButton(
+      `View Collection (${collectionCars.length} cars)`,
+      () => this.showCollection(),
       { 
         variant: 'special', 
         style: compactButtonStyle
       }
     );
-    primaryActions.appendChild(museumBtn);
+    primaryActions.appendChild(collectionBtn);
 
     // End Day button
     const endDayBtn = this.createTutorialAwareButton(
@@ -509,13 +508,13 @@ export class GarageScene extends BaseGameScene {
   /**
    * Create a car card UI element with appropriate buttons based on context.
    * @param car - The car to display
-    * @param context - 'inventory' or 'museum' (gallery view) to determine which buttons to show
+   * @param context - 'inventory' or 'collection' to determine which buttons to show
    * @param refreshCallback - Callback to refresh the current view after actions
    * @returns Configured car panel element
    */
   private createCarCard(
     car: DeepReadonly<Car>,
-    context: 'inventory' | 'museum',
+    context: 'inventory' | 'collection',
     refreshCallback: () => void
   ): HTMLDivElement {
     const compactButtonStyle: Partial<CSSStyleDeclaration> = {
@@ -530,13 +529,13 @@ export class GarageScene extends BaseGameScene {
       backgroundColor: context === 'inventory' 
         ? 'rgba(52, 73, 94, 0.6)' 
         : 'rgba(243, 156, 18, 0.1)',
-      border: context === 'museum' ? '2px solid #f39c12' : undefined,
+      border: context === 'collection' ? '2px solid #f39c12' : undefined,
     });
 
     carPanel.classList.add('garage-car-card');
 
     const carName = this.uiManager.createHeading(car.name, 3, {
-      color: context === 'museum' ? '#f39c12' : undefined,
+      color: context === 'collection' ? '#f39c12' : undefined,
       margin: '0 0 6px 0',
       fontSize: '18px',
     });
@@ -551,7 +550,7 @@ export class GarageScene extends BaseGameScene {
     carPanel.appendChild(carName);
     carPanel.appendChild(metaText);
 
-    if (context === 'museum') {
+    if (context === 'collection') {
       const carTags = this.uiManager.createText(
         `Tags: ${car.tags.join(', ')}`,
         { fontSize: '12px', color: '#bdc3c7', margin: '6px 0 0 0', lineHeight: '1.35' }
@@ -576,28 +575,28 @@ export class GarageScene extends BaseGameScene {
       );
       buttonContainer.appendChild(restoreBtn);
 
-      const isMuseumEligible = this.gameManager.isMuseumEligible(car);
-      const isDisplayed = car.displayInMuseum === true;
+      const isCollectionEligible = this.gameManager.isCollectionEligible(car);
+      const isInCollection = car.inCollection === true;
 
-      if (isMuseumEligible) {
-        const museumBtn = this.uiManager.createButton(
-          isDisplayed ? '✓ On Display' : 'Put on Display',
+      if (isCollectionEligible) {
+        const collectionBtn = this.uiManager.createButton(
+          isInCollection ? '✓ In Collection' : 'Add to Collection',
           () => {
-            const result = this.gameManager.toggleMuseumDisplay(car.id);
+            const result = this.gameManager.toggleCollectionStatus(car.id);
             if (result.success) {
               refreshCallback();
             } else {
-              this.uiManager.showModal('Cannot Display', result.message, [
+              this.uiManager.showModal('Cannot Add', result.message, [
                 { text: 'OK', onClick: () => {} },
               ]);
             }
           },
           {
-            variant: isDisplayed ? 'special' : undefined,
+            variant: isInCollection ? 'special' : undefined,
             style: compactButtonStyle,
           }
         );
-        buttonContainer.appendChild(museumBtn);
+        buttonContainer.appendChild(collectionBtn);
       }
 
       const sellBtn = this.uiManager.createButton(
@@ -615,20 +614,20 @@ export class GarageScene extends BaseGameScene {
 
       carPanel.appendChild(buttonContainer);
 
-      // Show eligibility message if not display-eligible
-      if (!isMuseumEligible) {
+      // Show eligibility message if not collection-eligible
+      if (!isCollectionEligible) {
         const notEligibleText = this.uiManager.createText(
-          `Requires 80%+ condition to put on display (currently ${car.condition}%)`,
+          `Requires 80%+ condition to add to collection (currently ${car.condition}%)`,
           { fontSize: '12px', color: '#95a5a6', fontStyle: 'italic', margin: '6px 0 0 0', lineHeight: '1.35' }
         );
         carPanel.appendChild(notEligibleText);
       }
     } else {
-      // Gallery (on-display) context - only remove button
+      // Collection context - only remove button
       const removeBtn = this.uiManager.createButton(
-        'Remove from Display',
+        'Remove from Collection',
         () => {
-          const result = this.gameManager.toggleMuseumDisplay(car.id);
+          const result = this.gameManager.toggleCollectionStatus(car.id);
           if (result.success) {
             refreshCallback();
           } else {
@@ -935,7 +934,7 @@ export class GarageScene extends BaseGameScene {
 
   private showVictoryProgress(): void {
     const victoryResult = this.gameManager.checkVictory();
-    const { prestige, unicorns, museumCars, skillLevel } = victoryResult;
+    const { prestige, unicorns, collectionCars, skillLevel } = victoryResult;
     const world = this.gameManager.getWorldState();
 
     // Calculate prestige pace
@@ -995,8 +994,8 @@ export class GarageScene extends BaseGameScene {
     };
 
     modalContent.appendChild(createProgressRow('Prestige', prestige.current, prestige.required, prestige.met));
-    modalContent.appendChild(createProgressRow('Unicorns on Display', unicorns.current, unicorns.required, unicorns.met));
-    modalContent.appendChild(createProgressRow('Cars on Display (80%+)', museumCars.current, museumCars.required, museumCars.met));
+    modalContent.appendChild(createProgressRow('Unicorns in Collection', unicorns.current, unicorns.required, unicorns.met));
+    modalContent.appendChild(createProgressRow('Cars in Collection (80%+)', collectionCars.current, collectionCars.required, collectionCars.met));
     modalContent.appendChild(createProgressRow('Max Skill Level', skillLevel.current, skillLevel.required, skillLevel.met));
 
     // Add pace indicator
@@ -1017,8 +1016,8 @@ export class GarageScene extends BaseGameScene {
       <br>
       <span style="font-size: 12px; font-style: italic;">
         ${paceStatus === 'on-track' ? '✓ Great pace! Keep it up!' : 
-          paceStatus === 'slow' ? '⚡ Consider focusing on displays and sets.' :
-          '💡 Tip: Put high-condition cars on display for daily prestige.'}
+          paceStatus === 'slow' ? '⚡ Consider focusing on your collection and sets.' :
+          '💡 Tip: Add high-condition cars to your collection for daily prestige.'}
       </span>
     `;
     paceDiv.appendChild(paceDetails);
@@ -1028,7 +1027,7 @@ export class GarageScene extends BaseGameScene {
     statusText.style.cssText = `margin-top: 20px; text-align: center; font-weight: bold; font-size: 16px; color: ${victoryResult.hasWon ? '#2ecc71' : '#f39c12'};`;
     statusText.textContent = victoryResult.hasWon 
       ? '🎉 ALL CONDITIONS MET! End the day to claim victory!' 
-      : 'Keep building your sets and displays to achieve victory!';
+      : 'Keep building your sets and collection to achieve victory!';
     modalContent.appendChild(statusText);
 
     this.uiManager.showModal(
@@ -1189,17 +1188,17 @@ export class GarageScene extends BaseGameScene {
     const playerBefore = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
     const rent = this.gameManager.getDailyRent();
-    const museumIncome = this.gameManager.getMuseumIncomeInfo();
+    const collectionPrestige = this.gameManager.getCollectionPrestigeInfo();
     const unusedAP = world.currentAP;
 
     const garageCarCount = this.gameManager.getGarageCarCount();
-    const museumCarCount = this.gameManager.getMuseumCars().length;
+    const collectionCarCount = this.gameManager.getCollectionCars().length;
 
     // Pre-check: Can player afford rent?
     if (playerBefore.money < rent) {
       const canSellFromGarage = garageCarCount > 0;
-      const canMoveFromMuseumToGarage = museumCarCount > 0 && this.gameManager.hasGarageSpace();
-      const hasAnyCars = canSellFromGarage || museumCarCount > 0;
+      const canMoveFromCollectionToGarage = collectionCarCount > 0 && this.gameManager.hasGarageSpace();
+      const hasAnyCars = canSellFromGarage || collectionCarCount > 0;
       const canLoan = this.gameManager.canTakeBankLoan();
 
       if (!hasAnyCars && !canLoan) {
@@ -1227,10 +1226,10 @@ export class GarageScene extends BaseGameScene {
           text: 'Sell a Car',
           onClick: () => this.showInventory(),
         });
-      } else if (canMoveFromMuseumToGarage) {
+      } else if (canMoveFromCollectionToGarage) {
         buttons.push({
-          text: 'Go to Gallery',
-          onClick: () => this.showMuseum(),
+          text: 'Go to Collection',
+          onClick: () => this.showCollection(),
         });
       }
 
@@ -1266,7 +1265,7 @@ export class GarageScene extends BaseGameScene {
       `🏆 Current Prestige: ${formatNumber(playerBefore.prestige)}\n` +
       `⏰ Unused AP: ${unusedAP}/${GAME_CONFIG.day.maxAP}\n\n` +
       `💸 Rent Due: ${formatCurrency(rent)}\n` +
-      `🏛️ Gallery Prestige: +${museumIncome.totalPerDay} prestige (${museumIncome.carCount} cars)\n\n` +
+      `🏛️ Collection Prestige: +${collectionPrestige.totalPerDay} prestige (${collectionPrestige.carCount} cars)\n\n` +
       `After rent, you'll have ${formatCurrency(playerBefore.money - rent)}.\n\n` +
       `Ready to end the day?`;
     
@@ -1310,7 +1309,7 @@ export class GarageScene extends BaseGameScene {
     const dayStats = this.gameManager.getDayStatsAndReset();
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
-    const museumIncome = this.gameManager.getMuseumIncomeInfo();
+    const collectionPrestige = this.gameManager.getCollectionPrestigeInfo();
     const marketDesc = this.gameManager.getMarketDescription();
 
     // Build day summary
@@ -1325,11 +1324,11 @@ export class GarageScene extends BaseGameScene {
     const netColor = netMoney >= 0 ? '+' : '';
     summary += `• Net Income: ${netColor}${formatCurrency(netMoney)}\n\n`;
     
-    if (museumIncome.carCount > 0) {
-      summary += `🏛️ GALLERY PRESTIGE:\n`;
-      summary += `• Prestige from Gallery: +${museumIncome.totalPerDay}\n`;
-      if (dayStats.prestigeGained > museumIncome.totalPerDay) {
-        summary += `• Other Prestige Gained: +${dayStats.prestigeGained - museumIncome.totalPerDay}\n`;
+    if (collectionPrestige.carCount > 0) {
+      summary += `🏛️ COLLECTION PRESTIGE:\n`;
+      summary += `• Prestige from Collection: +${collectionPrestige.totalPerDay}\n`;
+      if (dayStats.prestigeGained > collectionPrestige.totalPerDay) {
+        summary += `• Other Prestige Gained: +${dayStats.prestigeGained - collectionPrestige.totalPerDay}\n`;
       }
       summary += `• Total Prestige Gained: +${dayStats.prestigeGained}\n\n`;
     } else if (dayStats.prestigeGained > 0) {
@@ -1482,12 +1481,12 @@ export class GarageScene extends BaseGameScene {
     );
   }
 
-  private showMuseum(): void {
+  private showCollection(): void {
     this.uiManager.clear();
-    this.currentView = 'museum';
+    this.currentView = 'collection';
 
-    const museumCars = this.gameManager.getMuseumCars();
-    const museumIncomeInfo = this.gameManager.getMuseumIncomeInfo();
+    const collectionCars = this.gameManager.getCollectionCars();
+    const collectionPrestigeInfo = this.gameManager.getCollectionPrestigeInfo();
     const player = this.gameManager.getPlayerState();
 
     // Reuse cached HUD
@@ -1508,16 +1507,16 @@ export class GarageScene extends BaseGameScene {
       overflowY: 'auto',
     });
 
-    const heading = this.uiManager.createHeading('Your Gallery', 2, {
+    const heading = this.uiManager.createHeading('Your Collection', 2, {
       textAlign: 'center',
       color: '#f39c12',
     });
     panel.appendChild(heading);
 
-    // Gallery stats - count eligible cars (condition >= 80%)
-    const eligibleCars = player.inventory.filter(car => this.gameManager.isMuseumEligible(car));
+    // Collection stats - count eligible cars (condition >= 80%)
+    const eligibleCars = player.inventory.filter((car) => this.gameManager.isCollectionEligible(car));
     const statsText = this.uiManager.createText(
-      `Displayed: ${museumCars.length} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${museumIncomeInfo.totalPerDay}`,
+      `In Collection: ${collectionCars.length} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${collectionPrestigeInfo.totalPerDay}`,
       { textAlign: 'center', fontWeight: 'bold', marginBottom: '10px' }
     );
     panel.appendChild(statsText);
@@ -1577,23 +1576,23 @@ export class GarageScene extends BaseGameScene {
       });
     }
 
-    // Displayed Cars heading
-    const displayedHeading = this.uiManager.createHeading('🏛️ Displayed Vehicles', 3, {
+    // Collection Cars heading
+    const displayedHeading = this.uiManager.createHeading('🏛️ Collection Vehicles', 3, {
       marginTop: '20px',
       marginBottom: '10px',
     });
     panel.appendChild(displayedHeading);
 
-    if (museumCars.length === 0) {
+    if (collectionCars.length === 0) {
       const emptyText = this.uiManager.createText(
-        'No cars displayed yet. Restore cars to excellent condition (80%+) and display them from your garage!',
+        'No cars in your collection yet. Restore cars to excellent condition (80%+) and add them from your garage!',
         { textAlign: 'center', fontSize: '16px', color: '#7f8c8d' }
       );
       panel.appendChild(emptyText);
     } else {
-      museumCars.forEach((car) => {
-        const qualityTier = this.gameManager.getMuseumQualityTier(car.condition);
-        const carPanel = this.createCarCard(car, 'museum', () => this.showMuseum());
+      collectionCars.forEach((car) => {
+        const qualityTier = this.gameManager.getCollectionQualityTier(car.condition);
+        const carPanel = this.createCarCard(car, 'collection', () => this.showCollection());
         
         // Add quality tier badge to card
         const tierBadge = document.createElement('div');

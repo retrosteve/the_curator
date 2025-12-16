@@ -507,14 +507,14 @@ export class UIManager {
     };
     dailyRent?: number;
     market?: string;
-    museumIncome?: {
+    collectionPrestige?: {
       totalPerDay: number;
       carCount: number;
     };
     victoryProgress?: {
       prestige: { current: number; required: number; met: boolean };
       unicorns: { current: number; required: number; met: boolean };
-      museumCars: { current: number; required: number; met: boolean };
+      collectionCars: { current: number; required: number; met: boolean };
       skillLevel: { current: number; required: number; met: boolean };
       onClickProgress?: () => void;
     };
@@ -597,11 +597,11 @@ export class UIManager {
           </div>
         ` : ''}
 
-        ${data.museumIncome !== undefined && data.museumIncome.carCount > 0 ? `
-          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="museum-income" title="Cars on display generate prestige daily based on condition quality">
+        ${data.collectionPrestige !== undefined && data.collectionPrestige.carCount > 0 ? `
+          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="collection-prestige" title="Cars in your collection generate prestige daily based on condition quality">
             <span class="hud-icon">🏛️</span>
-            <span class="hud-label">Gallery</span>
-            <span class="hud-value">+${data.museumIncome.totalPerDay} prestige/day (${data.museumIncome.carCount} cars)</span>
+            <span class="hud-label">Collection</span>
+            <span class="hud-value">+${data.collectionPrestige.totalPerDay} prestige/day (${data.collectionPrestige.carCount} cars)</span>
           </div>
         ` : ''}
       </div>
@@ -614,7 +614,7 @@ export class UIManager {
       
       const prestigeIcon = data.victoryProgress.prestige.met ? '✅' : '⬜';
       const unicornIcon = data.victoryProgress.unicorns.met ? '✅' : '⬜';
-      const museumIcon = data.victoryProgress.museumCars.met ? '✅' : '⬜';
+      const collectionIcon = data.victoryProgress.collectionCars.met ? '✅' : '⬜';
       const skillIcon = data.victoryProgress.skillLevel.met ? '✅' : '⬜';
       
       progressDiv.innerHTML = `
@@ -622,7 +622,7 @@ export class UIManager {
         <div class="hud-progress-items">
           <div class="hud-progress-item">${prestigeIcon} Prestige <span>${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}</span></div>
           <div class="hud-progress-item">${unicornIcon} Unicorns <span>${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}</span></div>
-          <div class="hud-progress-item">${museumIcon} Gallery <span>${data.victoryProgress.museumCars.current}/${data.victoryProgress.museumCars.required}</span></div>
+          <div class="hud-progress-item">${collectionIcon} Collection <span>${data.victoryProgress.collectionCars.current}/${data.victoryProgress.collectionCars.required}</span></div>
           <div class="hud-progress-item">${skillIcon} Max Skill <span>${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}</span></div>
         </div>
       `;

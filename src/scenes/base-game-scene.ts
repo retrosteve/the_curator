@@ -230,7 +230,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     const player = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
     const victoryResult = this.gameManager.checkVictory();
-    const museumIncome = this.gameManager.getMuseumIncomeInfo();
+    const collectionPrestige = this.gameManager.getCollectionPrestigeInfo();
     const dailyRent = this.gameManager.getDailyRent();
 
     this.cachedHUD = this.uiManager.createHUD({
@@ -246,26 +246,26 @@ export abstract class BaseGameScene extends Phaser.Scene {
       },
       dailyRent,
       market: this.gameManager.getMarketDescription(),
-      museumIncome: museumIncome.carCount > 0 ? museumIncome : undefined,
+      collectionPrestige: collectionPrestige.carCount > 0 ? collectionPrestige : undefined,
       victoryProgress: {
         prestige: victoryResult.prestige,
         unicorns: victoryResult.unicorns,
-        museumCars: victoryResult.museumCars,
+        collectionCars: victoryResult.collectionCars,
         skillLevel: victoryResult.skillLevel,
         onClickProgress: () => {
           this.scene.pause();
-          const allMet = victoryResult.prestige.met && victoryResult.unicorns.met && victoryResult.museumCars.met && victoryResult.skillLevel.met;
+          const allMet = victoryResult.prestige.met && victoryResult.unicorns.met && victoryResult.collectionCars.met && victoryResult.skillLevel.met;
           const statusMsg = allMet ? '\n\n🎉 ALL CONDITIONS MET! You can win now!' : '\n\nKeep working toward these goals!';
 
           const nextSteps: string[] = [];
           if (!victoryResult.prestige.met) {
-            nextSteps.push('Earn Prestige by putting cars on display (80%+), completing sets, and profiting from flips.');
+            nextSteps.push('Earn Prestige by adding cars to your collection (80%+), completing sets, and profiting from flips.');
           }
           if (!victoryResult.unicorns.met) {
-            nextSteps.push('Find Unicorn-tier cars via auctions and special events, then keep them on display.');
+            nextSteps.push('Find Unicorn-tier cars via auctions and special events, then keep them in your collection.');
           }
-          if (!victoryResult.museumCars.met) {
-            nextSteps.push('Put more cars on display (toggle display on any car at 80%+ condition).');
+          if (!victoryResult.collectionCars.met) {
+            nextSteps.push('Add more cars to your collection (any car at 80%+ condition can be added).');
           }
           if (!victoryResult.skillLevel.met) {
             nextSteps.push('Level skills: Inspect (Eye), Haggle/Auction (Tongue), Visit new locations (Network).');
@@ -274,7 +274,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
           const nextStepsText = nextSteps.length > 0 ? `\n\nNext steps:\n- ${nextSteps.join('\n- ')}` : '';
           this.uiManager.showModal(
             '🏆 Victory Progress - Details',
-            `**Win Conditions:**\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nCars on Display: ${victoryResult.museumCars.current}/${victoryResult.museumCars.required} ${victoryResult.museumCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}${nextStepsText}`,
+            `**Win Conditions:**\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nCars in Collection: ${victoryResult.collectionCars.current}/${victoryResult.collectionCars.required} ${victoryResult.collectionCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}${nextStepsText}`,
             [{ text: 'Close', onClick: () => this.scene.resume() }]
           );
         },
@@ -301,7 +301,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
    */
   protected resetUIWithHUD(): void {
     this.uiManager.clear();
-    // Force recreation to ensure HUD-only computed fields (rent/market/gallery/victory) stay current.
+    // Force recreation to ensure HUD-only computed fields (rent/market/collection/victory) stay current.
     const hud = this.createStandardHUD(true);
     this.uiManager.append(hud);
   }

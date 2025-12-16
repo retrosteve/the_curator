@@ -9,7 +9,7 @@ applyTo: "**"
 This document covers gameplay rules; implementation constraints (Phaser/DOM split, state/events, scene boundaries) live in `docs/architecture.md`.
 
 ## High Concept
-You are an aspiring car collector starting with a single garage slot. Your goal is to curate the world’s most prestigious car gallery.
+You are an aspiring car collector starting with a single garage slot. Your goal is to curate the world’s most prestigious private car collection.
 
 This game is not about driving physics; it is about **Access, Valuation, and Timing**.
 
@@ -20,10 +20,10 @@ You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You m
 2. **Map Phase (The Day Loop):** Choose a node to visit. There is no separate travel AP cost; the AP cost is charged by the encounter type when you commit to the visit.
   - **Daily Offers:** Each non-special location has a single car offer per day (locked in for the day). Once you resolve the encounter (buy/win/leave/lose), that location is exhausted until tomorrow.
 3. **Encounter Phase:**
-   - If rival present -> Auction (turn-based battle, costs 2 AP).
-   - If solo -> Negotiation (menu choices using Player Stats, costs 1 AP).
-   - **Outcome:** Return to Map (continue day) or Return to Garage (if
-     inventory full/day ends).
+  - If rival present -> Auction (turn-based battle, costs 2 AP).
+  - If solo -> Negotiation (menu choices using Player Stats, costs 1 AP).
+  - **Outcome:** Return to Map (continue day) or Return to Garage (if
+    inventory full/day ends).
 4. **Garage Phase:** Restore cars (3-5 AP), sell inventory, or end day.
 
 ### Expanded Loop (Target)
@@ -41,14 +41,14 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - **Restoration:** Spend Time + Money on restoration services. This increases the car’s condition.
   - **The Choice:**
     - **Flip:** Sell immediately for Cash (operating capital).
-    - **Hold:** Put on Display (Gallery) for Prestige (unlocks better access over time).
+    - **Hold:** Add to Collection for Prestige (unlocks better access over time).
 
 ## Persistence & Progression
 
 ### Save/Load System
 - **Persistence:** Game state is automatically saved to localStorage at the end of each day (end-of-day checkpoint).
 - **Manual Save/Load:** Players can manually save/load game state via buttons in the Garage scene.
-- **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and display status.
+- **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and collection status.
 
 ### Garage Expansion
 - **Starting Capacity:** 1 garage slot.
@@ -56,17 +56,17 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Upgrade Costs:** Slot 2: 100 prestige, Slot 3: 200 prestige, Slot 4: 400 prestige, Slot 5: 800 prestige.
 - **Garage Full:** Players cannot acquire new cars when garage is full; must sell or scrap existing cars first.
 
-### Gallery Display Mechanic
-- **Eligibility:** Cars with condition >= 80% can be put on display in your gallery.
-- **Passive Prestige:** Cars on display generate prestige based on quality tiers:
+### Private Collection Mechanic
+- **Eligibility:** Cars with condition >= 80% can be added to your collection.
+- **Passive Prestige:** Cars in your collection generate prestige based on quality tiers:
   - Good (80-89%): +1 prestige/day
   - Excellent (90-99%): +2 prestige/day
   - Perfect (100%): +3 prestige/day
-- **Management:** Players can toggle cars between garage storage and gallery display.
-- **Garage vs Gallery Slots:** Cars on display do **not** consume garage slots.
-- **Capacity:** Gallery display capacity scales with garage capacity (gallery slots = garage slots).
-  - If the gallery is full, you must remove a displayed car before adding another.
-  - If the garage is full, you must put a garage car on display (or sell one) before removing a car from display.
+- **Management:** Players can toggle cars between garage storage and their collection.
+- **Garage vs Collection Slots:** Cars in the collection do **not** consume garage slots.
+- **Capacity:** Collection capacity scales with garage capacity (collection slots = garage slots).
+  - If the collection is full, you must remove a car from the collection before adding another.
+  - If the garage is full, you must add a garage car to the collection (or sell one) before removing a car from the collection.
 
 ### Car Sets System
 - **Sets:** Players can complete themed sets for one-time prestige bonuses:
@@ -76,7 +76,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - **Exotic Collection** (4 Exotic cars): +75 prestige
   - **Classics Curator** (6 Classic cars): +60 prestige
 - **Auto-Detection:** Sets automatically check for completion when cars are added to inventory.
-- **Gallery Integration:** Set progress displayed in the gallery view.
+- **Collection View Integration:** Set progress displayed in the collection view.
 - **Total Reward Potential:** +285 prestige from all sets.
 
 ## Data Structures
@@ -264,7 +264,7 @@ As the player levels up, they improve three core tools:
 ## Car Progression Tiers (Design)
 - **Tier 1: Daily Drivers** (grind cash via flips)
 - **Tier 2: Cult Classics** (trade leverage; mid-tier rival battles)
-- **Tier 3: Icons** (prestige gallery anchors)
+- **Tier 3: Icons** (prestige collection anchors)
 - **Tier 4: Unicorns** (win-condition vehicles)
 
 ## Valuation & Costs (Implementation-Friendly)
@@ -291,7 +291,7 @@ As the player levels up, they improve three core tools:
 - Action: Select the Rusty Sedan and choose restoration service.
 - Choice: Assign the car to **"Cheap Charlie's Quick Fix"** (Low Cost, Fast,
   Risky).
-- Action: Perform a **Minor Service** (3 AP). Car condition improves
+- Action: Perform a **Minor Service** (2 AP). Car condition improves
   significantly. Value increases.
 - Tutorial override: this first restoration always succeeds (ignore Cheap
   Charlie's risk).

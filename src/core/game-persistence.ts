@@ -7,7 +7,36 @@ import type { TutorialStep } from '@/systems/tutorial-manager';
 export const SAVE_KEY = 'theCuratorSave';
 
 /** Current save schema version for migration/compat checks. */
-export const SAVE_VERSION = '1.0';
+export const SAVE_VERSION = '1.1';
+
+function migrateLegacyInventoryFields(inventory: unknown): unknown {
+  if (!Array.isArray(inventory)) return inventory;
+
+  return inventory.map((item) => {
+    if (!item || typeof item !== 'object') return item;
+    const car = item as Record<string, unknown>;
+
+    // Legacy field name from older saves: `displayInMuseum`.
+    const hasLegacyDisplayFlag = typeof car.displayInMuseum === 'boolean';
+    const hasNewInCollectionFlag = typeof car.inCollection === 'boolean';
+
+    if (hasLegacyDisplayFlag && !hasNewInCollectionFlag) {
+      const { displayInMuseum, ...rest } = car;
+      return {
+        ...rest,
+        inCollection: displayInMuseum,
+      };
+    }
+
+    // Strip legacy field to avoid confusion going forward.
+    if ('displayInMuseum' in car) {
+      const { displayInMuseum: _legacy, ...rest } = car;
+      return rest;
+    }
+
+    return item;
+  });
+}
 
 /**
  * Saved game data structure.
@@ -103,10 +132,19 @@ export function migrateSaveData(parsed: unknown): SavedGameData | null {
   const obj = parsed as Record<string, unknown>;
   const version = obj.version;
 
-  // Legacy saves (pre-versioning): accept and stamp current.
+  // Legacy saves (pre-versioning): accept, migrate, and stamp current.
   if (version === undefined || version === null) {
+    const legacy = obj as unknown as SavedGameData;
+    const migratedPlayer = legacy.player && typeof legacy.player === 'object'
+      ? {
+          ...(legacy.player as Record<string, unknown>),
+          inventory: migrateLegacyInventoryFields((legacy.player as Record<string, unknown>).inventory),
+        }
+      : legacy.player;
+
     return {
-      ...(obj as unknown as SavedGameData),
+      ...legacy,
+      player: migratedPlayer as SavedGameData['player'],
       version: SAVE_VERSION,
     };
   }
@@ -116,6 +154,21 @@ export function migrateSaveData(parsed: unknown): SavedGameData | null {
 
   // Future-proofing: add explicit migrations here when SAVE_VERSION changes.
   switch (version) {
+    case '1.0': {
+      const v1 = obj as unknown as SavedGameData;
+      const migratedPlayer = v1.player && typeof v1.player === 'object'
+        ? {
+            ...(v1.player as Record<string, unknown>),
+            inventory: migrateLegacyInventoryFields((v1.player as Record<string, unknown>).inventory),
+          }
+        : v1.player;
+
+      return {
+        ...v1,
+        player: migratedPlayer as SavedGameData['player'],
+        version: SAVE_VERSION,
+      };
+    }
     default:
       return null;
   }
@@ -154,7 +207,9 @@ export function hydrateLoadedState(saveData: SavedGameData): {
 
   const player: PlayerState = {
     money: rawPlayer.money ?? 0,
-    inventory: Array.isArray(rawPlayer.inventory) ? rawPlayer.inventory : [],
+    inventory: Array.isArray(rawPlayer.inventory)
+      ? (migrateLegacyInventoryFields(rawPlayer.inventory) as PlayerState['inventory'])
+      : [],
     garageSlots: rawPlayer.garageSlots ?? 1,
     prestige: rawPlayer.prestige ?? 0,
     bankLoanTaken: rawPlayer.bankLoanTaken ?? false,

@@ -239,7 +239,7 @@ export function createMapLocationCard(options: {
     if (isLocked) {
       onShowLockedModal(
         'Location Locked',
-        `You need ${lockReason ?? 'more Prestige'} to access this location.\n\nEarn Prestige by restoring and selling cars, or by putting cars on display in your gallery.`
+        `You need ${lockReason ?? 'more Prestige'} to access this location.\n\nEarn Prestige by restoring and selling cars, or by adding cars to your collection.`
       );
       return;
     }

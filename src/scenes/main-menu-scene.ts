@@ -215,7 +215,7 @@ export class MainMenuScene extends Phaser.Scene {
     this.uiManager.showModal(
       'About The Curator',
       'You are an aspiring car collector starting with a single garage slot.\n\n' +
-        'Your goal: Curate the world\'s most prestigious private gallery.\n\n' +
+        'Your goal: Curate the world\'s most prestigious private collection.\n\n' +
         'This game is about Access, Valuation, and Timing.\n\n' +
         '• Scout locations for rare finds\n' +
         '• Battle rivals in tense auctions\n' +

@@ -106,159 +106,129 @@ export class AuctionScene extends BaseGameScene {
 
     const player = this.gameManager.getPlayerState();
 
-    // Responsive layout tweaks for smaller screens.
-    if (!document.getElementById('auctionResponsiveStyles')) {
+    // Minimal responsive layout tweaks for the auction UI.
+    if (!document.getElementById('auctionLayoutStyles')) {
       const style = document.createElement('style');
-      style.id = 'auctionResponsiveStyles';
+      style.id = 'auctionLayoutStyles';
       style.textContent = `
-        .auction-panel { width: min(92vw, 520px) !important; min-width: 0 !important; }
-        .auction-log { max-height: 120px !important; }
-        @media (max-height: 740px) { .auction-log { max-height: 100px !important; } }
-        @media (max-height: 660px) { .auction-log { max-height: 80px !important; } }
+        .auction-layout { width: min(94vw, 1100px); }
+        @media (max-width: 860px) {
+          .auction-layout__top { grid-template-columns: 1fr !important; }
+          .auction-layout__bottom { grid-template-columns: 1fr !important; }
+        }
       `;
       document.head.appendChild(style);
     }
 
-    const panel = this.uiManager.createPanel({
+    const layoutRoot = document.createElement('div');
+    layoutRoot.className = 'auction-layout';
+    Object.assign(layoutRoot.style, {
       position: 'absolute',
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      width: 'min(92vw, 520px)',
       maxHeight: 'calc(100vh - 140px)',
       overflowY: 'auto',
       boxSizing: 'border-box',
-    });
-    panel.classList.add('auction-panel');
+      display: 'grid',
+      gap: '14px',
+      pointerEvents: 'auto',
+    } satisfies Partial<CSSStyleDeclaration>);
 
-    // Car info
+    const topGrid = document.createElement('div');
+    topGrid.className = 'auction-layout__top';
+    Object.assign(topGrid.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '14px',
+      alignItems: 'start',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    // LEFT: car + your numbers
+    const leftPanel = this.uiManager.createPanel({ padding: '18px' });
+
+    const baseValue = calculateCarValue(this.car);
+    const marketInfo = this.gameManager.getCarMarketInfo(this.car.tags);
+    const marketValue = Math.floor(baseValue * marketInfo.modifier);
+
     const carPanel = this.uiManager.createCarInfoPanel(this.car, {
       showValue: true,
       titleColor: '#ffd700',
       style: {
-        marginBottom: '20px',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        border: '1px solid #ffd700'
-      }
+        marginBottom: '12px',
+      },
     });
-    panel.appendChild(carPanel);
+    leftPanel.appendChild(carPanel);
 
-    // Market/value breakdown
-    const baseValue = calculateCarValue(this.car);
-    const marketInfo = this.gameManager.getCarMarketInfo(this.car.tags);
-    const marketValue = Math.floor(baseValue * marketInfo.modifier);
-    const marketPanel = this.uiManager.createPanel({
-      marginBottom: '15px',
-      backgroundColor: 'rgba(0, 0, 0, 0.35)',
-      border: '1px solid rgba(255, 255, 255, 0.15)',
-    });
-    const marketHeading = this.uiManager.createHeading('Value Breakdown', 3, {
-      marginBottom: '6px',
-      color: '#ddd',
-      textAlign: 'center',
-    });
-    const factorText = marketInfo.factors.length > 0
-      ? marketInfo.factors.join(' | ')
-      : 'No active market modifiers.';
-    const marketText = this.uiManager.createText(
-      `Estimated Value: ${formatCurrency(baseValue)} | Market: x${marketInfo.modifier.toFixed(2)} (${factorText}) | Market Value: ${formatCurrency(marketValue)}`,
-      { fontSize: '13px', color: '#ccc', textAlign: 'center', lineHeight: '1.4' }
+    leftPanel.appendChild(
+      this.uiManager.createText(
+        `Your estimate: ${formatCurrency(marketValue)} (market x${marketInfo.modifier.toFixed(2)})`,
+        { fontSize: '13px', color: '#ccc', textAlign: 'center', margin: '0 0 12px 0' }
+      )
     );
-    marketPanel.appendChild(marketHeading);
-    marketPanel.appendChild(marketText);
-    panel.appendChild(marketPanel);
 
-    // Current bid
-    const bidHeading = this.uiManager.createHeading(
-      `Current Bid: ${formatCurrency(this.currentBid)}`,
-      3,
-      { textAlign: 'center', color: '#4CAF50' }
+    leftPanel.appendChild(
+      this.uiManager.createHeading(`Current Bid: ${formatCurrency(this.currentBid)}`, 3, {
+        textAlign: 'center',
+        marginBottom: '10px',
+        color: '#4CAF50',
+      })
     );
-    panel.appendChild(bidHeading);
 
-    // Combo streak indicator (if active)
-    if (this.powerBidStreak >= 2) {
-      const comboIndicator = this.uiManager.createText(
-        `🔥 POWER BID COMBO x${this.powerBidStreak}! 🔥`,
-        { textAlign: 'center', color: '#ff6b6b', fontWeight: 'bold', fontSize: '16px', marginBottom: '10px', animation: 'pulse 0.5s ease-in-out infinite' }
-      );
-      panel.appendChild(comboIndicator);
-    }
-
-    // Rival info
-    const rivalInfo = this.uiManager.createPanel({
-      margin: '15px 0',
-      backgroundColor: this.rival.avatar || '#666',
-    });
-
-    const rivalName = this.uiManager.createText(
-      `Rival: ${this.rival.name}`,
-      { fontWeight: 'bold' }
+    leftPanel.appendChild(
+      this.uiManager.createText(`Your Money: ${formatCurrency(player.money)}`, {
+        textAlign: 'center',
+        margin: '0',
+        fontWeight: 'bold',
+      })
     );
-    const rivalTier = this.uiManager.createText(
-      `Tier: ${getTierName(this.rival.tier)}`,
-      { fontSize: '14px', color: '#ccc' }
+
+    // RIGHT: rival overview (no exact budget shown)
+    const rightPanel = this.uiManager.createPanel({ padding: '18px' });
+
+    rightPanel.appendChild(
+      this.uiManager.createHeading('Rival', 3, {
+        textAlign: 'center',
+        marginBottom: '10px',
+        color: '#ffd700',
+      })
     );
-    
-    // Show rival mood
+
+    rightPanel.appendChild(
+      this.uiManager.createText(this.rival.name, { textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0' })
+    );
+    rightPanel.appendChild(
+      this.uiManager.createText(`Tier: ${getTierName(this.rival.tier)}`, { textAlign: 'center', fontSize: '13px', color: '#ccc', margin: '0 0 10px 0' })
+    );
+
     if (this.rival.mood && this.rival.mood !== 'Normal') {
       const moodInfo = getMoodModifiers(this.rival.mood);
-      const rivalMood = this.uiManager.createText(
-        `${this.rival.name} ${moodInfo.description}`,
-        { fontSize: '13px', color: '#f39c12', fontStyle: 'italic', marginTop: '5px' }
+      rightPanel.appendChild(
+        this.uiManager.createText(moodInfo.description, {
+          textAlign: 'center',
+          fontSize: '13px',
+          color: '#f39c12',
+          fontStyle: 'italic',
+          margin: '0 0 12px 0',
+        })
       );
-      rivalInfo.appendChild(rivalMood);
     }
 
-    // Patience bar with color coding and status
     const patience = this.rivalAI.getPatience();
     const patiencePercent = Math.max(0, Math.min(100, patience));
     const thresholds = GAME_CONFIG.auction.patienceThresholds;
-    let patienceColor = '#4CAF50'; // Green
-    let patienceStatus = '';
-    let shakeAnimation = '';
-    
-    if (patience <= 0) {
-      patienceColor = '#000';
-      patienceStatus = ' 💥 BREAKING!';
-      shakeAnimation = 'shake 0.3s ease-in-out infinite';
-    } else if (patience < thresholds.critical) {
-      patienceColor = '#f44336';
-      patienceStatus = ' ⚠️ About to quit!';
-      shakeAnimation = 'shake 0.5s ease-in-out infinite';
-    } else if (patience < thresholds.low) {
-      patienceColor = '#ff9800';
-      patienceStatus = ' 😰 Sweating...';
-      shakeAnimation = 'shake 0.8s ease-in-out infinite';
-    } else if (patience < thresholds.medium) {
-      patienceColor = '#FFC107';
-      patienceStatus = ' 😤 Getting annoyed';
-    }
+    let patienceColor = '#4CAF50';
+    if (patience < thresholds.critical) patienceColor = '#f44336';
+    else if (patience < thresholds.low) patienceColor = '#ff9800';
+    else if (patience < thresholds.medium) patienceColor = '#FFC107';
 
-    const patienceLabel = this.uiManager.createText(
-      `Patience: ${patience}/100${patienceStatus}`,
-      { marginBottom: '8px', fontWeight: 'bold', animation: shakeAnimation }
+    rightPanel.appendChild(
+      this.uiManager.createText(`Patience: ${patience}/100`, {
+        margin: '0 0 8px 0',
+        fontWeight: 'bold',
+        textAlign: 'center',
+      })
     );
-    
-    // Add shake animation CSS if needed
-    if (shakeAnimation && !document.getElementById('auctionShakeAnimation')) {
-      const style = document.createElement('style');
-      style.id = 'auctionShakeAnimation';
-      style.textContent = `
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-3px); }
-          75% { transform: translateX(3px); }
-        }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.05); opacity: 0.8; }
-        }
-      `;
-      document.head.appendChild(style);
-    }
-    
-    rivalInfo.appendChild(patienceLabel);
 
     // Patience progress bar
     const patienceBarContainer = document.createElement('div');
@@ -278,112 +248,130 @@ export class AuctionScene extends BaseGameScene {
       height: '100%',
       backgroundColor: patienceColor,
       transition: 'all 0.3s ease',
-      boxShadow: `0 0 10px ${patienceColor}`,
     });
 
     patienceBarContainer.appendChild(patienceBarFill);
-    rivalInfo.appendChild(patienceBarContainer);
+    rightPanel.appendChild(patienceBarContainer);
 
-    const rivalBudget = this.uiManager.createText(
-      `Budget: ${formatCurrency(this.rivalAI.getBudget())}`
+    topGrid.appendChild(leftPanel);
+    topGrid.appendChild(rightPanel);
+    layoutRoot.appendChild(topGrid);
+
+    // BOTTOM: actions + log
+    const bottomGrid = document.createElement('div');
+    bottomGrid.className = 'auction-layout__bottom';
+    Object.assign(bottomGrid.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '14px',
+      alignItems: 'start',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const actionsPanel = this.uiManager.createPanel({ padding: '18px' });
+    actionsPanel.appendChild(
+      this.uiManager.createHeading('Actions', 3, {
+        textAlign: 'center',
+        marginBottom: '10px',
+      })
     );
 
-    rivalInfo.appendChild(rivalName);
-    rivalInfo.appendChild(rivalTier);
-    rivalInfo.appendChild(rivalBudget);
-    panel.appendChild(rivalInfo);
+    const buttonGrid = this.uiManager.createButtonContainer({
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '10px',
+    });
 
-    // Player info
-    const playerInfo = this.uiManager.createText(
-      `Your Money: ${formatCurrency(player.money)}`,
-      { textAlign: 'center', marginBottom: '20px' }
+    const buttonTextStyle: Partial<CSSStyleDeclaration> = {
+      width: '100%',
+      whiteSpace: 'pre-line',
+      textAlign: 'left',
+      lineHeight: '1.2',
+      padding: '14px 16px',
+      fontSize: '15px',
+    };
+
+    buttonGrid.appendChild(
+      this.uiManager.createButton(
+        `Bid\n+${formatCurrency(AuctionScene.BID_INCREMENT)}`,
+        () => this.playerBid(AuctionScene.BID_INCREMENT),
+        { variant: 'primary', style: buttonTextStyle }
+      )
     );
-    panel.appendChild(playerInfo);
 
-    // Action buttons
-    const buttonContainer = this.uiManager.createButtonContainer();
-
-    const bidBtn = this.uiManager.createButton(
-      `Bid +${formatCurrency(AuctionScene.BID_INCREMENT)}`,
-      () => this.playerBid(AuctionScene.BID_INCREMENT),
-      { variant: 'primary', style: { width: '100%' } }
+    buttonGrid.appendChild(
+      this.uiManager.createButton(
+        `Power Bid\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} · Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY}`,
+        () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
+        { variant: 'warning', style: buttonTextStyle }
+      )
     );
-    buttonContainer.appendChild(bidBtn);
-
-    const powerBidBtn = this.uiManager.createButton(
-      `Power Bid +${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} (Rival Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY})`,
-      () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
-      { variant: 'warning', style: { width: '100%' } }
-    );
-    buttonContainer.appendChild(powerBidBtn);
 
     const kickTiresBtn = this.uiManager.createButton(
-      `Kick Tires (Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+) (Rival Budget -${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)})`,
+      `Kick Tires\nEye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ · Budget -${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)}`,
       () => this.playerKickTires(),
-      { variant: 'info', style: { width: '100%' } }
+      { variant: 'info', style: buttonTextStyle }
     );
-    buttonContainer.appendChild(kickTiresBtn);
+    buttonGrid.appendChild(kickTiresBtn);
 
     const maxStalls = player.skills.tongue;
     const stallsRemaining = Math.max(0, maxStalls - this.stallUsesThisAuction);
     const stallBtn = this.uiManager.createButton(
-      `Stall (Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+) (Uses left: ${stallsRemaining}) (Rival Patience -${AuctionScene.STALL_PATIENCE_PENALTY})`,
+      `Stall\nTongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ · Uses left: ${stallsRemaining}`,
       () => this.playerStall(),
-      { variant: 'special', style: { width: '100%', backgroundColor: '#9C27B0' } }
+      { variant: 'special', style: buttonTextStyle }
     );
-
     if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL || stallsRemaining <= 0) {
       stallBtn.disabled = true;
       stallBtn.style.opacity = '0.6';
       if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
-        stallBtn.textContent = `Stall (Requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+)`;
+        stallBtn.textContent = `Stall\nRequires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+`;
       } else {
-        stallBtn.textContent = 'Stall (No uses left this auction)';
+        stallBtn.textContent = 'Stall\nNo uses left';
       }
     }
+    buttonGrid.appendChild(stallBtn);
 
-    buttonContainer.appendChild(stallBtn);
+    const quitBtn = this.uiManager.createButton('Quit Auction', () => this.playerQuit(), {
+      variant: 'danger',
+      style: {
+        ...buttonTextStyle,
+        gridColumn: '1 / -1',
+        textAlign: 'center',
+      },
+    });
+    buttonGrid.appendChild(quitBtn);
 
-    const quitBtn = this.uiManager.createButton(
-      'Quit Auction',
-      () => this.playerQuit(),
-      { variant: 'danger', style: { width: '100%', backgroundColor: '#f44336' } }
-    );
-    buttonContainer.appendChild(quitBtn);
+    actionsPanel.appendChild(buttonGrid);
 
-    panel.appendChild(buttonContainer);
-
-    // Auction log (non-blocking feedback)
     const logPanel = this.uiManager.createPanel({
-      marginTop: '15px',
-      padding: '10px',
-      backgroundColor: 'rgba(0, 0, 0, 0.35)',
-      border: '1px solid rgba(255, 255, 255, 0.15)',
-      maxHeight: '140px',
+      padding: '18px',
+      maxHeight: '260px',
       overflowY: 'auto',
     });
-    logPanel.classList.add('auction-log');
-    const logHeading = this.uiManager.createHeading('Auction Log', 3, {
-      marginBottom: '8px',
-      color: '#ddd',
-      textAlign: 'center',
-    });
-    logPanel.appendChild(logHeading);
+    logPanel.appendChild(
+      this.uiManager.createHeading('Log', 3, {
+        textAlign: 'center',
+        marginBottom: '10px',
+      })
+    );
 
-    const entries = this.auctionLog.slice(-8);
+    const entries = this.auctionLog.slice(-10);
     for (const entry of entries) {
       logPanel.appendChild(
         this.uiManager.createText(`• ${entry}`, {
           fontSize: '13px',
           color: '#ccc',
-          marginBottom: '4px',
+          margin: '0 0 6px 0',
           lineHeight: '1.3',
         })
       );
     }
-    panel.appendChild(logPanel);
 
-    this.uiManager.append(panel);
+    bottomGrid.appendChild(actionsPanel);
+    bottomGrid.appendChild(logPanel);
+    layoutRoot.appendChild(bottomGrid);
+
+    this.uiManager.append(layoutRoot);
   }
 
   private appendAuctionLog(entry: string): void {

@@ -5,6 +5,13 @@ import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
 
+type AuctionLogKind = 'system' | 'player' | 'rival' | 'market' | 'warning' | 'error';
+
+type AuctionLogEntry = {
+  text: string;
+  kind: AuctionLogKind;
+};
+
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
  * Player uses various tactics (bid, power bid, stall, kick tires) to win the car.
@@ -19,7 +26,16 @@ export class AuctionScene extends BaseGameScene {
   private currentBid: number = 0;
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
-  private auctionLog: string[] = [];
+  private auctionMarketEstimateValue: number = 0;
+  private auctionMarketEstimateModifier: number = 1;
+  private auctionMarketEstimateFactors: string[] = [];
+
+  private activeRivalBubble?: HTMLDivElement;
+  private activeRivalBubbleText?: HTMLSpanElement;
+  private activeRivalBubbleHideTimeoutId?: number;
+  private activeRivalBubbleRemoveTimeoutId?: number;
+
+  private auctionLog: AuctionLogEntry[] = [];
   private lastPatienceToastBand: 'normal' | 'medium' | 'low' | 'critical' = 'normal';
 
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
@@ -47,6 +63,15 @@ export class AuctionScene extends BaseGameScene {
     this.currentBid = Math.floor(calculateCarValue(this.car) * AuctionScene.STARTING_BID_MULTIPLIER);
     this.stallUsesThisAuction = 0;
     this.powerBidStreak = 0;
+    this.auctionMarketEstimateValue = 0;
+    this.auctionMarketEstimateModifier = 1;
+    this.auctionMarketEstimateFactors = [];
+
+    this.activeRivalBubble = undefined;
+    this.activeRivalBubbleText = undefined;
+    this.activeRivalBubbleHideTimeoutId = undefined;
+    this.activeRivalBubbleRemoveTimeoutId = undefined;
+
     this.auctionLog = [];
     this.lastPatienceToastBand = 'normal';
   }
@@ -56,17 +81,21 @@ export class AuctionScene extends BaseGameScene {
 
     this.initializeManagers('auction');
 
-    // Market-aware starting bid (use current day market modifier).
+    // Market-aware estimate (cache once for this auction to avoid UI drift).
     const baseValue = calculateCarValue(this.car);
     const marketInfo = this.gameManager.getCarMarketInfo(this.car.tags);
-    const marketValue = Math.floor(baseValue * marketInfo.modifier);
-    this.currentBid = Math.floor(marketValue * AuctionScene.STARTING_BID_MULTIPLIER);
+    this.auctionMarketEstimateModifier = marketInfo.modifier;
+    this.auctionMarketEstimateFactors = marketInfo.factors;
+    this.auctionMarketEstimateValue = Math.floor(baseValue * marketInfo.modifier);
 
-    this.appendAuctionLog(`Auction opens at ${formatCurrency(this.currentBid)}.`);
-    const marketLine = marketInfo.factors.length > 0
-      ? `Market: ${marketInfo.factors.join(' | ')}`
+    // Market-aware starting bid (use the cached estimate).
+    this.currentBid = Math.floor(this.auctionMarketEstimateValue * AuctionScene.STARTING_BID_MULTIPLIER);
+
+    this.appendAuctionLog(`Auction opens at ${formatCurrency(this.currentBid)}.`, 'system');
+    const marketLine = this.auctionMarketEstimateFactors.length > 0
+      ? `Market: ${this.auctionMarketEstimateFactors.join(' | ')}`
       : 'Market: No active modifiers.';
-    this.appendAuctionLog(marketLine);
+    this.appendAuctionLog(marketLine, 'market');
 
     // Defensive guard: this scene should not start if the garage is already full.
     // Entry points (e.g., MapScene) should prevent this, but keep this to avoid bypasses.
@@ -96,8 +125,44 @@ export class AuctionScene extends BaseGameScene {
     
     // Ensure cleanup on scene shutdown
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.clearActiveRivalBubble();
       this.cleanupCommonEventListeners();
     });
+  }
+
+  private clearActiveRivalBubble(): void {
+    if (this.activeRivalBubbleHideTimeoutId !== undefined) {
+      clearTimeout(this.activeRivalBubbleHideTimeoutId);
+      this.activeRivalBubbleHideTimeoutId = undefined;
+    }
+    if (this.activeRivalBubbleRemoveTimeoutId !== undefined) {
+      clearTimeout(this.activeRivalBubbleRemoveTimeoutId);
+      this.activeRivalBubbleRemoveTimeoutId = undefined;
+    }
+
+    if (this.activeRivalBubble && this.activeRivalBubble.parentNode) {
+      this.activeRivalBubble.parentNode.removeChild(this.activeRivalBubble);
+    }
+    this.activeRivalBubble = undefined;
+    this.activeRivalBubbleText = undefined;
+  }
+
+  private getLogStyle(kind: AuctionLogKind): { color: string; fontWeight?: string } {
+    switch (kind) {
+      case 'player':
+        return { color: '#4CAF50', fontWeight: 'bold' };
+      case 'rival':
+        return { color: '#ffd700', fontWeight: 'bold' };
+      case 'market':
+        return { color: '#FFC107' };
+      case 'error':
+        return { color: '#f44336', fontWeight: 'bold' };
+      case 'warning':
+        return { color: '#ff9800' };
+      case 'system':
+      default:
+        return { color: '#ccc' };
+    }
   }
 
 
@@ -147,9 +212,7 @@ export class AuctionScene extends BaseGameScene {
     // LEFT: car + your numbers
     const leftPanel = this.uiManager.createPanel({ padding: '18px' });
 
-    const baseValue = calculateCarValue(this.car);
-    const marketInfo = this.gameManager.getCarMarketInfo(this.car.tags);
-    const marketValue = Math.floor(baseValue * marketInfo.modifier);
+    const marketValue = this.auctionMarketEstimateValue;
 
     const carPanel = this.uiManager.createCarInfoPanel(this.car, {
       showValue: true,
@@ -162,7 +225,7 @@ export class AuctionScene extends BaseGameScene {
 
     leftPanel.appendChild(
       this.uiManager.createText(
-        `Your estimate: ${formatCurrency(marketValue)} (market x${marketInfo.modifier.toFixed(2)})`,
+        `Your estimate: ${formatCurrency(marketValue)} (market x${this.auctionMarketEstimateModifier.toFixed(2)})`,
         { fontSize: '13px', color: '#ccc', textAlign: 'center', margin: '0 0 12px 0' }
       )
     );
@@ -348,19 +411,34 @@ export class AuctionScene extends BaseGameScene {
       maxHeight: '260px',
       overflowY: 'auto',
     });
-    logPanel.appendChild(
-      this.uiManager.createHeading('Log', 3, {
-        textAlign: 'center',
-        marginBottom: '10px',
-      })
-    );
 
-    const entries = this.auctionLog.slice(-10);
+    const logHeader = document.createElement('div');
+    Object.assign(logHeader.style, {
+      position: 'sticky',
+      top: '0',
+      zIndex: '1',
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      margin: '-18px -18px 10px -18px',
+      padding: '10px 18px',
+      borderBottom: '1px solid rgba(255,255,255,0.12)',
+      backdropFilter: 'blur(2px)',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const logHeading = this.uiManager.createHeading('Log', 3, {
+      textAlign: 'center',
+      marginBottom: '0',
+    });
+    logHeader.appendChild(logHeading);
+    logPanel.appendChild(logHeader);
+
+    const entries = this.auctionLog.slice(-20);
     for (const entry of entries) {
+      const style = this.getLogStyle(entry.kind);
       logPanel.appendChild(
-        this.uiManager.createText(`• ${entry}`, {
+        this.uiManager.createText(`• ${entry.text}`, {
           fontSize: '13px',
-          color: '#ccc',
+          color: style.color,
+          fontWeight: style.fontWeight,
           margin: '0 0 6px 0',
           lineHeight: '1.3',
         })
@@ -374,10 +452,10 @@ export class AuctionScene extends BaseGameScene {
     this.uiManager.append(layoutRoot);
   }
 
-  private appendAuctionLog(entry: string): void {
+  private appendAuctionLog(entry: string, kind: AuctionLogKind = 'system'): void {
     const trimmed = entry.trim();
     if (!trimmed) return;
-    this.auctionLog.push(trimmed);
+    this.auctionLog.push({ text: trimmed, kind });
     if (this.auctionLog.length > 50) {
       this.auctionLog.splice(0, this.auctionLog.length - 50);
     }
@@ -386,13 +464,14 @@ export class AuctionScene extends BaseGameScene {
   private showToastAndLog(
     toast: string,
     options?: { backgroundColor?: string; durationMs?: number },
-    log?: string
+    log?: string,
+    logKind: AuctionLogKind = 'warning'
   ): void {
     const logEntry = (log ?? toast).trim();
     if (logEntry) {
       const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
-      if (last !== logEntry) {
-        this.appendAuctionLog(logEntry);
+      if (!last || last.text !== logEntry) {
+        this.appendAuctionLog(logEntry, logKind);
       }
     }
 
@@ -407,7 +486,7 @@ export class AuctionScene extends BaseGameScene {
     if (patience < thresholds.critical) {
       if (this.lastPatienceToastBand !== 'critical') {
         this.lastPatienceToastBand = 'critical';
-        this.showToastAndLog('Warning: Rival is about to quit!', { backgroundColor: '#f44336' });
+        this.showToastAndLog('Warning: Rival is about to quit!', { backgroundColor: '#f44336' }, undefined, 'warning');
       }
       return;
     }
@@ -415,7 +494,7 @@ export class AuctionScene extends BaseGameScene {
     if (patience < thresholds.low) {
       if (this.lastPatienceToastBand === 'normal' || this.lastPatienceToastBand === 'medium') {
         this.lastPatienceToastBand = 'low';
-        this.showToastAndLog('Rival is getting impatient…', { backgroundColor: '#ff9800' });
+        this.showToastAndLog('Rival is getting impatient…', { backgroundColor: '#ff9800' }, undefined, 'warning');
       }
       return;
     }
@@ -423,7 +502,7 @@ export class AuctionScene extends BaseGameScene {
     if (patience < thresholds.medium) {
       if (this.lastPatienceToastBand === 'normal') {
         this.lastPatienceToastBand = 'medium';
-        this.showToastAndLog('Rival looks annoyed.', { backgroundColor: '#FFC107' });
+        this.showToastAndLog('Rival looks annoyed.', { backgroundColor: '#FFC107' }, undefined, 'warning');
       }
     }
   }
@@ -436,59 +515,80 @@ export class AuctionScene extends BaseGameScene {
     if (!trimmed) return;
 
     // Mirror bubble dialogue into the auction log so players don't miss it.
-    this.appendAuctionLog(`${this.rival.name}: “${trimmed}”`);
-    
-    // Create speech bubble
-    const bubble = document.createElement('div');
-    bubble.textContent = trimmed;
-    bubble.style.cssText = `
-      position: absolute;
-      top: 30%;
-      right: 25%;
-      transform: translateX(50%);
-      background: #fff;
-      color: #000;
-      padding: 10px 15px;
-      border-radius: 15px;
-      border-bottom-left-radius: 0;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-      font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-      font-size: 14px;
-      font-weight: bold;
-      z-index: 100;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-      max-width: 200px;
-      text-align: center;
-      pointer-events: none;
-    `;
-    
-    // Add tail
-    const tail = document.createElement('div');
-    tail.style.cssText = `
-      position: absolute;
-      bottom: -8px;
-      left: 0;
-      width: 0;
-      height: 0;
-      border-left: 10px solid #fff;
-      border-bottom: 10px solid transparent;
-    `;
-    bubble.appendChild(tail);
-    
-    this.uiManager.appendToOverlay(bubble);
-    
-    // Animate in
+    this.appendAuctionLog(`${this.rival.name}: “${trimmed}”`, 'rival');
+
+    // Keep only one rival speech bubble visible at a time.
+    if (!this.activeRivalBubble) {
+      const bubble = document.createElement('div');
+      bubble.style.cssText = `
+        position: absolute;
+        top: 30%;
+        right: 25%;
+        transform: translateX(50%);
+        background: #fff;
+        color: #000;
+        padding: 10px 15px;
+        border-radius: 15px;
+        border-bottom-left-radius: 0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+        font-size: 14px;
+        font-weight: bold;
+        z-index: 100;
+        opacity: 0;
+        transition: opacity 0.3s ease, top 0.3s ease;
+        max-width: 200px;
+        text-align: center;
+        pointer-events: none;
+      `;
+
+      const messageSpan = document.createElement('span');
+      bubble.appendChild(messageSpan);
+
+      const tail = document.createElement('div');
+      tail.style.cssText = `
+        position: absolute;
+        bottom: -8px;
+        left: 0;
+        width: 0;
+        height: 0;
+        border-left: 10px solid #fff;
+        border-bottom: 10px solid transparent;
+      `;
+      bubble.appendChild(tail);
+
+      this.activeRivalBubble = bubble;
+      this.activeRivalBubbleText = messageSpan;
+      this.uiManager.appendToOverlay(bubble);
+    }
+
+    if (this.activeRivalBubbleText) {
+      this.activeRivalBubbleText.textContent = trimmed;
+    }
+
+    if (this.activeRivalBubbleHideTimeoutId !== undefined) {
+      clearTimeout(this.activeRivalBubbleHideTimeoutId);
+      this.activeRivalBubbleHideTimeoutId = undefined;
+    }
+    if (this.activeRivalBubbleRemoveTimeoutId !== undefined) {
+      clearTimeout(this.activeRivalBubbleRemoveTimeoutId);
+      this.activeRivalBubbleRemoveTimeoutId = undefined;
+    }
+
+    const bubble = this.activeRivalBubble;
+    if (!bubble) return;
+
+    bubble.style.opacity = '0';
+    bubble.style.top = '30%';
     requestAnimationFrame(() => {
       bubble.style.opacity = '1';
-      bubble.style.top = '28%'; // Slight float up
+      bubble.style.top = '28%';
     });
-    
-    // Remove after delay
-    setTimeout(() => {
+
+    this.activeRivalBubbleHideTimeoutId = window.setTimeout(() => {
       bubble.style.opacity = '0';
-      setTimeout(() => {
-        if (bubble.parentNode) bubble.parentNode.removeChild(bubble);
+      this.activeRivalBubbleRemoveTimeoutId = window.setTimeout(() => {
+        this.clearActiveRivalBubble();
       }, 300);
     }, 3000);
   }
@@ -502,7 +602,8 @@ export class AuctionScene extends BaseGameScene {
       this.showToastAndLog(
         'Not enough money to bid that high.',
         { backgroundColor: '#f44336' },
-        `Not enough money to bid ${formatCurrency(newBid)} (you have ${formatCurrency(player.money)}).`
+        `Not enough money to bid ${formatCurrency(newBid)} (you have ${formatCurrency(player.money)}).`,
+        'error'
       );
       return;
     }
@@ -510,9 +611,9 @@ export class AuctionScene extends BaseGameScene {
     this.currentBid = newBid;
 
     if (options?.power) {
-      this.appendAuctionLog(`You power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`);
+      this.appendAuctionLog(`You power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
     } else {
-      this.appendAuctionLog(`You bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`);
+      this.appendAuctionLog(`You bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
     }
 
     // Trigger rival reaction to being outbid
@@ -549,7 +650,8 @@ export class AuctionScene extends BaseGameScene {
       this.showToastAndLog(
         `Requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ to Kick Tires.`,
         { backgroundColor: '#f44336' },
-        `Kick Tires blocked: requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ (you have Eye ${player.skills.eye}).`
+        `Kick Tires blocked: requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ (you have Eye ${player.skills.eye}).`,
+        'error'
       );
       return;
     }
@@ -557,9 +659,7 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
 
-    this.appendAuctionLog(
-      `You kick tires (pressure applied; they look less willing to spend).`
-    );
+    this.appendAuctionLog(`You kick tires (pressure applied; they look less willing to spend).`, 'player');
 
     if (this.currentBid > this.rivalAI.getBudget()) {
       this.endAuction(true, `${this.rival.name} is out of budget and quits!`);
@@ -577,7 +677,8 @@ export class AuctionScene extends BaseGameScene {
       this.showToastAndLog(
         `Requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ to Stall.`,
         { backgroundColor: '#f44336' },
-        `Stall blocked: requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ (you have Tongue ${tongue}).`
+        `Stall blocked: requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ (you have Tongue ${tongue}).`,
+        'error'
       );
       return;
     }
@@ -586,7 +687,8 @@ export class AuctionScene extends BaseGameScene {
       this.showToastAndLog(
         'No Stall uses left this auction.',
         { backgroundColor: '#ff9800' },
-        `No Stall uses left (${this.stallUsesThisAuction}/${tongue}).`
+        `No Stall uses left (${this.stallUsesThisAuction}/${tongue}).`,
+        'warning'
       );
       return;
     }
@@ -595,7 +697,7 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0; // Reset streak
     this.rivalAI.onPlayerStall();
 
-    this.appendAuctionLog(`You stall (-${AuctionScene.STALL_PATIENCE_PENALTY} rival patience).`);
+    this.appendAuctionLog(`You stall (-${AuctionScene.STALL_PATIENCE_PENALTY} rival patience).`, 'player');
     this.maybeToastPatienceWarning();
     
     // Check for patience reaction
@@ -627,7 +729,7 @@ export class AuctionScene extends BaseGameScene {
     const decision = this.rivalAI.decideBid(this.currentBid);
 
     if (!decision.shouldBid) {
-      this.appendAuctionLog(`${this.rival.name} ${decision.reason}.`);
+      this.appendAuctionLog(`${this.rival.name} ${decision.reason}.`, 'rival');
       this.endAuction(true, `${this.rival.name} ${decision.reason}!`);
     } else {
       this.currentBid += decision.bidAmount;
@@ -650,7 +752,7 @@ export class AuctionScene extends BaseGameScene {
       const flavorInline = flavorText.replace(/\n+/g, ' ').trim();
       this.appendAuctionLog(
         `${this.rival.name} bids +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`
-      );
+      , 'rival');
       
       setTimeout(() => {
         // Non-blocking update: refresh UI and keep momentum.

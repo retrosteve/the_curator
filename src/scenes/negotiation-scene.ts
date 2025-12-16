@@ -2,6 +2,7 @@ import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
+import type { SpecialEvent } from '@/systems/special-events-system';
 
 /**
  * Negotiation Scene - PvE encounter with a seller.
@@ -11,7 +12,7 @@ import { formatCurrency } from '@/utils/format';
  */
 export class NegotiationScene extends BaseGameScene {
   private car!: Car;
-  private specialEvent?: any;
+  private specialEvent?: SpecialEvent;
   private locationId?: string;
   private encounterStarted: boolean = false;
   private askingPrice: number = 0;
@@ -27,7 +28,7 @@ export class NegotiationScene extends BaseGameScene {
     super({ key: 'NegotiationScene' });
   }
 
-  init(data: { car: Car; specialEvent?: any; locationId?: string }): void {
+  init(data: { car: Car; specialEvent?: SpecialEvent; locationId?: string }): void {
     this.car = data.car;
     this.specialEvent = data.specialEvent;
     this.locationId = data.locationId;

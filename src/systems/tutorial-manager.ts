@@ -101,7 +101,7 @@ export class TutorialManager {
       case 'first_visit_scrapyard':
         this.showDialogue(
           "Uncle Ray",
-          "Now click the 'Explore Map' button, then click on 'Joe's Scrapyard' to find your first car. Traveling costs 1 Action Point."
+          "Now click the 'Explore Map' button, then click on 'Joe's Scrapyard' to find your first car. Exploring costs Action Points, so keep an eye on your AP."
         );
         break;
       

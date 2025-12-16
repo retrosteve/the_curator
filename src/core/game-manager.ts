@@ -2,10 +2,12 @@ import { Car, getRandomCar } from '@/data/car-database';
 import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
-import { TutorialManager, type TutorialStep } from '@/systems/tutorial-manager';
+import { TutorialManager } from '@/systems/tutorial-manager';
 import { GAME_CONFIG } from '@/config/game-config';
-import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
-import type { SpecialEventsState } from '@/systems/special-events-system';
+import type { SpecialEvent } from '@/systems/special-events-system';
+import { buildSaveData, hydrateLoadedState, readSaveData, writeSaveData, type SavedGameData } from '@/core/game-persistence';
+import type { SkillKey } from '@/config/game-config';
+import type { DeepReadonly } from '@/utils/types';
 
 /**
  * Player State - Represents all player-owned resources and progression.
@@ -62,25 +64,9 @@ const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
 const MAX_AP = GAME_CONFIG.day.maxAP;
 
-const SAVE_KEY = 'theCuratorSave';
 const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for on-change autosave)
 
 type AutosavePolicy = 'on-change' | 'end-of-day';
-
-/**
- * Saved game data structure.
- */
-interface SavedGameData {
-  player: Omit<PlayerState, 'visitedLocations' | 'claimedCollections'> & {
-    visitedLocations?: string[];
-    claimedCollections?: string[];
-  };
-  world: WorldState;
-  market?: MarketFluctuationState; // Market fluctuation state
-  specialEvents?: SpecialEventsState; // Special events state
-  tutorial?: { currentStep: TutorialStep; isActive: boolean }; // Tutorial state
-  version: string; // For future compatibility
-}
 
 type CollectionConfig = {
   name: string;
@@ -312,7 +298,7 @@ export class GameManager {
    * Read-only snapshot of player state.
    * Treat returned objects as immutable.
    */
-  public getPlayerState(): Readonly<PlayerState> {
+  public getPlayerState(): DeepReadonly<PlayerState> {
     return this.player;
   }
 
@@ -320,7 +306,7 @@ export class GameManager {
    * Read-only snapshot of world state.
    * Treat returned objects as immutable.
    */
-  public getWorldState(): Readonly<WorldState> {
+  public getWorldState(): DeepReadonly<WorldState> {
     return this.world;
   }
 
@@ -662,7 +648,7 @@ export class GameManager {
    * @param car - The car to check
    * @returns True if car meets museum requirements (condition >= 80)
    */
-  public isMuseumEligible(car: Car): boolean {
+  public isMuseumEligible(car: { condition: number }): boolean {
     return car.condition >= 80;
   }
 
@@ -835,25 +821,25 @@ export class GameManager {
   /**
    * Get detailed market info for a specific car.
    */
-  public getCarMarketInfo(carTags: string[]): { modifier: number; factors: string[] } {
+  public getCarMarketInfo(carTags: readonly string[]): { modifier: number; factors: string[] } {
     return this.marketSystem.getCarMarketInfo(carTags, this.world.day);
   }
 
   /**
    * Get market modifier for a car (used by economy system).
    */
-  public getMarketModifier(carTags: string[]): number {
+  public getMarketModifier(carTags: readonly string[]): number {
     return this.marketSystem.getMarketModifier(carTags, this.world.day);
   }
 
   /**
    * Add XP to a skill and check for level-up.
    * Emits XP events for UI feedback with progress information.
-   * @param skill - The skill to gain XP in ('eye' | 'tongue' | 'network')
+   * @param skill - The skill to gain XP in
    * @param amount - Amount of XP to gain
    * @returns True if player leveled up
    */
-  public addSkillXP(skill: 'eye' | 'tongue' | 'network', amount: number): boolean {
+  public addSkillXP(skill: SkillKey, amount: number): boolean {
     if (!Number.isFinite(amount) || amount <= 0) return false;
     const config = GAME_CONFIG.player.skillProgression;
     const currentLevel = this.player.skills[skill];
@@ -890,7 +876,7 @@ export class GameManager {
    * Get XP progress for a skill.
    * @returns Object with current XP and required XP for next level
    */
-  public getSkillProgress(skill: 'eye' | 'tongue' | 'network'): { current: number; required: number; level: number } {
+  public getSkillProgress(skill: SkillKey): { current: number; required: number; level: number } {
     const config = GAME_CONFIG.player.skillProgression;
     const level = this.player.skills[skill];
     const currentXP = this.player.skillXP[skill];
@@ -982,7 +968,7 @@ export class GameManager {
   /**
    * Get active special events for map display.
    */
-  public getActiveSpecialEvents(): any[] {
+  public getActiveSpecialEvents(): SpecialEvent[] {
     return this.specialEventsSystem.getActiveEvents();
   }
 
@@ -1055,19 +1041,14 @@ export class GameManager {
   public save(): boolean {
     try {
       const tutorialManager = TutorialManager.getInstance();
-      const saveData: SavedGameData = {
-        player: {
-          ...this.player,
-          visitedLocations: Array.from(this.player.visitedLocations),
-          claimedCollections: Array.from(this.player.claimedCollections),
-        },
+      const saveData = buildSaveData({
+        player: this.player,
         world: this.world,
         market: this.marketSystem.getState(),
         specialEvents: this.specialEventsSystem.getState(),
         tutorial: tutorialManager.getState(),
-        version: '1.0',
-      };
-      localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+      });
+      writeSaveData(saveData);
       console.log('Game saved successfully');
       return true;
     } catch (error) {
@@ -1082,71 +1063,34 @@ export class GameManager {
    */
   public load(): boolean {
     try {
-      const saved = localStorage.getItem(SAVE_KEY);
-      if (!saved) return false;
-
-      const saveData: SavedGameData = JSON.parse(saved);
-
-      // Basic version check (expand later if needed)
-      if (saveData.version !== '1.0') {
-        console.warn('Save version mismatch, starting fresh');
+      const saveData: SavedGameData | null = readSaveData();
+      if (!saveData) {
+        // Could be no save, parse failure, or version mismatch.
         return false;
       }
 
-      const savedPlayer = saveData.player;
-      this.player = {
-        ...(savedPlayer as Omit<PlayerState, 'visitedLocations' | 'claimedCollections'>),
-        visitedLocations: new Set(savedPlayer.visitedLocations ?? ['garage']),
-        claimedCollections: new Set(savedPlayer.claimedCollections ?? []),
-      };
-
-      this.world = saveData.world;
-
-      // Backwards compatibility: add per-day rival presence map if missing
-      if (!this.world.rivalPresenceByLocation) {
-        this.world.rivalPresenceByLocation = {};
-      }
-
-      // Backwards compatibility: add per-day car offers map if missing
-      if (!this.world.carOfferByLocation) {
-        this.world.carOfferByLocation = {};
-      }
+      const hydrated = hydrateLoadedState(saveData);
+      this.player = hydrated.player;
+      this.world = hydrated.world;
 
       // Save hygiene: strip invalid or corrupted entries so the day can safely reroll them.
       this.sanitizeDailyRivalPresenceMap();
       this.sanitizeDailyOfferMap();
 
-      // Backwards compatibility: add skillXP if missing
-      if (!this.player.skillXP) {
-        this.player.skillXP = { eye: 0, tongue: 0, network: 0 };
-      }
-
-      // visitedLocations / claimedCollections are normalized during assignment above.
-
-      // Backwards compatibility: add dayStats if missing
-      if (!this.world.dayStats) {
-        this.world.dayStats = {
-          carsAcquired: 0,
-          moneyEarned: 0,
-          moneySpent: 0,
-          prestigeGained: 0,
-        };
-      }
-
       // Load market state if available (backwards compatibility)
-      if (saveData.market) {
-        this.marketSystem.loadState(saveData.market);
+      if (hydrated.market) {
+        this.marketSystem.loadState(hydrated.market);
       }
 
       // Load special events state if available (backwards compatibility)
-      if (saveData.specialEvents) {
-        this.specialEventsSystem.loadState(saveData.specialEvents);
+      if (hydrated.specialEvents) {
+        this.specialEventsSystem.loadState(hydrated.specialEvents);
       }
 
       // Load tutorial state if available (backwards compatibility)
-      if (saveData.tutorial) {
+      if (hydrated.tutorial) {
         const tutorialManager = TutorialManager.getInstance();
-        tutorialManager.loadState(saveData.tutorial);
+        tutorialManager.loadState(hydrated.tutorial);
       }
 
       console.log('Game loaded successfully');

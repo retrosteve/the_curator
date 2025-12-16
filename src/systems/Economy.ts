@@ -1,4 +1,5 @@
 import { Car, calculateCarValue } from '@/data/car-database';
+import type { GameManager } from '@/core/game-manager';
 import { GAME_CONFIG } from '@/config/game-config';
 
 /**
@@ -233,7 +234,10 @@ export class Economy {
    * @param gameManager - GameManager instance for market data
    * @returns Final sale price as an integer
    */
-  public static getSalePrice(car: Car, gameManager?: any): number {
+  public static getSalePrice(
+    car: { baseValue: number; condition: number; history?: readonly string[]; tags: readonly string[] },
+    gameManager?: Pick<GameManager, 'getMarketModifier'>
+  ): number {
     const baseValue = calculateCarValue(car);
     const marketModifier = gameManager ? gameManager.getMarketModifier(car.tags) : 1.0;
     return Math.floor(baseValue * marketModifier);

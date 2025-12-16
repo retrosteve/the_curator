@@ -1,4 +1,6 @@
 import type { Car } from '@/data/car-database';
+import type { VictoryResult } from '@/core/game-manager';
+import type { SkillKey } from '@/config/game-config';
 
 /**
  * Central event contract for the game.
@@ -14,7 +16,7 @@ export type GameEvents = {
   'ap-changed': number;
   'day-changed': number;
   'location-changed': string;
-  'victory': any; // VictoryResult from GameManager
+  'victory': VictoryResult;
   'tutorial-complete': void;
   'tutorial-step-changed': { step: string };
   'tutorial-dialogue-show': {
@@ -34,9 +36,9 @@ export type GameEvents = {
     icon: string;
     prestigeReward: number;
   };
-  'skill-levelup': { skill: string; level: number };
+  'skill-levelup': { skill: SkillKey; level: number };
   'xp-gained': { 
-    skill: 'eye' | 'tongue' | 'network'; 
+    skill: SkillKey; 
     amount: number;
     currentXP?: number;
     requiredXP?: number;
@@ -44,7 +46,10 @@ export type GameEvents = {
   };
 };
 
+/** Generic map of event names to payload types used by EventBus. */
 export type EventMap = Record<string, unknown>;
+
+/** A strongly-typed handler for a specific event payload. */
 export type EventHandler<T> = (payload: T) => void;
 
 /**
@@ -103,5 +108,5 @@ export class EventBus<Events extends EventMap> {
   }
 }
 
-// Singleton instance
+/** Singleton instance used across scenes/systems for game events. */
 export const eventBus = new EventBus<GameEvents>();

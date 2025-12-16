@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
-import { getRandomCar, getCarById } from '@/data/car-database';
-import { getRivalByTierProgression, calculateRivalInterest, getRivalById } from '@/data/rival-database';
+import { getCarById, getRandomCar } from '@/data/car-database';
+import { calculateRivalInterest, getRivalById } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
+import { BASE_LOCATIONS, type LocationType } from '@/data/location-database';
+import type { SpecialEvent } from '@/systems/special-events-system';
+import { buildSpecialEventCar, routeRegularEncounter } from '@/systems/map-encounter-router';
 
 const AUCTION_AP = GAME_CONFIG.timeCosts.auctionAP;
 const INSPECT_AP = GAME_CONFIG.timeCosts.inspectAP;
@@ -16,9 +19,9 @@ interface MapNode {
   name: string;
   x: number;
   y: number;
-  type: 'scrapyard' | 'dealership' | 'auction' | 'special';
+  type: LocationType | 'special';
   color: number;
-  specialEvent?: any; // For special event nodes
+  specialEvent?: SpecialEvent; // For special event nodes
   hasRival?: boolean; // Whether a rival is present at this location
 }
 
@@ -43,8 +46,8 @@ export class MapScene extends BaseGameScene {
       topColor: 0x1a1a2e,
       bottomColor: 0x16213e,
     });
-    this.createDashboard();
     this.setupUI();
+    this.createDashboard();
     this.setupEventListeners();
   }
 
@@ -58,44 +61,18 @@ export class MapScene extends BaseGameScene {
 
   private createDashboard(): void {
     // Build location data
-    this.nodes = [
-      {
-        id: 'garage',
-        name: 'Your Garage',
-        x: 0,
-        y: 0,
-        type: 'scrapyard',
-        color: 0x2ecc71,
-      },
-      {
-        id: 'scrapyard_1',
-        name: "Joe's Scrapyard",
-        x: 0,
-        y: 0,
-        type: 'scrapyard',
-        color: 0x8b4513,
-      },
-      {
-        id: 'dealership_1',
-        name: 'Classic Car Dealership',
-        x: 0,
-        y: 0,
-        type: 'dealership',
-        color: 0x4169e1,
-      },
-      {
-        id: 'auction_1',
-        name: 'Weekend Auction House',
-        x: 0,
-        y: 0,
-        type: 'auction',
-        color: 0xffd700,
-      },
-    ];
+    this.nodes = BASE_LOCATIONS.map((loc) => ({
+      id: loc.id,
+      name: loc.name,
+      x: 0,
+      y: 0,
+      type: loc.type,
+      color: loc.color,
+    }));
 
     // Add special events
     const specialEvents = this.gameManager.getActiveSpecialEvents();
-    specialEvents.forEach((event: any) => {
+    specialEvents.forEach((event: SpecialEvent) => {
       this.nodes.push({
         id: event.id,
         name: event.name,
@@ -120,20 +97,7 @@ export class MapScene extends BaseGameScene {
     });
 
     // Create DOM dashboard
-    this.dashboardContainer = document.createElement('div');
-    this.dashboardContainer.style.cssText = `
-      position: absolute;
-      top: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 90%;
-      max-width: 1200px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
-      padding: 20px;
-      z-index: 10;
-    `;
+    this.dashboardContainer = this.uiManager.createMapDashboardContainer();
 
     // Create cards for each location
     this.nodes.forEach((node) => {
@@ -141,15 +105,15 @@ export class MapScene extends BaseGameScene {
       this.dashboardContainer!.appendChild(card);
     });
 
-    document.body.appendChild(this.dashboardContainer);
+    this.uiManager.mountMapDashboard(this.dashboardContainer);
   }
 
   private createLocationCard(node: MapNode): HTMLElement {
-    const card = document.createElement('div');
-    const isGarage = node.id === 'garage';
     const player = this.gameManager.getPlayerState();
     const hasRival = Boolean(node.hasRival);
     const canSeeRivals = player.skills.network >= 2;
+    const isGarage = node.id === 'garage' || node.type === 'garage';
+
     // AP is charged once, at encounter start (no extra travel AP for regular locations).
     // If the player can't see rivals yet, avoid revealing rival presence via AP cost.
     const apCost = isGarage
@@ -159,7 +123,7 @@ export class MapScene extends BaseGameScene {
     // Check for locks
     let isLocked = false;
     let lockReason = '';
-    
+
     if (node.type === 'dealership' && player.prestige < GAME_CONFIG.progression.unlocks.dealership) {
       isLocked = true;
       lockReason = `Requires ${GAME_CONFIG.progression.unlocks.dealership} Prestige`;
@@ -175,263 +139,21 @@ export class MapScene extends BaseGameScene {
       node.id !== 'garage' &&
       Object.prototype.hasOwnProperty.call(offerMap, node.id) &&
       offerMap[node.id] === null;
-    
-    // Get color as hex string
-    const hexColor = '#' + node.color.toString(16).padStart(6, '0');
-    
-    // Card styling with modern glass-morphism effect
-    card.style.cssText = `
-      background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 12px;
-      padding: 20px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      position: relative;
-      overflow: hidden;
-    `;
 
-    if (isExhaustedToday) {
-      card.style.cursor = 'not-allowed';
-      card.style.opacity = '0.65';
-    }
-    
-    if (isLocked) {
-      card.style.cursor = 'not-allowed';
-      card.style.opacity = '0.5';
-      card.style.filter = 'grayscale(0.8)';
-    }
-
-    // Add color accent bar
-    const accent = document.createElement('div');
-    accent.style.cssText = `
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 4px;
-      height: 100%;
-      background: ${isLocked ? '#999' : hexColor};
-    `;
-    card.appendChild(accent);
-
-    // Header with icon and name
-    const header = document.createElement('div');
-    header.style.cssText = `
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 12px;
-      padding-left: 8px;
-    `;
-    
-    const icon = isLocked ? '🔒' : this.getLocationIcon(node);
-    const iconSpan = document.createElement('span');
-    iconSpan.textContent = icon;
-    iconSpan.style.cssText = 'font-size: 28px;';
-    
-    const name = document.createElement('div');
-    name.textContent = node.name;
-    name.style.cssText = `
-      font-size: 18px;
-      font-weight: bold;
-      color: #fff;
-      flex: 1;
-    `;
-    
-    header.appendChild(iconSpan);
-    header.appendChild(name);
-    card.appendChild(header);
-
-    // Description
-    const desc = document.createElement('div');
-    desc.textContent = isLocked ? 'Increase your Prestige to gain access to this location.' : this.getLocationDescription(node);
-    desc.style.cssText = `
-      color: rgba(255,255,255,0.7);
-      font-size: 13px;
-      margin-bottom: 12px;
-      padding-left: 8px;
-      line-height: 1.4;
-    `;
-    card.appendChild(desc);
-
-    // Status indicators
-    const statusBar = document.createElement('div');
-    statusBar.style.cssText = `
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-      padding-left: 8px;
-    `;
-
-    if (isLocked) {
-      const lockBadge = document.createElement('span');
-      lockBadge.textContent = `🔒 ${lockReason}`;
-      lockBadge.style.cssText = `
-        background: rgba(100,100,100,0.5);
-        color: #fff;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-      `;
-      statusBar.appendChild(lockBadge);
-    } else {
-      // AP cost badge
-      if (!isGarage) {
-        const apBadge = document.createElement('span');
-        apBadge.textContent = `⚡ ${apCost} AP`;
-        apBadge.style.cssText = `
-          background: rgba(255,215,0,0.2);
-          color: #ffd700;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-        `;
-        statusBar.appendChild(apBadge);
-      } else {
-        const homeBadge = document.createElement('span');
-        homeBadge.textContent = 'FREE';
-        homeBadge.style.cssText = `
-          background: rgba(46,204,113,0.2);
-          color: #2ecc71;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-        `;
-        statusBar.appendChild(homeBadge);
-      }
-
-      // Exhausted badge (only after the location's daily offer has been consumed)
-      if (isExhaustedToday) {
-        const exhaustedBadge = document.createElement('span');
-        exhaustedBadge.textContent = '🚫 EXHAUSTED TODAY';
-        exhaustedBadge.style.cssText = `
-          background: rgba(244, 67, 54, 0.2);
-          color: #f44336;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-        `;
-        statusBar.appendChild(exhaustedBadge);
-      }
-
-      // Rival indicator (requires Network 2+)
-      if (hasRival && canSeeRivals) {
-        const rivalBadge = document.createElement('span');
-        rivalBadge.textContent = '⚔️ RIVAL PRESENT TODAY';
-        rivalBadge.style.cssText = `
-          background: rgba(255,69,58,0.2);
-          color: #ff453a;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-        `;
-        rivalBadge.title = 'This is locked in for the current day.';
-        statusBar.appendChild(rivalBadge);
-      }
-
-      // Special event indicator
-      if (node.type === 'special') {
-        const specialBadge = document.createElement('span');
-        specialBadge.textContent = '✨ SPECIAL';
-        specialBadge.style.cssText = `
-          background: rgba(191,64,191,0.2);
-          color: #bf40bf;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 12px;
-          font-weight: bold;
-        `;
-        statusBar.appendChild(specialBadge);
-      }
-    }
-
-    card.appendChild(statusBar);
-
-    // Visit button
-    const button = document.createElement('button');
-    button.textContent = isLocked ? 'Locked' : (isGarage ? 'Return Home' : 'Visit Location');
-    button.disabled = isLocked;
-    button.style.cssText = `
-      width: 100%;
-      padding: 10px;
-      background: ${isLocked ? '#555' : hexColor};
-      color: ${isLocked ? '#aaa' : '#fff'};
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: ${isLocked ? 'not-allowed' : 'pointer'};
-      transition: all 0.2s ease;
-      margin-top: 8px;
-    `;
-
-    if (!isLocked) {
-      button.addEventListener('mouseenter', () => {
-        if (isExhaustedToday) return;
-        button.style.transform = 'translateY(-2px)';
-        button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-      });
-
-      button.addEventListener('mouseleave', () => {
-        button.style.transform = 'translateY(0)';
-        button.style.boxShadow = 'none';
-      });
-    }
-
-    button.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (isLocked) {
-        this.uiManager.showModal(
-          'Location Locked',
-          `You need ${lockReason} to access this location.\n\nEarn Prestige by restoring and selling cars, or by displaying them in your museum.`,
-          [{ text: 'OK', onClick: () => {} }]
-        );
-      } else {
-        this.visitNode(node);
-      }
+    return this.uiManager.createMapLocationCard({
+      name: node.name,
+      description: this.getLocationDescription(node),
+      icon: this.getLocationIcon(node),
+      color: node.color,
+      apCost,
+      isGarage,
+      isLocked,
+      lockReason,
+      isExhaustedToday,
+      showRivalBadge: hasRival && canSeeRivals,
+      showSpecialBadge: node.type === 'special',
+      onVisit: () => this.visitNode(node),
     });
-
-    card.appendChild(button);
-
-    // Hover effect for entire card
-    if (!isLocked) {
-      card.addEventListener('mouseenter', () => {
-        if (isExhaustedToday) return;
-        card.style.transform = 'translateY(-4px)';
-        card.style.boxShadow = '0 8px 25px rgba(0,0,0,0.4)';
-        card.style.borderColor = 'rgba(255,255,255,0.4)';
-      });
-
-      card.addEventListener('mouseleave', () => {
-        if (isExhaustedToday) return;
-        card.style.transform = 'translateY(0)';
-        card.style.boxShadow = '0 4px 15px rgba(0,0,0,0.3)';
-        card.style.borderColor = 'rgba(255,255,255,0.2)';
-      });
-    }
-
-    // Click card to visit
-    card.addEventListener('click', () => {
-      if (isLocked) {
-        this.uiManager.showModal(
-          'Location Locked',
-          `You need ${lockReason} to access this location.\n\nEarn Prestige by restoring and selling cars, or by displaying them in your museum.`,
-          [{ text: 'OK', onClick: () => {} }]
-        );
-      } else {
-        this.visitNode(node);
-      }
-    });
-
-    return card;
   }
 
   private getLocationIcon(node: MapNode): string {
@@ -468,10 +190,10 @@ export class MapScene extends BaseGameScene {
   }
 
   private cleanupDashboard(): void {
-    if (this.dashboardContainer && this.dashboardContainer.parentNode) {
-      this.dashboardContainer.parentNode.removeChild(this.dashboardContainer);
-      this.dashboardContainer = null;
-    }
+    if (!this.dashboardContainer) return;
+
+    this.dashboardContainer.parentNode?.removeChild(this.dashboardContainer);
+    this.dashboardContainer = null;
   }
 
   private setupUI(): void {
@@ -502,7 +224,7 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
-    // If the location's daily offer has already been consumed, don't spend travel AP.
+    // If the location's daily offer has already been consumed, block the visit.
     if (node.type !== 'special') {
       const world = this.gameManager.getWorldState();
       const offerMap = world.carOfferByLocation ?? {};
@@ -560,6 +282,10 @@ export class MapScene extends BaseGameScene {
     // Handle special events
     if (node.type === 'special') {
       const specialEvent = node.specialEvent;
+      if (!specialEvent) {
+        this.uiManager.showToast('This special event is no longer available.');
+        return;
+      }
       this.generateSpecialEncounter(specialEvent);
       return;
     }
@@ -654,9 +380,19 @@ export class MapScene extends BaseGameScene {
     // Check if this node has a pre-determined rival (from map indicators)
     const hasRival = node.hasRival || false;
 
-    if (hasRival) {
+    const playerPrestige = this.gameManager.getPlayerState().prestige;
+    const routed = routeRegularEncounter({
+      locationId: node.id,
+      car,
+      hasRival,
+      playerPrestige,
+      auctionApCost: AUCTION_AP,
+      inspectApCost: INSPECT_AP,
+    });
+
+    if (routed.kind === 'auction') {
       // Auction encounter (single AP charge)
-      const block = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
+      const block = this.timeSystem.getAPBlockModal(routed.apCost, 'an auction');
       if (block) {
         this.uiManager.showModal(block.title, block.message, [
           { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
@@ -664,10 +400,7 @@ export class MapScene extends BaseGameScene {
         return;
       }
 
-      // Auction with rival
-      const playerPrestige = this.gameManager.getPlayerState().prestige;
-      const rival = getRivalByTierProgression(playerPrestige);
-      const interest = calculateRivalInterest(rival, car.tags);
+      const { rival } = routed.sceneData;
 
       // Explain why we're switching to an auction encounter.
       this.uiManager.showModal(
@@ -681,50 +414,39 @@ export class MapScene extends BaseGameScene {
                 this.showGarageFullGate();
                 return;
               }
-              this.timeSystem.spendAP(AUCTION_AP);
+              this.timeSystem.spendAP(routed.apCost);
               this.applyArrivalEffects(node);
-              this.scene.start('AuctionScene', { car, rival, interest, locationId: node.id });
+              this.scene.start(routed.sceneKey, routed.sceneData);
             },
           },
         ]
       );
-    } else {
-      // Negotiation consumes inspection AP
-      const block = this.timeSystem.getAPBlockModal(INSPECT_AP, 'inspecting this car');
-      if (block) {
-        this.uiManager.showModal(block.title, block.message, [
-          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-        ]);
-        return;
-      }
-
-      if (!this.hasGarageSpace()) {
-        this.showGarageFullGate();
-        return;
-      }
-
-      this.timeSystem.spendAP(INSPECT_AP);
-      this.applyArrivalEffects(node);
-
-      // Solo negotiation
-      this.scene.start('NegotiationScene', { car, locationId: node.id });
+      return;
     }
+
+    // Negotiation consumes inspection AP
+    const block = this.timeSystem.getAPBlockModal(routed.apCost, 'inspecting this car');
+    if (block) {
+      this.uiManager.showModal(block.title, block.message, [
+        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+      ]);
+      return;
+    }
+
+    if (!this.hasGarageSpace()) {
+      this.showGarageFullGate();
+      return;
+    }
+
+    this.timeSystem.spendAP(routed.apCost);
+    this.applyArrivalEffects(node);
+
+    // Solo negotiation
+    this.scene.start(routed.sceneKey, routed.sceneData);
   }
 
-  private generateSpecialEncounter(specialEvent: any): void {
-    // Generate a car with special event properties
-    let car = getRandomCar();
-
-    // Apply special event modifiers
-    if (specialEvent.reward.guaranteedTags) {
-      // Add guaranteed tags to the car
-      car.tags = [...new Set([...car.tags, ...specialEvent.reward.guaranteedTags])];
-    }
-
-    if (specialEvent.reward.carValueMultiplier) {
-      // Modify car value (this will be handled in the negotiation/auction)
-      car.baseValue = Math.floor(car.baseValue * specialEvent.reward.carValueMultiplier);
-    }
+  private generateSpecialEncounter(specialEvent: SpecialEvent): void {
+    const car = buildSpecialEventCar(specialEvent);
 
     // Special events always have a car to negotiate for (no auctions for simplicity)
     // AP was already spent in visitNode(); do not charge additional inspection AP here.

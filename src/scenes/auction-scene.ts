@@ -466,7 +466,7 @@ export class AuctionScene extends BaseGameScene {
     `;
     bubble.appendChild(tail);
     
-    document.body.appendChild(bubble);
+    this.uiManager.appendToOverlay(bubble);
     
     // Animate in
     requestAnimationFrame(() => {

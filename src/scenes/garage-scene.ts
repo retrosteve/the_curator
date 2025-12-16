@@ -6,8 +6,10 @@ import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car } from '@/data/car-database';
 import { getRivalMood, getRivalById } from '@/data/rival-database';
-import { GAME_CONFIG, SKILL_METADATA } from '@/config/game-config';
+import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
+import type { VictoryResult } from '@/core/game-manager';
+import type { DeepReadonly } from '@/utils/types';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -39,7 +41,7 @@ export class GarageScene extends BaseGameScene {
     }
   };
 
-  private readonly handleVictory = (victoryResult: any): void => {
+  private readonly handleVictory = (victoryResult: VictoryResult): void => {
     const { prestige, unicorns, museumCars, skillLevel } = victoryResult;
     
     const message = `🏆 CONGRATULATIONS! 🏆\n\nYou've become the world's greatest car curator!\n\n` +
@@ -405,7 +407,7 @@ export class GarageScene extends BaseGameScene {
     const skillsHeading = this.uiManager.createText('Skill Progress', { fontWeight: 'bold', margin: '0 0 8px 0', opacity: '0.9' });
     skillsPanel.appendChild(skillsHeading);
 
-    const skills: Array<'eye' | 'tongue' | 'network'> = ['eye', 'tongue', 'network'];
+    const skills: SkillKey[] = ['eye', 'tongue', 'network'];
     const skillTooltips = {
       eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
       tongue: 'Lvl 1: Basic negotiation\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master negotiator (max Stall uses)',
@@ -510,7 +512,7 @@ export class GarageScene extends BaseGameScene {
    * @returns Configured car panel element
    */
   private createCarCard(
-    car: Car,
+    car: DeepReadonly<Car>,
     context: 'inventory' | 'museum',
     refreshCallback: () => void
   ): HTMLDivElement {

@@ -17,7 +17,7 @@ You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You m
 
 ## Core Loop
 1. **Morning Phase:** Start in Garage. Check news/intel.
-2. **Map Phase (The Day Loop):** Travel to nodes. Costs 1 Action Point (AP).
+2. **Map Phase (The Day Loop):** Choose a node to visit. There is no separate travel AP cost; the AP cost is charged by the encounter type when you commit to the visit.
   - **Daily Offers:** Each non-special location has a single car offer per day (locked in for the day). Once you resolve the encounter (buy/win/leave/lose), that location is exhausted until tomorrow.
 3. **Encounter Phase:**
    - If rival present -> Auction (turn-based battle, costs 2 AP).
@@ -252,7 +252,7 @@ As the player levels up, they improve three core tools:
   - Sell value: `sellAsIsValue = carValue × 0.7`.
 
 ## Action Point Costs
-- **Travel:** 1 AP
+- **Travel:** No separate cost (included in encounter AP)
 - **Inspect:** 1 AP
 - **Auction:** 2 AP
 - **Restore (Minor Service):** 2 AP (reduced from 3)

@@ -20,6 +20,10 @@ This document covers implementation constraints; gameplay rules and tuning live 
 - Tutorial dialogues are rendered via `UIManager.showTutorialDialogue()` (triggered from scenes) and styled with `.tutorial-dialogue` CSS class.
 - **Custom Modals:** Complex UIs (e.g., restoration specialist selection) use dedicated modal methods (e.g., `UIManager.showRestorationModal()`) with custom layouts instead of generic button-based modals for better UX.
 
+### Ordering Rule (Important)
+- `UIManager.clear()` (and helpers like `BaseGameScene.resetUIWithHUD()`) clears the entire DOM overlay.
+- If a scene mounts additional DOM UI (e.g., the Map dashboard), create/mount it after calling `resetUIWithHUD()`; otherwise it will be wiped.
+
 ## Scenes & Transitions
 - Scenes live under `src/scenes/`.
 - Expected flow: `BootScene` → `GarageScene` (Hub) ⇄ `MapScene` (Day Loop).
@@ -41,12 +45,13 @@ This document covers implementation constraints; gameplay rules and tuning live 
   - `'money-changed'` number
   - `'prestige-changed'` number
   - `'inventory-changed'` `Car[]`
-  - `'time-changed'` number
+  - 'ap-changed' number
   - `'day-changed'` number
   - `'location-changed'` string
 
 ## Common Gotchas
 - Always call `this.uiManager.clear()` when rebuilding UI on scene transitions.
+- If you call `resetUIWithHUD()`, append any extra DOM UI afterwards.
 
 ## Assets
 - Use simple colored primitives (rectangles/circles) as placeholders.
@@ -59,5 +64,6 @@ This document covers implementation constraints; gameplay rules and tuning live 
   /data          (Static data: car-database.ts, rival-database.ts)
   /scenes        (Phaser Scenes: boot-scene.ts, garage-scene.ts, map-scene.ts, auction-scene.ts, negotiation-scene.ts)
   /systems       (Logic: economy.ts, rival-ai.ts, time-system.ts)
-  /ui            (HTML/CSS generation scripts)
+  /ui            (DOM UI owner: ui-manager.ts)
+    /internal    (UIManager implementation modules: modals/toasts/tutorial/map)
   main.ts        (Entry Point)

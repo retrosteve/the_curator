@@ -89,7 +89,7 @@ export class MarketFluctuationSystem {
    * @param carTags - Car tags to check against market conditions
    * @param gameDay - Current game day for seasonal calculations
    */
-  public getMarketModifier(carTags: string[], gameDay?: number): number {
+  public getMarketModifier(carTags: readonly string[], gameDay?: number): number {
     let modifier = 1.0;
 
     // Apply seasonal modifier
@@ -125,7 +125,7 @@ export class MarketFluctuationSystem {
    * @param carTags - Car tags to check
    * @param gameDay - Current game day for seasonal calculations
    */
-  public getCarMarketInfo(carTags: string[], gameDay?: number): { modifier: number; factors: string[] } {
+  public getCarMarketInfo(carTags: readonly string[], gameDay?: number): { modifier: number; factors: string[] } {
     const factors: string[] = [];
     let modifier = 1.0;
 
@@ -184,7 +184,7 @@ export class MarketFluctuationSystem {
    * @param carTags - Car tags to check
    * @param gameDay - Current game day for seasonal calculations
    */
-  private getSeasonalModifier(carTags: string[], gameDay?: number): number {
+  private getSeasonalModifier(carTags: readonly string[], gameDay?: number): number {
     const seasonalConfigs = GAME_CONFIG.economy.market.seasonal;
     type SeasonalConfig = { startDay: number; endDay: number; tags: readonly string[]; modifier: number };
     type SeasonKey = keyof typeof seasonalConfigs;
@@ -200,7 +200,7 @@ export class MarketFluctuationSystem {
   /**
    * Get event modifier for car tags.
    */
-  private getEventModifier(carTags: string[]): number {
+  private getEventModifier(carTags: readonly string[]): number {
     if (!this.currentEvent) return 1.0;
 
     // For niche boom events, randomly select affected tags

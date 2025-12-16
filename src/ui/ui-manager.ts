@@ -1,6 +1,10 @@
 import { formatCurrency } from '@/utils/format';
 import { Car } from '@/data/car-database';
-import { GAME_CONFIG, SKILL_METADATA } from '@/config/game-config';
+import { type SkillKey } from '@/config/game-config';
+import { createMapDashboardContainer, createMapLocationCard } from '@/ui/internal/ui-map';
+import { ModalManager } from '@/ui/internal/ui-modals';
+import { ToastManager } from '@/ui/internal/ui-toasts';
+import { TutorialUI } from '@/ui/internal/ui-tutorial';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -12,17 +16,53 @@ import { GAME_CONFIG, SKILL_METADATA } from '@/config/game-config';
 export class UIManager {
   private static instance: UIManager;
   private container: HTMLElement;
-  private tutorialDialogueElement: HTMLElement | null = null;
-  private tutorialBackdropElement: HTMLElement | null = null;
-  private activeToasts: HTMLElement[] = []; // Track active toasts for stacking
+  private readonly toastManager: ToastManager;
+  private readonly modalManager: ModalManager;
+  private readonly tutorialUI: TutorialUI;
 
-  private static ensureStyleElement(id: string, cssText: string): void {
-    if (document.getElementById(id)) return;
+  /**
+   * Append an element to the UI overlay root (#ui-overlay).
+   * Use this instead of document.body to keep UI ownership consistent.
+   */
+  public appendToOverlay(element: HTMLElement): void {
+    this.container.appendChild(element);
+  }
 
-    const style = document.createElement('style');
-    style.id = id;
-    style.textContent = cssText;
-    document.head.appendChild(style);
+  /**
+   * Get the UI overlay root element.
+   */
+  public getOverlayRoot(): HTMLElement {
+    return this.container;
+  }
+
+  public createMapLocationCard(options: {
+    name: string;
+    description: string;
+    icon: string;
+    color: number;
+    apCost: number;
+    isGarage: boolean;
+    isLocked: boolean;
+    lockReason?: string;
+    isExhaustedToday: boolean;
+    showRivalBadge: boolean;
+    showSpecialBadge: boolean;
+    onVisit: () => void;
+  }): HTMLElement {
+    return createMapLocationCard({
+      ...options,
+      onShowLockedModal: (title, message) => {
+        this.showModal(title, message, [{ text: 'OK', onClick: () => {} }]);
+      },
+    });
+  }
+
+  public createMapDashboardContainer(): HTMLDivElement {
+    return createMapDashboardContainer();
+  }
+
+  public mountMapDashboard(container: HTMLElement): void {
+    this.appendToOverlay(container);
   }
 
   private static formatLocationLabel(location: string): string {
@@ -41,6 +81,18 @@ export class UIManager {
       throw new Error('UI overlay container not found');
     }
     this.container = overlay;
+
+    this.toastManager = new ToastManager((el) => this.appendToOverlay(el));
+    this.modalManager = new ModalManager({
+      append: (el) => this.append(el),
+      remove: (el) => this.remove(el),
+      createHeading: (text, level, style) => this.createHeading(text, level, style),
+      createText: (text, style) => this.createText(text, style),
+      createButton: (text, onClick, options) => this.createButton(text, onClick, options),
+    });
+    this.tutorialUI = new TutorialUI(this.container, (text, onClick, options) =>
+      this.createButton(text, onClick, options)
+    );
   }
 
   public static getInstance(): UIManager {
@@ -54,7 +106,7 @@ export class UIManager {
    * Returns true if a modal is currently displayed.
    */
   public isModalOpen(): boolean {
-    return document.querySelector('.modal-backdrop') !== null;
+    return this.modalManager.isModalOpen();
   }
 
   /**
@@ -62,50 +114,7 @@ export class UIManager {
    * Text floats upward and fades out.
    */
   public showFloatingMoney(amount: number, isPositive: boolean = true): void {
-    const floatingText = document.createElement('div');
-    const symbol = isPositive ? '+' : '-';
-    const color = isPositive ? '#2ecc71' : '#e74c3c';
-    
-    floatingText.textContent = `${symbol}${formatCurrency(Math.abs(amount))}`;
-    floatingText.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 36px;
-      font-weight: bold;
-      color: ${color};
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-      pointer-events: none;
-      z-index: 10000;
-      animation: floatUp 1.5s ease-out forwards;
-    `;
-    
-    // Add CSS animation if not already present
-    UIManager.ensureStyleElement(
-      'floatingMoneyAnimation',
-      `
-        @keyframes floatUp {
-          0% {
-            opacity: 1;
-            transform: translate(-50%, -50%) translateY(0);
-          }
-          100% {
-            opacity: 0;
-            transform: translate(-50%, -50%) translateY(-100px);
-          }
-        }
-      `
-    );
-    
-    document.body.appendChild(floatingText);
-    
-    // Remove element after animation
-    setTimeout(() => {
-      if (floatingText.parentNode) {
-        floatingText.parentNode.removeChild(floatingText);
-      }
-    }, 1500);
+    this.toastManager.showFloatingMoney(amount, isPositive);
   }
 
   /**
@@ -118,93 +127,13 @@ export class UIManager {
    * @param currentLevel - Current skill level (optional, for progress display)
    */
   public showXPGain(
-    skill: 'eye' | 'tongue' | 'network',
+    skill: SkillKey,
     amount: number,
     currentXP?: number,
     requiredXP?: number,
     currentLevel?: number
   ): void {
-    const skillMeta = SKILL_METADATA[skill];
-    const skillIcon = skillMeta.icon;
-    const skillName = skillMeta.name;
-    const skillColor = skillMeta.color;
-    
-    // Calculate vertical position based on active toasts (stack them)
-    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
-    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
-    
-    // Build toast text with optional progress
-    let toastText = `${skillIcon} +${amount} ${skillName} XP`;
-    if (currentXP !== undefined && requiredXP !== undefined && currentLevel !== undefined) {
-      if (requiredXP === 0) {
-        toastText += ` (MAX LEVEL)`;
-      } else {
-        toastText += ` (${currentXP}/${requiredXP} to Lv${currentLevel + 1})`;
-      }
-    }
-    
-    const toast = document.createElement('div');
-    toast.textContent = toastText;
-    toast.style.cssText = `
-      position: fixed;
-      top: ${topPosition}px;
-      right: 20px;
-      padding: 12px 20px;
-      background: ${skillColor};
-      color: #fff;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      pointer-events: none;
-      z-index: 10000;
-      animation: slideInFadeOut ${GAME_CONFIG.ui.toast.animationDuration}ms ease-out forwards;
-      transition: top 0.3s ease;
-    `;
-    
-    // Track this toast
-    this.activeToasts.push(toast);
-    
-    // Add CSS animation if not already present
-    UIManager.ensureStyleElement(
-      'xpToastAnimation',
-      `
-        @keyframes slideInFadeOut {
-          0% {
-            opacity: 0;
-            transform: translateX(100px);
-          }
-          15% {
-            opacity: 1;
-            transform: translateX(0);
-          }
-          85% {
-            opacity: 1;
-            transform: translateX(0);
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(100px);
-          }
-        }
-      `
-    );
-    
-    document.body.appendChild(toast);
-    
-    // Remove element after animation and update stack positions
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-      // Remove from active toasts array
-      const index = this.activeToasts.indexOf(toast);
-      if (index > -1) {
-        this.activeToasts.splice(index, 1);
-      }
-      // Reposition remaining toasts
-      this.repositionToasts();
-    }, GAME_CONFIG.ui.toast.animationDuration);
+    this.toastManager.showXPGain(skill, amount, currentXP, requiredXP, currentLevel);
   }
 
   /**
@@ -215,86 +144,7 @@ export class UIManager {
     message: string,
     options?: { backgroundColor?: string; durationMs?: number }
   ): void {
-    const safeMessage = message?.trim();
-    if (!safeMessage) return;
-
-    const durationMs = options?.durationMs ?? GAME_CONFIG.ui.toast.animationDuration;
-    const backgroundColor = options?.backgroundColor ?? 'rgba(44, 62, 80, 0.95)';
-
-    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
-    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
-
-    const toast = document.createElement('div');
-    toast.textContent = safeMessage;
-    toast.style.cssText = `
-      position: fixed;
-      top: ${topPosition}px;
-      right: 20px;
-      padding: 12px 20px;
-      background: ${backgroundColor};
-      color: #fff;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      pointer-events: none;
-      z-index: 10000;
-      animation: toastSlideInFadeOut ${durationMs}ms ease-out forwards;
-      transition: top 0.3s ease;
-      max-width: 380px;
-      white-space: pre-wrap;
-    `;
-
-    this.activeToasts.push(toast);
-
-    UIManager.ensureStyleElement(
-      'genericToastAnimation',
-      `
-        @keyframes toastSlideInFadeOut {
-          0% {
-            opacity: 0;
-            transform: translateX(100px);
-          }
-          15% {
-            opacity: 1;
-            transform: translateX(0);
-          }
-          85% {
-            opacity: 1;
-            transform: translateX(0);
-          }
-          100% {
-            opacity: 0;
-            transform: translateX(100px);
-          }
-        }
-      `
-    );
-
-    document.body.appendChild(toast);
-
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-
-      const index = this.activeToasts.indexOf(toast);
-      if (index > -1) {
-        this.activeToasts.splice(index, 1);
-      }
-      this.repositionToasts();
-    }, durationMs);
-  }
-
-  /**
-   * Reposition remaining toasts after one is removed.
-   * Updates vertical position of each toast to fill gaps.
-   */
-  private repositionToasts(): void {
-    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
-    this.activeToasts.forEach((toast, index) => {
-      toast.style.top = `${baseTopPosition + (index * heightWithMargin)}px`;
-    });
+    this.toastManager.showToast(message, options);
   }
 
   /**
@@ -302,40 +152,8 @@ export class UIManager {
    * @param skill - The skill that leveled up
    * @param newLevel - The new skill level
    */
-  public showSkillLevelUp(skill: 'eye' | 'tongue' | 'network', newLevel: number): void {
-    const skillMeta = SKILL_METADATA[skill];
-    const skillIcon = skillMeta.icon;
-    const skillName = skillMeta.name;
-    
-    // Define unlock descriptions for each skill level
-    const unlockDescriptions: Record<string, Record<number, string>> = {
-      eye: {
-        2: '✓ Unlock "Kick Tires" tactic in auctions\\n✓ See first history tag on cars\\n✓ Better damage detection',
-        3: '✓ See all history tags\\n✓ More accurate value estimates\\n✓ Spot hidden issues faster',
-        4: '✓ See rival\'s remaining budget in auctions\\n✓ Expert-level appraisals\\n✓ Predict restoration outcomes',
-        5: '✓ Predict market fluctuations 1 day ahead\\n✓ Master appraiser status\\n✓ See hidden car attributes',
-      },
-      tongue: {
-        2: '✓ Unlock "Stall" tactic in auctions\\n✓ More persuasive in negotiations\\n✓ Better haggling results',
-        3: '✓ Unlock "Sweet Talk" (reduce asking price 10%)\\n✓ Increased Stall effectiveness\\n✓ Rivals respect your reputation',
-        4: '✓ 4 Stall uses per auction (up from 2)\\n✓ Advanced negotiation tactics\\n✓ Lower starting bids in auctions',
-        5: '✓ Unlock "Intimidate" (force rival skip turn)\\n✓ Master negotiator status\\n✓ Maximum persuasion power',
-      },
-      network: {
-        2: '✓ 25% chance to see special events 1 day early\\n✓ Better location intel\\n✓ More reliable leads',
-        3: '✓ See rival locations before traveling\\n✓ Expanded network contacts\\n✓ Better car availability info',
-        4: '✓ Unlock "Phone a Friend" (1 free appraisal/day)\\n✓ Premium location access\\n✓ Early auction notifications',
-        5: '✓ See all cars at locations before traveling\\n✓ Master curator network\\n✓ Exclusive private sales access',
-      },
-    };
-    
-    const description = unlockDescriptions[skill][newLevel] || 'New abilities unlocked!';
-    
-    this.showModal(
-      `${skillIcon} LEVEL UP! ${skillName} Level ${newLevel}`,
-      `Congratulations! Your ${skillName} skill has improved!\\n\\n${description}`,
-      [{ text: 'Excellent!', onClick: () => {} }]
-    );
+  public showSkillLevelUp(skill: SkillKey, newLevel: number): void {
+    this.modalManager.showSkillLevelUp(skill, newLevel);
   }
 
   /**
@@ -344,9 +162,8 @@ export class UIManager {
    * Preserves tutorial dialogues which persist across scenes.
    */
   public clear(): void {
-    // Store tutorial elements temporarily
-    const tutorialBackdrop = this.tutorialBackdropElement;
-    const tutorialDialogue = this.tutorialDialogueElement;
+    const { backdrop: tutorialBackdrop, dialogue: tutorialDialogue } =
+      this.tutorialUI.getElements();
     
     // Clear everything
     this.container.innerHTML = '';
@@ -532,31 +349,14 @@ export class UIManager {
     level: number,
     description?: string
   ): void {
-    const skillNames = { eye: 'Eye', tongue: 'Tongue', network: 'Network' };
-    const skillName = skillNames[skill];
-    const defaultDescriptions = {
-      eye: 'You can now spot more details when inspecting cars.',
-      tongue: 'You can now haggle more effectively.',
-      network: 'Your network has expanded, revealing new opportunities.',
-    };
-    const message = description || defaultDescriptions[skill];
-    
-    this.showModal(
-      `${skillName} Skill Level Up!`,
-      `Your ${skillName} skill improved to level ${level}!\n\n${message}`,
-      [{ text: 'Excellent!', onClick: () => {} }]
-    );
+    this.modalManager.showSkillLevelUpModal(skill, level, description);
   }
 
   /**
    * Show a garage full modal with standardized formatting.
    */
   public showGarageFullModal(): void {
-    this.showModal(
-      'Garage Full',
-      'Garage Full - Sell or Scrap current car first.',
-      [{ text: 'OK', onClick: () => {} }]
-    );
+    this.modalManager.showGarageFullModal();
   }
 
   /**
@@ -582,214 +382,14 @@ export class UIManager {
     }>,
     onCancel: () => void
   ): void {
-    const stop = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    const backdrop = document.createElement('div');
-    backdrop.className = 'game-modal-backdrop';
-    Object.assign(backdrop.style, {
-      position: 'fixed',
-      top: '0',
-      left: '0',
-      width: '100vw',
-      height: '100vh',
-      zIndex: '999',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(8px)',
-      pointerEvents: 'auto',
-    });
-
-    ['pointerdown', 'pointerup', 'pointermove', 'click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'touchstart', 'touchend', 'touchmove'].forEach(
-      (eventName) => {
-        backdrop.addEventListener(eventName, stop, { capture: true });
-      }
-    );
-
-    const modal = document.createElement('div');
-    modal.className = 'game-modal restoration-modal';
-    
-    Object.assign(modal.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
-      border: '3px solid rgba(100, 200, 255, 0.4)',
-      borderRadius: '20px',
-      padding: '32px',
-      minWidth: '500px',
-      maxWidth: '700px',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      zIndex: '1000',
-      pointerEvents: 'auto',
-      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-    });
-
-    const heading = this.createHeading('Select Restoration Service', 2, {
-      textAlign: 'center',
-      marginBottom: '8px',
-    });
-
-    const subtitle = this.createText(`${carName} • Current Condition: ${currentCondition}/100`, {
-      textAlign: 'center',
-      marginBottom: '24px',
-      fontSize: '16px',
-      color: '#90caf9',
-    });
-
-    modal.appendChild(heading);
-    modal.appendChild(subtitle);
-
-    // Create option cards
-    options.forEach((opt) => {
-      const card = document.createElement('div');
-      Object.assign(card.style, {
-        background: 'linear-gradient(145deg, rgba(30, 30, 50, 0.8), rgba(40, 40, 60, 0.8))',
-        border: '2px solid rgba(100, 200, 255, 0.2)',
-        borderRadius: '12px',
-        padding: '16px',
-        marginBottom: '16px',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-      });
-
-      card.addEventListener('mouseenter', () => {
-        card.style.borderColor = 'rgba(100, 200, 255, 0.5)';
-        card.style.transform = 'translateX(4px)';
-      });
-      card.addEventListener('mouseleave', () => {
-        card.style.borderColor = 'rgba(100, 200, 255, 0.2)';
-        card.style.transform = 'translateX(0)';
-      });
-
-      const cardHeader = document.createElement('div');
-      Object.assign(cardHeader.style, {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '8px',
-      });
-
-      const optionName = document.createElement('h3');
-      optionName.textContent = opt.name;
-      Object.assign(optionName.style, {
-        margin: '0',
-        fontSize: '18px',
-        color: '#64b5f6',
-        fontFamily: 'Orbitron, sans-serif',
-      });
-
-      const costInfo = document.createElement('div');
-      costInfo.textContent = `${formatCurrency(opt.cost)} • ${opt.apCost} AP`;
-      Object.assign(costInfo.style, {
-        fontSize: '16px',
-        color: '#ffd54f',
-        fontWeight: 'bold',
-      });
-
-      cardHeader.appendChild(optionName);
-      cardHeader.appendChild(costInfo);
-      card.appendChild(cardHeader);
-
-      const description = document.createElement('div');
-      description.textContent = opt.description;
-      Object.assign(description.style, {
-        fontSize: '14px',
-        color: '#b0bec5',
-        marginBottom: '12px',
-        lineHeight: '1.5',
-      });
-      card.appendChild(description);
-
-      const statsRow = document.createElement('div');
-      Object.assign(statsRow.style, {
-        display: 'flex',
-        gap: '16px',
-        marginBottom: '8px',
-      });
-
-      const conditionGain = document.createElement('div');
-      conditionGain.textContent = `📈 +${opt.conditionGain} condition`;
-      Object.assign(conditionGain.style, {
-        fontSize: '14px',
-        color: '#81c784',
-      });
-      statsRow.appendChild(conditionGain);
-
-      // Value increase (always positive)
-      const valueInfo = document.createElement('div');
-      valueInfo.textContent = `💰 Value: +${formatCurrency(opt.valueIncrease)}`;
-      Object.assign(valueInfo.style, {
-        fontSize: '14px',
-        color: '#64b5f6',
-      });
-      statsRow.appendChild(valueInfo);
-      
-      // Net profit after costs
-      const profitColor = opt.netProfit >= 0 ? '#2ecc71' : '#e74c3c';
-      const profitIcon = opt.netProfit >= 0 ? '🟢' : '🔴';
-      const profitStr = opt.netProfit >= 0 ? `+${formatCurrency(opt.netProfit)}` : formatCurrency(opt.netProfit);
-      
-      const profitInfo = document.createElement('div');
-      profitInfo.textContent = `${profitIcon} Net: ${profitStr}`;
-      Object.assign(profitInfo.style, {
-        fontSize: '14px',
-        color: profitColor,
-        fontWeight: 'bold',
-      });
-      statsRow.appendChild(profitInfo);
-
-      card.appendChild(statsRow);
-
-      if (opt.risk) {
-        const riskWarning = document.createElement('div');
-        riskWarning.textContent = `⚠️ ${opt.risk}`;
-        Object.assign(riskWarning.style, {
-          fontSize: '13px',
-          color: '#ff9800',
-          marginTop: '8px',
-          fontStyle: 'italic',
-        });
-        card.appendChild(riskWarning);
-      }
-
-      card.addEventListener('click', () => {
-        this.remove(modal);
-        this.remove(backdrop);
-        opt.onClick();
-      });
-
-      modal.appendChild(card);
-    });
-
-    // Cancel button
-    const cancelBtn = this.createButton('Cancel', () => {
-      this.remove(modal);
-      this.remove(backdrop);
-      onCancel();
-    });
-    Object.assign(cancelBtn.style, {
-      width: '100%',
-      marginTop: '8px',
-    });
-    modal.appendChild(cancelBtn);
-
-    this.append(backdrop);
-    this.append(modal);
+    this.modalManager.showRestorationModal(carName, currentCondition, options, onCancel);
   }
 
   /**
    * Show an insufficient funds modal with standardized formatting.
    */
   public showInsufficientFundsModal(): void {
-    this.showModal(
-      'Not Enough Money',
-      "You don't have enough money for this purchase.",
-      [{ text: 'OK', onClick: () => {} }]
-    );
+    this.modalManager.showInsufficientFundsModal();
   }
 
 
@@ -800,7 +400,7 @@ export class UIManager {
    * @param message - Warning message
    */
   public showTimeBlockModal(title: string, message: string): void {
-    this.showModal(title, message, [{ text: 'OK', onClick: () => {} }]);
+    this.modalManager.showTimeBlockModal(title, message);
   }
 
   /**
@@ -825,119 +425,7 @@ export class UIManager {
     message: string,
     buttons: { text: string; onClick: () => void }[]
   ): HTMLDivElement {
-    const stop = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    // Full-screen backdrop that captures pointer events everywhere.
-    // Without this, areas outside the modal allow events through to the Phaser canvas.
-    const backdrop = document.createElement('div');
-    backdrop.className = 'game-modal-backdrop';
-    Object.assign(backdrop.style, {
-      position: 'fixed',
-      top: '0',
-      left: '0',
-      width: '100vw',
-      height: '100vh',
-      zIndex: '999',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(8px)',
-      pointerEvents: 'auto',
-    });
-
-    // Block all interactions from reaching Phaser while a modal is open.
-    ['pointerdown', 'pointerup', 'pointermove', 'click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'touchstart', 'touchend', 'touchmove'].forEach(
-      (eventName) => {
-        backdrop.addEventListener(eventName, stop, { capture: true });
-      }
-    );
-
-    const modal = document.createElement('div');
-    modal.className = 'game-modal';
-    
-    Object.assign(modal.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
-      border: '3px solid rgba(100, 200, 255, 0.4)',
-      borderRadius: '20px',
-      padding: '32px',
-      minWidth: '400px',
-      maxWidth: '700px',
-      maxHeight: '85vh',
-      zIndex: '1000',
-      pointerEvents: 'auto',
-      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-      display: 'flex',
-      flexDirection: 'column',
-    });
-
-    const heading = this.createHeading(title, 2, {
-      textAlign: 'center',
-      marginBottom: '20px',
-      flexShrink: '0',
-    });
-
-    // Create content container with scroll
-    const contentContainer = document.createElement('div');
-    Object.assign(contentContainer.style, {
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      marginBottom: '20px',
-      flexGrow: '1',
-      flexShrink: '1',
-      wordWrap: 'break-word',
-      textAlign: 'center',
-    });
-
-    // Check if message contains HTML tags
-    const isHTML = /<[a-z][\s\S]*>/i.test(message);
-    
-    if (isHTML) {
-      // If it's HTML content, use innerHTML
-      contentContainer.innerHTML = message;
-      // Apply text styling to the container
-      Object.assign(contentContainer.style, {
-        fontSize: '16px',
-        color: '#e0e6ed',
-        lineHeight: '1.6',
-        fontFamily: 'Rajdhani, sans-serif',
-      });
-    } else {
-      // Otherwise use createText for plain text
-      const text = this.createText(message, {
-        fontSize: '16px',
-      });
-      contentContainer.appendChild(text);
-    }
-
-    const buttonContainer = document.createElement('div');
-    Object.assign(buttonContainer.style, {
-      display: 'flex',
-      justifyContent: 'center',
-      gap: '10px',
-      flexShrink: '0',
-    });
-
-    buttons.forEach((btn) => {
-      const button = this.createButton(btn.text, () => {
-        btn.onClick();
-        this.remove(modal);
-        this.remove(backdrop);
-      });
-      buttonContainer.appendChild(button);
-    });
-
-    modal.appendChild(heading);
-    modal.appendChild(contentContainer);
-    modal.appendChild(buttonContainer);
-
-    this.append(backdrop);
-    this.append(modal);
-    return modal;
+    return this.modalManager.showModal(title, message, buttons);
   }
 
   /**
@@ -1241,16 +729,7 @@ export class UIManager {
       cancelText?: string;
     }
   ): void {
-    this.showModal(title, message, [
-      {
-        text: options?.confirmText || 'Confirm',
-        onClick: onConfirm,
-      },
-      {
-        text: options?.cancelText || 'Cancel',
-        onClick: onCancel || (() => {}),
-      },
-    ]);
+    this.modalManager.confirmAction(title, message, onConfirm, onCancel, options);
   }
 
   /**
@@ -1262,76 +741,13 @@ export class UIManager {
    * @param onDismiss - Optional callback when dialogue is dismissed
    */
   public showTutorialDialogue(speaker: string, text: string, onDismiss?: () => void): void {
-    // Remove existing tutorial dialogue if present
-    this.hideTutorialDialogue();
-
-    // Create backdrop to block interaction
-    const backdrop = document.createElement('div');
-    backdrop.className = 'tutorial-backdrop';
-    this.tutorialBackdropElement = backdrop;
-    this.container.appendChild(backdrop);
-
-    const dialogue = document.createElement('div');
-    dialogue.className = 'tutorial-dialogue';
-    dialogue.id = 'tutorial-dialogue';
-
-    const header = document.createElement('div');
-    header.className = 'tutorial-header';
-    
-    const speakerName = document.createElement('h3');
-    speakerName.textContent = speaker;
-    speakerName.style.margin = '0';
-    speakerName.style.fontSize = '20px';
-    speakerName.style.color = '#f39c12';
-    speakerName.style.fontFamily = 'Orbitron, sans-serif';
-    
-    header.appendChild(speakerName);
-    dialogue.appendChild(header);
-
-    const content = document.createElement('p');
-    content.textContent = text;
-    content.style.margin = '12px 0 0 0';
-    content.style.fontSize = '16px';
-    content.style.lineHeight = '1.6';
-    content.style.color = '#e0e6ed';
-    content.style.fontFamily = 'Rajdhani, sans-serif';
-    content.style.whiteSpace = 'pre-line';
-    
-    dialogue.appendChild(content);
-
-    const dismissBtn = this.createButton(
-      'Got it',
-      () => {
-        this.hideTutorialDialogue();
-        if (onDismiss) {
-          onDismiss();
-        }
-      },
-      { 
-        variant: 'info',
-        style: { 
-          marginTop: '16px',
-          width: '100%'
-        } 
-      }
-    );
-    dialogue.appendChild(dismissBtn);
-
-    this.tutorialDialogueElement = dialogue;
-    this.container.appendChild(dialogue);
+    this.tutorialUI.showTutorialDialogue(speaker, text, onDismiss);
   }
 
   /**
    * Hide the currently displayed tutorial dialogue.
    */
   public hideTutorialDialogue(): void {
-    if (this.tutorialBackdropElement) {
-      this.tutorialBackdropElement.remove();
-      this.tutorialBackdropElement = null;
-    }
-    if (this.tutorialDialogueElement) {
-      this.tutorialDialogueElement.remove();
-      this.tutorialDialogueElement = null;
-    }
+    this.tutorialUI.hideTutorialDialogue();
   }
 }

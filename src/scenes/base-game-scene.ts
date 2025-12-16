@@ -4,6 +4,7 @@ import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { TutorialManager } from '@/systems/tutorial-manager';
 import { eventBus } from '@/core/event-bus';
+import type { SkillKey } from '@/config/game-config';
 
 /**
  * BaseGameScene - Abstract base class for all gameplay scenes.
@@ -88,7 +89,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
    * Handle XP gained event - show toast notification.
    */
   protected readonly handleXPGained = (data: {
-    skill: 'eye' | 'tongue' | 'network';
+    skill: SkillKey;
     amount: number;
     currentXP?: number;
     requiredXP?: number;
@@ -107,10 +108,10 @@ export abstract class BaseGameScene extends Phaser.Scene {
    * Handle skill level-up event - show celebration modal.
    */
   protected readonly handleSkillLevelUp = (data: {
-    skill: string;
+    skill: SkillKey;
     level: number;
   }): void => {
-    this.uiManager.showSkillLevelUp(data.skill as 'eye' | 'tongue' | 'network', data.level);
+    this.uiManager.showSkillLevelUp(data.skill, data.level);
   };
 
   protected readonly handleCollectionComplete = (data: {

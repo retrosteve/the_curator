@@ -551,7 +551,7 @@ export function getRandomCar(): Car {
  * @param car - The car to evaluate
  * @returns Calculated market value as an integer
  */
-export function calculateCarValue(car: Car): number {
+export function calculateCarValue(car: { baseValue: number; condition: number; history?: readonly string[] }): number {
   const conditionMultiplier = car.condition / 100;
   
   // Calculate history multiplier (worst tag wins)

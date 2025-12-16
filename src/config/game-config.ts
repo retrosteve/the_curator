@@ -22,6 +22,10 @@ export const SKILL_METADATA = {
   },
 } as const;
 
+/** Union of all supported player skill keys (derived from SKILL_METADATA). */
+export type SkillKey = keyof typeof SKILL_METADATA;
+
+/** Central gameplay tuning configuration (economy, progression, encounters, etc.). */
 export const GAME_CONFIG = {
   cars: {
     // Random condition range for generated encounter cars (inclusive).
@@ -195,7 +199,6 @@ export const GAME_CONFIG = {
   },
 
   timeCosts: {
-    travelAP: 1,
     inspectAP: 1,
     auctionAP: 2,
   },

@@ -20,6 +20,17 @@ Currently, the game uses **primitive shapes** (colored rectangles and circles) a
 
 ## Usage
 
+### Car Images
+
+Store per-car images in `src/assets/cars/` and name each file by its **template car id** (from `src/data/car-database.ts`).
+
+Example filenames:
+
+- `car_icon_018.jpg`
+- `car_cult_009.webp`
+
+At runtime, use the helper in `src/assets/car-images.ts` to resolve a template id to a bundled URL.
+
 When assets are added, load them in `BootScene.ts`:
 
 ```typescript

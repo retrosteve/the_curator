@@ -13,6 +13,11 @@ export type CarTier = 'Daily Driver' | 'Cult Classic' | 'Icon' | 'Unicorn';
 
 export interface Car {
   id: string;
+  /**
+   * Template ID from `CarDatabase` used to generate this car.
+   * Runtime car instances typically have a unique `id`, while `templateId` stays stable for lookups (e.g., images).
+   */
+  templateId?: string;
   name: string;
   baseValue: number;
   condition: number; // 0-100 (percentage)
@@ -33,7 +38,7 @@ export interface Car {
 export const CarDatabase: Car[] = [
   // Tutorial Cars (Specific cars for tutorial sequence)
   {
-    id: 'tutorial_rusty_sedan',
+    id: 'car_tutorial_rusty_sedan',
     name: 'Rusty Sedan',
     baseValue: 1500,
     condition: 30,
@@ -42,7 +47,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'tutorial_muscle_car',
+    id: 'car_tutorial_muscle_car',
     name: 'Muscle Car',
     baseValue: 28000,
     condition: 55,
@@ -51,7 +56,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'tutorial_boxy_wagon',
+    id: 'car_tutorial_boxy_wagon',
     name: 'Boxy Wagon',
     baseValue: 4000,
     condition: 45,
@@ -61,7 +66,7 @@ export const CarDatabase: Car[] = [
   },
   // Tier 1: Daily Drivers (Starter Cars - $3,000-$8,000)
   {
-    id: 'car_starter_001',
+    id: 'car_daily_001',
     name: '1998 Honda Civic',
     baseValue: 3500,
     condition: 50,
@@ -70,7 +75,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_002',
+    id: 'car_daily_002',
     name: '2005 Ford Focus',
     baseValue: 4000,
     condition: 45,
@@ -79,7 +84,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_003',
+    id: 'car_daily_003',
     name: '1995 Mazda Miata',
     baseValue: 5500,
     condition: 55,
@@ -88,7 +93,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_004',
+    id: 'car_daily_004',
     name: '2001 Volkswagen Golf',
     baseValue: 4500,
     condition: 48,
@@ -97,7 +102,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_005',
+    id: 'car_daily_005',
     name: '1992 Toyota Corolla',
     baseValue: 3000,
     condition: 40,
@@ -106,7 +111,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_006',
+    id: 'car_daily_006',
     name: '2003 Subaru Impreza',
     baseValue: 5000,
     condition: 52,
@@ -115,7 +120,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_007',
+    id: 'car_daily_007',
     name: '1999 Acura Integra',
     baseValue: 4800,
     condition: 48,
@@ -124,7 +129,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_008',
+    id: 'car_daily_008',
     name: '2000 BMW 3-Series',
     baseValue: 5500,
     condition: 45,
@@ -133,7 +138,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_009',
+    id: 'car_daily_009',
     name: '1996 Honda Accord',
     baseValue: 3200,
     condition: 42,
@@ -142,7 +147,7 @@ export const CarDatabase: Car[] = [
     tier: 'Daily Driver',
   },
   {
-    id: 'car_starter_010',
+    id: 'car_daily_010',
     name: '2004 Mazda 3',
     baseValue: 4200,
     condition: 50,
@@ -152,7 +157,7 @@ export const CarDatabase: Car[] = [
   },
   // Tier 2: Cult Classics ($25,000-$40,000)
   {
-    id: 'car_001',
+    id: 'car_cult_001',
     name: '1969 Dodge Charger',
     baseValue: 25000,
     condition: 45,
@@ -161,7 +166,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_002',
+    id: 'car_cult_002',
     name: '1994 Toyota Supra',
     baseValue: 35000,
     condition: 60,
@@ -170,7 +175,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_003',
+    id: 'car_cult_003',
     name: '1967 Ford Mustang',
     baseValue: 30000,
     condition: 50,
@@ -179,7 +184,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_004',
+    id: 'car_cult_004',
     name: '1999 Nissan Skyline GT-R',
     baseValue: 40000,
     condition: 70,
@@ -188,7 +193,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_005',
+    id: 'car_cult_005',
     name: '1970 Plymouth Barracuda',
     baseValue: 28000,
     condition: 40,
@@ -197,7 +202,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_006',
+    id: 'car_cult_006',
     name: '1995 Mazda RX-7',
     baseValue: 32000,
     condition: 55,
@@ -206,7 +211,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_007',
+    id: 'car_cult_007',
     name: '1968 Chevrolet Camaro',
     baseValue: 27000,
     condition: 48,
@@ -215,16 +220,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_008',
-    name: '2002 Honda NSX',
-    baseValue: 45000,
-    condition: 80,
-    tags: ['JDM', 'Exotic', 'Mid-Engine'],
-    history: ['Dealer Maintained', 'Pristine'],
-    tier: 'Icon',
-  },
-  {
-    id: 'car_009',
+    id: 'car_cult_009',
     name: '1998 Mitsubishi 3000GT VR-4',
     baseValue: 26000,
     condition: 58,
@@ -233,7 +229,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_010',
+    id: 'car_cult_010',
     name: '1986 Toyota MR2',
     baseValue: 18000,
     condition: 62,
@@ -242,7 +238,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_011',
+    id: 'car_cult_011',
     name: '1971 Datsun 240Z',
     baseValue: 32000,
     condition: 55,
@@ -251,7 +247,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_012',
+    id: 'car_cult_012',
     name: '2006 Pontiac GTO',
     baseValue: 24000,
     condition: 68,
@@ -260,7 +256,7 @@ export const CarDatabase: Car[] = [
     tier: 'Cult Classic',
   },
   {
-    id: 'car_013',
+    id: 'car_cult_013',
     name: '1993 Ford Mustang Cobra',
     baseValue: 22000,
     condition: 60,
@@ -339,6 +335,15 @@ export const CarDatabase: Car[] = [
     condition: 78,
     tags: ['JDM', 'Exotic', 'Sports', 'Mid-Engine'],
     history: ['Mint', 'One Owner'],
+    tier: 'Icon',
+  },
+  {
+    id: 'car_icon_018',
+    name: '2002 Honda NSX',
+    baseValue: 45000,
+    condition: 80,
+    tags: ['JDM', 'Exotic', 'Mid-Engine'],
+    history: ['Dealer Maintained', 'Pristine'],
     tier: 'Icon',
   },
   {
@@ -538,6 +543,7 @@ export function getRandomCar(): Car {
   
   return {
     ...baseCar,
+    templateId: baseCar.id,
     id: uniqueId,
     condition: randomCondition,
   };

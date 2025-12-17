@@ -72,8 +72,6 @@ export class MapScene extends BaseGameScene {
   }
 
   private setupEventListeners(): void {
-    this.setupCommonEventListeners();
-
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupDashboard();
     });

@@ -830,7 +830,7 @@ Tip: Visit the Garage to sell something, then come back.`,
             "Don't let that loss get you down! Look - there's another car here nobody else noticed: a Boxy Wagon. This time you're facing a weaker rival. Use aggressive tactics like Power Bid to make them quit early!",
             () => {
               this.tutorialManager.advanceStep('redemption');
-              const boxywagon = getCarById('tutorial_boxy_wagon');
+              const boxywagon = getCarById('car_tutorial_boxy_wagon');
               const scrappyJoe = getRivalById('scrapyard_joe');
               if (boxywagon && scrappyJoe) {
                 const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);

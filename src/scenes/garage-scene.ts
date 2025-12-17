@@ -4,7 +4,8 @@ import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/Economy';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
-import { Car } from '@/data/car-database';
+import { Car, getCarById } from '@/data/car-database';
+import { getCarImageUrl } from '@/assets/car-images';
 import { getRivalMood, getRivalById } from '@/data/rival-database';
 import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
@@ -81,8 +82,6 @@ export class GarageScene extends BaseGameScene {
     if (data.step === 'first_visit_scrapyard' && this.mapButton) {
       this.mapButton.style.cssText += `
         animation: pulse 1.5s ease-in-out infinite;
-        box-shadow: 0 0 20px #4CAF50;
-        transform: scale(1.05);
       `;
     }
   };
@@ -269,8 +268,6 @@ export class GarageScene extends BaseGameScene {
       // Add pulsing animation to map button (CSS animation defined in main.css)
       mapBtn.style.cssText += `
         animation: pulse 1.5s ease-in-out infinite;
-        box-shadow: 0 0 20px #4CAF50;
-        transform: scale(1.05);
       `;
     }
     
@@ -546,6 +543,21 @@ export class GarageScene extends BaseGameScene {
       `Tier ${car.tier} · Cond ${car.condition}/100 · Value ${formatCurrency(salePrice)}`,
       { margin: '0', fontSize: '13px', lineHeight: '1.35', opacity: '0.95' }
     );
+
+    const templateId = car.templateId ?? (getCarById(car.id) ? car.id : undefined);
+    const imageUrl = templateId ? getCarImageUrl(templateId) : undefined;
+    if (imageUrl) {
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.alt = car.name;
+      img.loading = 'lazy';
+      img.style.width = '100%';
+      img.style.height = '120px';
+      img.style.objectFit = 'cover';
+      img.style.borderRadius = '10px';
+      img.style.margin = '0 0 10px 0';
+      carPanel.appendChild(img);
+    }
 
     carPanel.appendChild(carName);
     carPanel.appendChild(metaText);

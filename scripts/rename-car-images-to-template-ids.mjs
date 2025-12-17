@@ -28,6 +28,29 @@ function stripTrailingCounter(base) {
   return base.replace(/-\d+$/, '');
 }
 
+function candidateBasesForMatch(base) {
+  // Some legitimate model names end with "-7" or "-4" (e.g., RX-7, VR-4).
+  // Try the exact base first, then fall back to stripping a trailing counter.
+  const baseNoCounter = stripTrailingCounter(base);
+
+  const variants = [];
+  const pushUnique = (value) => {
+    if (!value) return;
+    if (!variants.includes(value)) variants.push(value);
+  };
+
+  // Common normalization: allow "RT" to match "R/T" (e.g., Charger R/T).
+  const withSlash = base.replace(/\bR\s*\/?\s*T\b/gi, 'R/T');
+  const withSlashNoCounter = baseNoCounter.replace(/\bR\s*\/?\s*T\b/gi, 'R/T');
+
+  pushUnique(base);
+  pushUnique(withSlash);
+  pushUnique(baseNoCounter);
+  pushUnique(withSlashNoCounter);
+
+  return variants;
+}
+
 async function fileExists(p) {
   try {
     await fs.access(p);
@@ -42,7 +65,8 @@ async function loadTemplateCars() {
 
   // Heuristic: match object literals containing both id and name fields.
   // This intentionally avoids a full TS parse.
-  const regex = /\{\s*[^}]*?\bid:\s*'([^']+)'\s*,[^}]*?\bname:\s*'([^']+)'\s*,/gms;
+  // Allow escaped apostrophes inside the TS string (e.g., Hemi \'Cuda).
+  const regex = /\{\s*[^}]*?\bid:\s*'([^']+)'\s*,[^}]*?\bname:\s*'((?:\\'|[^'])+)'\s*,/gms;
 
   const cars = [];
   let m;
@@ -119,19 +143,23 @@ async function main() {
 
     const oldAbs = path.join(CARS_DIR, filename);
     const base = path.basename(filename, path.extname(filename));
-    const baseNoCounter = stripTrailingCounter(base);
+    let targetId;
+    for (const candidateBase of candidateBasesForMatch(base)) {
+      targetId = inferIdFromFilenameBase(candidateBase);
 
-    let targetId = inferIdFromFilenameBase(baseNoCounter);
-
-    if (!targetId) {
-      const key = normalizeForMatch(baseNoCounter);
-      const candidates = nameKeyToIds.get(key) ?? [];
-      if (candidates.length === 1) {
-        targetId = candidates[0];
-      } else if (candidates.length > 1) {
-        skipped.push({ filename, reason: `Ambiguous name match: ${candidates.join(', ')}` });
-        continue;
+      if (!targetId) {
+        const key = normalizeForMatch(candidateBase);
+        const candidates = nameKeyToIds.get(key) ?? [];
+        if (candidates.length === 1) {
+          targetId = candidates[0];
+        } else if (candidates.length > 1) {
+          skipped.push({ filename, reason: `Ambiguous name match: ${candidates.join(', ')}` });
+          targetId = undefined;
+          break;
+        }
       }
+
+      if (targetId) break;
     }
 
     if (!targetId) {

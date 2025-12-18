@@ -73,7 +73,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
 
   protected readonly handleEscapeKey = (): void => {
     if (!this.tutorialManager.isTutorialActive()) return;
-    if (this.tutorialManager.getCurrentStep() === 'complete') return;
+    if (this.tutorialManager.isTutorialComplete()) return;
     this.tutorialManager.requestSkipTutorialPrompt();
   };
 
@@ -321,7 +321,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
           const nextStepsText = nextSteps.length > 0 ? `\n\nNext steps:\n- ${nextSteps.join('\n- ')}` : '';
           this.uiManager.showModal(
             '🏆 Victory Progress - Details',
-            `**Win Conditions:**\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nCars in Collection: ${victoryResult.collectionCars.current}/${victoryResult.collectionCars.required} ${victoryResult.collectionCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}${nextStepsText}`,
+            `Win Conditions:\n\nPrestige: ${victoryResult.prestige.current}/${victoryResult.prestige.required} ${victoryResult.prestige.met ? '✅' : '⬜'}\nUnicorn Cars: ${victoryResult.unicorns.current}/${victoryResult.unicorns.required} ${victoryResult.unicorns.met ? '✅' : '⬜'}\nCars in Collection: ${victoryResult.collectionCars.current}/${victoryResult.collectionCars.required} ${victoryResult.collectionCars.met ? '✅' : '⬜'}\nMax Skill Level: ${victoryResult.skillLevel.current}/${victoryResult.skillLevel.required} ${victoryResult.skillLevel.met ? '✅' : '⬜'}${statusMsg}${nextStepsText}`,
             [{ text: 'Close', onClick: () => this.scene.resume() }]
           );
         },

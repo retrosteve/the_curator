@@ -106,7 +106,7 @@ export class GameManager {
   private marketSystem: MarketFluctuationSystem;
   private specialEventsSystem: SpecialEventsSystem;
   private saveDebounceTimer: number | null = null;
-  private readonly autosavePolicy: AutosavePolicy = 'end-of-day';
+  private readonly autosavePolicy: AutosavePolicy = GAME_CONFIG.save.autosavePolicy;
 
   private constructor() {
     this.marketSystem = MarketFluctuationSystem.getInstance();

@@ -307,6 +307,8 @@ As the player levels up, they improve three core tools:
 - Conflict: Vance outbids you.
 - Lesson: You can’t win on money alone; you need timing and strategy.
 
+Note: During the tutorial, the Auction House/Estate Sale location is accessible even if the normal Prestige unlock requirement has not been met.
+
 ### Minute 8–10: The Redemption
 - Action: Spot a second, ignored car at the same sale (a “Boxy Wagon”).
 - Conflict: Battle a low-level Scrapper NPC.

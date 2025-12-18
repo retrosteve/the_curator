@@ -107,9 +107,7 @@ export class NegotiationScene extends BaseGameScene {
     this.setupUI();
 
     // Tutorial trigger: advance from first_visit_scrapyard to first_inspect
-    if (this.tutorialManager.isCurrentStep('first_visit_scrapyard')) {
-      this.tutorialManager.advanceStep('first_inspect');
-    }
+    this.tutorialManager.onEnteredFirstScrapyardInspection();
   }
 
   private appendNegotiationLog(entry: string, kind: NegotiationLogKind = 'system'): void {
@@ -252,6 +250,7 @@ export class NegotiationScene extends BaseGameScene {
       variant: 'success',
       style: buttonTextStyle,
     });
+    buyBtn.dataset.tutorialTarget = 'negotiation.accept-offer';
     if (player.money < this.askingPrice) {
       disableEncounterActionButton(
         buyBtn,
@@ -383,12 +382,12 @@ export class NegotiationScene extends BaseGameScene {
         text: 'Continue',
         onClick: () => {
           // Tutorial trigger: first buy - show dialogue with callback before scene transition
-          if (this.tutorialManager.isCurrentStep('first_inspect')) {
+          if (this.tutorialManager.isOnFirstInspectStep()) {
             this.tutorialManager.showDialogueWithCallback(
               'Uncle Ray',
               "Good purchase! You earned +10 Eye XP for inspecting that car. Hover over the skill bars in your garage to see what each level unlocks. Click 'Garage' to see your new car, then restore it to increase its value.",
               () => {
-                this.tutorialManager.advanceStep('first_buy');
+                this.tutorialManager.onFirstTutorialCarPurchased();
                 this.handleLeave();
               }
             );
@@ -404,7 +403,14 @@ export class NegotiationScene extends BaseGameScene {
     this.uiManager.clear();
 
     if (this.encounterStarted && this.locationId) {
-      this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+      const isEarlyTutorialScrapyardAttempt =
+        this.tutorialManager.isTutorialActive() &&
+        this.locationId === 'scrapyard_1' &&
+        this.tutorialManager.isInEarlyScrapyardBeatBeforePurchase();
+
+      if (!isEarlyTutorialScrapyardAttempt) {
+        this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+      }
     }
 
     this.scene.start('MapScene');

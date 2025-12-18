@@ -15,6 +15,19 @@ export type TutorialStep =
   | 'redemption'
   | 'complete';
 
+export type TutorialSideAction = 'end-day' | 'upgrade-garage' | 'sell-car';
+
+export type TutorialHighlightTarget =
+  | 'garage.explore-map'
+  | 'garage.view-garage'
+  | 'garage.back'
+  | 'garage.restore'
+  | 'map.location.garage'
+  | 'map.location.scrapyard_1'
+  | 'map.location.auction_1'
+  | 'negotiation.accept-offer'
+  | 'auction.power-bid';
+
 /**
  * TutorialManager - Singleton managing tutorial progression.
  * Tracks tutorial state and triggers appropriate dialogue/guidance.
@@ -26,6 +39,228 @@ export class TutorialManager {
   private static instance: TutorialManager;
   private currentStep: TutorialStep = 'intro';
   private isActive: boolean = false;
+
+  // ---- Step-set helpers (reduce step-string conditionals in scenes) ----
+
+  public isTutorialComplete(): boolean {
+    return this.currentStep === 'complete';
+  }
+
+  public isOnFirstVisitScrapyardStep(): boolean {
+    return this.isActive && this.currentStep === 'first_visit_scrapyard';
+  }
+
+  public isOnFirstInspectStep(): boolean {
+    return this.isActive && this.currentStep === 'first_inspect';
+  }
+
+  public isOnFirstLossStep(): boolean {
+    return this.isActive && this.currentStep === 'first_loss';
+  }
+
+  public isOnRedemptionStep(): boolean {
+    return this.isActive && this.currentStep === 'redemption';
+  }
+
+  /**
+   * Scrapyard loop covers the first car: visit -> inspect -> buy -> restore.
+   * Used for deterministic tutorial encounter forcing.
+   */
+  public isInScrapyardTutorialLoop(): boolean {
+    if (!this.isActive) return false;
+    return (
+      this.currentStep === 'first_visit_scrapyard' ||
+      this.currentStep === 'first_inspect' ||
+      this.currentStep === 'first_buy' ||
+      this.currentStep === 'first_restore'
+    );
+  }
+
+  /**
+   * Early scrapyard beat before the first car is successfully purchased.
+   * Used to avoid consuming the daily offer when backing out (prevents a soft-lock).
+   */
+  public isInEarlyScrapyardBeatBeforePurchase(): boolean {
+    if (!this.isActive) return false;
+    return (
+      this.currentStep === 'first_visit_scrapyard' ||
+      this.currentStep === 'first_inspect' ||
+      this.currentStep === 'first_buy'
+    );
+  }
+
+  /**
+   * The Sterling encounter is driven from the Auction House node during the first flip beat.
+   */
+  public isInSterlingAuctionIntroBeat(): boolean {
+    return this.isActive && this.currentStep === 'first_flip';
+  }
+
+  /**
+   * Tutorial: first restoration should be deterministic (ignore risk).
+   */
+  public shouldForceFirstRestorationSuccess(): boolean {
+    return this.isActive && this.currentStep === 'first_buy';
+  }
+
+  /**
+   * Tutorial: after the first restoration, auto-sell the first car.
+   */
+  public shouldAutoSellAfterFirstRestoration(): boolean {
+    return this.isActive && this.currentStep === 'first_restore';
+  }
+
+  public getHighlightTargetsForCurrentStep(): TutorialHighlightTarget[] {
+    if (!this.isActive) return [];
+
+    switch (this.currentStep) {
+      case 'first_visit_scrapyard':
+        // Highlight scrapyard on the map if present; otherwise guide the player to the map.
+        return ['map.location.scrapyard_1', 'garage.explore-map', 'garage.back'];
+      case 'first_inspect':
+        return ['negotiation.accept-offer'];
+      case 'first_buy':
+        // Player should restore the first car; if they're still on the map, highlight returning home.
+        return ['garage.restore', 'garage.view-garage', 'map.location.garage', 'garage.back'];
+      case 'first_restore':
+        // The flip is driven by the scripted NPC buyer modal.
+        return [];
+      case 'first_flip':
+        // Prefer highlighting the actual destination if the player is already on the Map.
+        // Otherwise, fall back to the Garage's Explore Map button.
+        return ['map.location.auction_1', 'garage.explore-map', 'garage.back'];
+      case 'redemption':
+        return ['auction.power-bid'];
+      case 'intro':
+      case 'first_loss':
+      case 'complete':
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Tutorial-only map gating.
+   * Returns null when no map restriction should be applied.
+   */
+  public getAllowedMapLocationIds(): ReadonlySet<string> | null {
+    if (!this.isActive) return null;
+
+    switch (this.currentStep) {
+      // Early loop: only the scrapyard path is relevant.
+      case 'first_visit_scrapyard':
+      case 'first_inspect':
+      case 'first_buy':
+      case 'first_restore':
+        return new Set(['garage', 'scrapyard_1']);
+
+      // Auction beat: funnel to the estate sale / auction house.
+      case 'first_flip':
+      case 'first_loss':
+      case 'redemption':
+        return new Set(['garage', 'auction_1']);
+
+      case 'intro':
+      case 'complete':
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Tutorial safety: allow Auction House access even if the Prestige gate isn't met yet.
+   */
+  public shouldBypassAuctionPrestigeLock(): boolean {
+    if (!this.isActive) return false;
+    return this.currentStep === 'first_flip' || this.currentStep === 'first_loss' || this.currentStep === 'redemption';
+  }
+
+  /**
+   * Returns whether the player is allowed to perform optional/side actions.
+   * During the tutorial we intentionally constrain the player to the scripted loop.
+   */
+  public isSideActionAllowed(action: TutorialSideAction): boolean {
+    if (!this.isActive) return true;
+    if (this.currentStep === 'complete') return true;
+
+    switch (action) {
+      case 'end-day':
+        // Allow ending the day during the auction beat so AP shortages don't soft-lock the tutorial.
+        return (
+          this.currentStep === 'first_flip' ||
+          this.currentStep === 'first_loss' ||
+          this.currentStep === 'redemption'
+        );
+      case 'upgrade-garage':
+      case 'sell-car':
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  public getSideActionBlockedMessage(action: TutorialSideAction): string {
+    switch (action) {
+      case 'end-day':
+        return 'Finish the tutorial steps before ending the day, or skip the tutorial if you want to play freely.';
+      case 'upgrade-garage':
+        return 'Garage upgrades are disabled during the tutorial. Finish or skip the tutorial to upgrade.';
+      case 'sell-car':
+        return 'Selling cars is disabled during the tutorial. Finish or skip the tutorial to sell freely.';
+      default:
+        return 'This action is disabled during the tutorial.';
+    }
+  }
+
+  // ---- Intent-level step transitions (keeps scene code from directly naming steps everywhere) ----
+
+  public onEnteredFirstScrapyardInspection(): void {
+    if (!this.isActive) return;
+    if (this.currentStep === 'first_visit_scrapyard') {
+      this.advanceStep('first_inspect');
+    }
+  }
+
+  public onFirstTutorialCarPurchased(): void {
+    if (!this.isActive) return;
+    if (this.currentStep === 'first_inspect') {
+      this.advanceStep('first_buy');
+    }
+  }
+
+  public onFirstTutorialRestorationCompleted(): void {
+    if (!this.isActive) return;
+    if (this.currentStep === 'first_buy') {
+      this.advanceStep('first_restore');
+    }
+  }
+
+  public onFirstTutorialCarSold(): void {
+    if (!this.isActive) return;
+    if (this.currentStep === 'first_restore') {
+      this.advanceStep('first_flip');
+    }
+  }
+
+  public onSterlingEncounterStarted(): void {
+    if (!this.isActive) return;
+    if (this.currentStep === 'first_flip') {
+      // This step represents the "defeat beat" (Sterling encounter), even though the auction outcome may vary.
+      this.advanceStep('first_loss');
+    }
+  }
+
+  public onRedemptionPromptAccepted(): void {
+    if (!this.isActive) return;
+    if (this.currentStep === 'first_loss') {
+      this.advanceStep('redemption');
+    }
+  }
+
+  public onTutorialCompleted(): void {
+    if (!this.isActive) return;
+    this.advanceStep('complete');
+  }
 
   private constructor() {
   }
@@ -95,6 +330,9 @@ export class TutorialManager {
     
     // Emit event so scenes can react to step changes
     eventBus.emit('tutorial-step-changed', { step });
+
+    // Emit highlight target(s) for this step (UI will highlight the first one it finds).
+    eventBus.emit('tutorial-highlight-changed', { targets: [...this.getHighlightTargetsForCurrentStep()] });
     
     // Per-step dialogue/actions according to design document
     switch (step) {
@@ -141,6 +379,7 @@ export class TutorialManager {
         // Dialogue shown in AuctionScene before scene transition
         this.isActive = false; // End tutorial
         eventBus.emit('tutorial-complete', undefined); // Emit completion event
+        eventBus.emit('tutorial-highlight-changed', { targets: [] });
         break;
       
       default:
@@ -213,6 +452,9 @@ export class TutorialManager {
     this.currentStep = state.currentStep;
     this.isActive = state.isActive;
     console.log(`Tutorial state loaded: step=${state.currentStep}, active=${state.isActive}`);
+
+    // Refresh UI hinting after loading.
+    eventBus.emit('tutorial-highlight-changed', { targets: [...this.getHighlightTargetsForCurrentStep()] });
   }
 
   /**
@@ -229,6 +471,7 @@ export class TutorialManager {
     this.isActive = false;
     this.currentStep = 'complete';
     this.hideTutorialDialogue();
+    eventBus.emit('tutorial-highlight-changed', { targets: [] });
     console.log('Tutorial completed');
   }
 
@@ -240,6 +483,7 @@ export class TutorialManager {
     this.currentStep = 'intro';
     this.isActive = false;
     this.hideTutorialDialogue();
+    eventBus.emit('tutorial-highlight-changed', { targets: [] });
     console.log('Tutorial reset to initial state');
   }
 }

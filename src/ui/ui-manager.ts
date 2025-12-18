@@ -5,6 +5,7 @@ import { createMapDashboardContainer, createMapLocationCard } from '@/ui/interna
 import { ModalManager } from '@/ui/internal/ui-modals';
 import { ToastManager } from '@/ui/internal/ui-toasts';
 import { TutorialUI } from '@/ui/internal/ui-tutorial';
+import { eventBus } from '@/core/event-bus';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -20,12 +21,16 @@ export class UIManager {
   private readonly modalManager: ModalManager;
   private readonly tutorialUI: TutorialUI;
 
+  private tutorialHighlightTargets: string[] = [];
+  private tutorialHighlightedElement: HTMLElement | null = null;
+
   /**
    * Append an element to the UI overlay root (#ui-overlay).
    * Use this instead of document.body to keep UI ownership consistent.
    */
   public appendToOverlay(element: HTMLElement): void {
     this.container.appendChild(element);
+    this.refreshTutorialHighlight();
   }
 
   /**
@@ -36,6 +41,7 @@ export class UIManager {
   }
 
   public createMapLocationCard(options: {
+    locationId: string;
     name: string;
     description: string;
     icon: string;
@@ -93,6 +99,29 @@ export class UIManager {
     this.tutorialUI = new TutorialUI(this.container, (text, onClick, options) =>
       this.createButton(text, onClick, options)
     );
+
+    eventBus.on('tutorial-highlight-changed', (payload) => {
+      this.tutorialHighlightTargets = payload.targets;
+      this.refreshTutorialHighlight();
+    });
+  }
+
+  public refreshTutorialHighlight(): void {
+    if (this.tutorialHighlightedElement) {
+      this.tutorialHighlightedElement.classList.remove('tutorial-highlight');
+      this.tutorialHighlightedElement = null;
+    }
+
+    if (this.tutorialHighlightTargets.length === 0) return;
+
+    for (const target of this.tutorialHighlightTargets) {
+      const el = this.container.querySelector(`[data-tutorial-target="${target}"]`);
+      if (el instanceof HTMLElement) {
+        el.classList.add('tutorial-highlight');
+        this.tutorialHighlightedElement = el;
+        return;
+      }
+    }
   }
 
   public static getInstance(): UIManager {
@@ -175,6 +204,8 @@ export class UIManager {
     if (tutorialDialogue) {
       this.container.appendChild(tutorialDialogue);
     }
+
+    this.refreshTutorialHighlight();
   }
 
   /**
@@ -325,6 +356,7 @@ export class UIManager {
    */
   public append(element: HTMLElement): void {
     this.container.appendChild(element);
+    this.refreshTutorialHighlight();
   }
 
   /**
@@ -336,6 +368,8 @@ export class UIManager {
     if (this.container.contains(element)) {
       this.container.removeChild(element);
     }
+
+    this.refreshTutorialHighlight();
   }
 
   /**

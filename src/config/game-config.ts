@@ -27,6 +27,15 @@ export type SkillKey = keyof typeof SKILL_METADATA;
 
 /** Central gameplay tuning configuration (economy, progression, encounters, etc.). */
 export const GAME_CONFIG = {
+  save: {
+    /**
+     * Autosave policy:
+     * - 'on-change': debounce-save after state mutations (recommended)
+     * - 'end-of-day': only save at end-of-day checkpoints
+     */
+    autosavePolicy: 'on-change',
+  },
+
   cars: {
     // Random condition range for generated encounter cars (inclusive).
     randomConditionMin: 30,

@@ -19,6 +19,7 @@ export type GameEvents = {
   'victory': VictoryResult;
   'tutorial-complete': void;
   'tutorial-step-changed': { step: string };
+  'tutorial-highlight-changed': { targets: string[] };
   'tutorial-dialogue-show': {
     speaker: string;
     text: string;

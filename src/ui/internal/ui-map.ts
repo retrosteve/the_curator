@@ -3,6 +3,7 @@
  * @internal Factory used by UIManager.
  */
 export function createMapLocationCard(options: {
+  locationId: string;
   name: string;
   description: string;
   icon: string;
@@ -18,6 +19,7 @@ export function createMapLocationCard(options: {
   onShowLockedModal: (title: string, message: string) => void;
 }): HTMLElement {
   const {
+    locationId,
     name,
     description,
     icon,
@@ -34,6 +36,8 @@ export function createMapLocationCard(options: {
   } = options;
 
   const card = document.createElement('div');
+  card.dataset.locationId = locationId;
+  card.dataset.tutorialTarget = `map.location.${locationId}`;
 
   const hexColor = '#' + color.toString(16).padStart(6, '0');
 
@@ -99,8 +103,9 @@ export function createMapLocationCard(options: {
   card.appendChild(header);
 
   const desc = document.createElement('div');
+  const isTutorialLock = Boolean(lockReason) && (lockReason ?? '').toLowerCase().startsWith('tutorial');
   desc.textContent = isLocked
-    ? 'Increase your Prestige to gain access to this location.'
+    ? (isTutorialLock ? (lockReason as string) : 'Increase your Prestige to gain access to this location.')
     : description;
   desc.style.cssText = `
       color: rgba(255,255,255,0.7);
@@ -208,6 +213,7 @@ export function createMapLocationCard(options: {
   const button = document.createElement('button');
   button.textContent = isLocked ? 'Locked' : (isGarage ? 'Return Home' : 'Visit Location');
   button.disabled = isLocked;
+  button.dataset.tutorialTarget = `map.location.${locationId}`;
   button.style.cssText = `
       width: 100%;
       padding: 10px;

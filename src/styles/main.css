@@ -374,6 +374,10 @@ p {
   }
 }
 
+.tutorial-highlight {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 .tutorial-header {
   display: flex;
   align-items: center;

@@ -20,7 +20,6 @@ import type { DeepReadonly } from '@/utils/types';
 export class GarageScene extends BaseGameScene {
   private autoEndDayOnEnter: boolean = false;
   private inventoryButton?: HTMLButtonElement;
-  private mapButton?: HTMLButtonElement;
   private currentView: 'menu' | 'inventory' | 'collection' | 'rival-info' = 'menu';
 
   private readonly handleGarageInventoryChanged = (): void => {
@@ -75,15 +74,6 @@ export class GarageScene extends BaseGameScene {
       `The world of car collecting awaits. Build your dream collection!`,
       [{ text: 'Start Collecting!', onClick: () => {} }]
     );
-  };
-
-  private readonly handleTutorialStepChanged = (data: { step: string }): void => {
-    // When tutorial advances to first_visit_scrapyard, apply pulse animation to map button
-    if (data.step === 'first_visit_scrapyard' && this.mapButton) {
-      this.mapButton.style.cssText += `
-        animation: pulse 1.5s ease-in-out infinite;
-      `;
-    }
   };
 
   constructor() {
@@ -260,16 +250,7 @@ export class GarageScene extends BaseGameScene {
       () => this.goToMap(),
       { variant: 'primary', style: { ...compactButtonStyle, gridColumn: '1 / -1' } }
     );
-    this.mapButton = mapBtn;
-    
-    // Tutorial: Highlight map button and disable others during first_visit_scrapyard step
-    const isTutorialFirstStep = this.tutorialManager?.isCurrentStep('first_visit_scrapyard');
-    if (isTutorialFirstStep) {
-      // Add pulsing animation to map button (CSS animation defined in main.css)
-      mapBtn.style.cssText += `
-        animation: pulse 1.5s ease-in-out infinite;
-      `;
-    }
+    mapBtn.dataset.tutorialTarget = 'garage.explore-map';
     
     primaryActions.appendChild(mapBtn);
 
@@ -279,6 +260,7 @@ export class GarageScene extends BaseGameScene {
       () => this.showInventory(),
       { variant: 'info', style: compactButtonStyle }
     );
+    inventoryBtn.dataset.tutorialTarget = 'garage.view-garage';
     this.inventoryButton = inventoryBtn;
     primaryActions.appendChild(inventoryBtn);
 
@@ -460,7 +442,6 @@ export class GarageScene extends BaseGameScene {
     eventBus.on('inventory-changed', this.handleGarageInventoryChanged);
     eventBus.on('victory', this.handleVictory);
     eventBus.on('tutorial-complete', this.handleTutorialComplete);
-    eventBus.on('tutorial-step-changed', this.handleTutorialStepChanged);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.cleanupEventListeners();
@@ -471,7 +452,6 @@ export class GarageScene extends BaseGameScene {
     eventBus.off('inventory-changed', this.handleGarageInventoryChanged);
     eventBus.off('victory', this.handleVictory);
     eventBus.off('tutorial-complete', this.handleTutorialComplete);
-    eventBus.off('tutorial-step-changed', this.handleTutorialStepChanged);
   }
 
   /**
@@ -487,7 +467,7 @@ export class GarageScene extends BaseGameScene {
     action: () => void,
     options: Parameters<typeof this.uiManager.createButton>[2] = {}
   ): HTMLButtonElement {
-    const isTutorialFirstStep = this.tutorialManager?.isCurrentStep('first_visit_scrapyard');
+    const isTutorialFirstStep = this.tutorialManager?.isOnFirstVisitScrapyardStep();
     return this.uiManager.createButton(
       label,
       isTutorialFirstStep ? () => {} : action,
@@ -584,6 +564,7 @@ export class GarageScene extends BaseGameScene {
         ,
         { style: compactButtonStyle }
       );
+      restoreBtn.dataset.tutorialTarget = 'garage.restore';
       buttonContainer.appendChild(restoreBtn);
 
       const isCollectionEligible = this.gameManager.isCollectionEligible(car);
@@ -723,6 +704,7 @@ export class GarageScene extends BaseGameScene {
       () => this.setupUI(),
       { style: { width: '100%', marginTop: '20px' } }
     );
+    backBtn.dataset.tutorialTarget = 'garage.back';
     panel.appendChild(backBtn);
 
     this.uiManager.append(panel);
@@ -839,7 +821,7 @@ export class GarageScene extends BaseGameScene {
             this.timeSystem.spendAP(opt.apCost);
             
             // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
-            const isTutorialFirstRestore = this.tutorialManager.isCurrentStep('first_buy');
+            const isTutorialFirstRestore = this.tutorialManager.shouldForceFirstRestorationSuccess();
             const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
             this.gameManager.updateCar(result.car);
             
@@ -864,12 +846,10 @@ export class GarageScene extends BaseGameScene {
             }
             
             // Tutorial trigger: advance to first_restore immediately after restoration
-            if (isTutorialFirstRestore) {
-              this.tutorialManager.advanceStep('first_restore');
-            }
+            this.tutorialManager.onFirstTutorialRestorationCompleted();
             
             // Tutorial: Auto-sell the first car after restoration
-            if (this.tutorialManager.isCurrentStep('first_restore')) {
+            if (this.tutorialManager.shouldAutoSellAfterFirstRestoration()) {
               this.showInventory();
               // Auto-trigger the sale
               setTimeout(() => {
@@ -884,13 +864,13 @@ export class GarageScene extends BaseGameScene {
                       onClick: () => {
                         this.gameManager.addMoney(salePrice);
                         this.gameManager.removeCar(car.id);
-                        this.tutorialManager.advanceStep('first_flip');
+                        this.tutorialManager.onFirstTutorialCarSold();
                         
                         // Show next tutorial guidance
                         setTimeout(() => {
                           this.tutorialManager.showDialogueWithCallback(
                             'Uncle Ray',
-                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map" to find another opportunity - but this time, you'll face competition from other collectors!`,
+                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map", then visit the Weekend Auction House (Estate Sale). You'll face competition from other collectors there.`,
                             () => this.setupUI()
                           );
                         }, 300);
@@ -918,6 +898,11 @@ export class GarageScene extends BaseGameScene {
   }
 
   private sellCar(carId: string): void {
+    if (!this.tutorialManager.isSideActionAllowed('sell-car')) {
+      this.showTutorialBlockedActionModal(this.tutorialManager.getSideActionBlockedMessage('sell-car'));
+      return;
+    }
+
     const car = this.gameManager.getCar(carId);
     if (!car) return;
 
@@ -930,11 +915,8 @@ export class GarageScene extends BaseGameScene {
         this.gameManager.addMoney(salePrice);
         this.gameManager.removeCar(carId);
         this.uiManager.showFloatingMoney(salePrice, true);
-        
-        // Tutorial trigger: first flip
-        if (this.tutorialManager.isCurrentStep('first_restore')) {
-          this.tutorialManager.advanceStep('first_flip');
-        }
+
+        this.tutorialManager.onFirstTutorialCarSold();
         
         this.showInventory();
       },
@@ -1125,6 +1107,11 @@ export class GarageScene extends BaseGameScene {
   }
 
   private sellCarAsIs(carId: string): void {
+    if (!this.tutorialManager.isSideActionAllowed('sell-car')) {
+      this.showTutorialBlockedActionModal(this.tutorialManager.getSideActionBlockedMessage('sell-car'));
+      return;
+    }
+
     const car = this.gameManager.getCar(carId);
     if (!car) return;
 
@@ -1195,7 +1182,29 @@ export class GarageScene extends BaseGameScene {
     }
   }
 
+  private showTutorialBlockedActionModal(actionMessage: string): void {
+    this.uiManager.showModal(
+      'Tutorial In Progress',
+      actionMessage,
+      [
+        { text: 'Continue Tutorial', onClick: () => {} },
+        {
+          text: 'Skip Tutorial',
+          onClick: () => {
+            // Delay so the current modal closes before we request another modal.
+            setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+          },
+        },
+      ]
+    );
+  }
+
   private endDay(): void {
+    if (!this.tutorialManager.isSideActionAllowed('end-day')) {
+      this.showTutorialBlockedActionModal(this.tutorialManager.getSideActionBlockedMessage('end-day'));
+      return;
+    }
+
     const playerBefore = this.gameManager.getPlayerState();
     const world = this.gameManager.getWorldState();
     const rent = this.gameManager.getDailyRent();
@@ -1440,6 +1449,11 @@ export class GarageScene extends BaseGameScene {
   }
 
   private upgradeGarage(): void {
+    if (!this.tutorialManager.isSideActionAllowed('upgrade-garage')) {
+      this.showTutorialBlockedActionModal(this.tutorialManager.getSideActionBlockedMessage('upgrade-garage'));
+      return;
+    }
+
     const cost = this.gameManager.getNextGarageSlotCost();
     const player = this.gameManager.getPlayerState();
 
@@ -1632,6 +1646,7 @@ export class GarageScene extends BaseGameScene {
       () => this.setupUI(),
       { style: { marginTop: '20px' } }
     );
+    backBtn.dataset.tutorialTarget = 'garage.back';
     panel.appendChild(backBtn);
 
     this.uiManager.append(panel);
@@ -1750,6 +1765,7 @@ export class GarageScene extends BaseGameScene {
       () => this.setupUI(),
       { style: { marginTop: '20px', width: '100%' } }
     );
+    backBtn.dataset.tutorialTarget = 'garage.back';
     panel.appendChild(backBtn);
 
     this.uiManager.append(panel);

@@ -151,7 +151,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     // Ensure cleanup on scene shutdown
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.clearActiveRivalBubble();
-      this.cleanupCommonEventListeners();
     });
   }
 
@@ -339,6 +338,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
       { variant: 'warning', style: buttonTextStyle }
     );
+    powerBidBtn.dataset.tutorialTarget = 'auction.power-bid';
     const powerBidTotal = this.currentBid + AuctionScene.POWER_BID_INCREMENT;
     if (player.money < powerBidTotal) {
       disableEncounterActionButton(
@@ -727,15 +727,6 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.showRivalBark('win'); // Rival won
     }
 
-    // Tutorial trigger for loss (happens immediately)
-    try {
-      if (this.tutorialManager.isCurrentStep('first_flip') && !playerWon) {
-        this.tutorialManager.advanceStep('first_loss');
-      }
-    } catch (error) {
-      console.error('Tutorial error in AuctionScene:', error);
-    }
-
     if (playerWon) {
       const player = this.gameManager.getPlayerState();
 
@@ -788,7 +779,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         // Tutorial: Show completion message AFTER auction win modal is dismissed
         let isTutorialComplete = false;
         try {
-          isTutorialComplete = this.tutorialManager.isCurrentStep('redemption');
+          isTutorialComplete = this.tutorialManager.isOnRedemptionStep();
         } catch (error) {
           console.error('Tutorial error checking completion:', error);
         }
@@ -806,7 +797,7 @@ Tip: Visit the Garage to sell something, then come back.`,
                     "Uncle Ray",
                     "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car collection! Remember: every car tells a story, and you're the curator.",
                     () => {
-                      this.tutorialManager.advanceStep('complete');
+                      this.tutorialManager.onTutorialCompleted();
                       this.scene.start('MapScene');
                     }
                   );
@@ -823,13 +814,13 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.consumeOfferIfNeeded();
       // Tutorial: After losing to Sterling Vance, immediately encounter Scrapyard Joe at the same sale
       try {
-        if (this.tutorialManager.isCurrentStep('first_loss')) {
+        if (this.tutorialManager.isOnFirstLossStep()) {
           // Uncle Ray spots another opportunity - show dialogue then start second auction
           this.tutorialManager.showDialogueWithCallback(
             "Uncle Ray",
             "Don't let that loss get you down! Look - there's another car here nobody else noticed: a Boxy Wagon. This time you're facing a weaker rival. Use aggressive tactics like Power Bid to make them quit early!",
             () => {
-              this.tutorialManager.advanceStep('redemption');
+              this.tutorialManager.onRedemptionPromptAccepted();
               const boxywagon = getCarById('car_tutorial_boxy_wagon');
               const scrappyJoe = getRivalById('scrapyard_joe');
               if (boxywagon && scrappyJoe) {

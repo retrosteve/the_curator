@@ -128,6 +128,7 @@ export class ModalManager {
       {
         text: options?.confirmText || 'Confirm',
         onClick: onConfirm,
+        variant: options?.confirmVariant,
       },
       {
         text: options?.cancelText || 'Cancel',
@@ -364,7 +365,7 @@ export class ModalManager {
   public showModal(
     title: string,
     message: string,
-    buttons: { text: string; onClick: () => void }[]
+    buttons: { text: string; onClick: () => void; variant?: ButtonVariant }[]
   ): HTMLDivElement {
     const stop = (event: Event): void => {
       event.preventDefault();
@@ -440,22 +441,12 @@ export class ModalManager {
       textAlign: 'center',
     });
 
-    const isHTML = /<[a-z][\s\S]*>/i.test(message);
-
-    if (isHTML) {
-      contentContainer.innerHTML = message;
-      Object.assign(contentContainer.style, {
-        fontSize: '16px',
-        color: '#e0e6ed',
-        lineHeight: '1.6',
-        fontFamily: 'Rajdhani, sans-serif',
-      });
-    } else {
-      const text = this.deps.createText(message, {
-        fontSize: '16px',
-      });
-      contentContainer.appendChild(text);
-    }
+    // Security: always treat `message` as plain text (no HTML parsing).
+    // Newlines are preserved via UIManager's `createText()` style.
+    const text = this.deps.createText(message, {
+      fontSize: '16px',
+    });
+    contentContainer.appendChild(text);
 
     const buttonContainer = document.createElement('div');
     Object.assign(buttonContainer.style, {
@@ -470,7 +461,7 @@ export class ModalManager {
         btn.onClick();
         this.deps.remove(modal);
         this.deps.remove(backdrop);
-      });
+      }, { variant: btn.variant });
       buttonContainer.appendChild(button);
     });
 

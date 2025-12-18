@@ -160,10 +160,17 @@ export class Economy {
       valueChange: number;
     };
   } {
+    type RestorationDiscovery = {
+      found: boolean;
+      type: 'positive' | 'negative';
+      name: string;
+      valueChange: number;
+    };
+
     let newCondition = car.condition;
     let message = "Restoration complete.";
     let success = true;
-    let discovery: any = undefined;
+    let discovery: RestorationDiscovery | undefined;
 
     const charlie = GAME_CONFIG.economy.restoration.charlieMinor;
     const conditionMax = GAME_CONFIG.economy.restoration.conditionMax;
@@ -175,7 +182,7 @@ export class Economy {
         // Positive discovery
         discovery = {
           found: true,
-          type: 'positive' as const,
+          type: 'positive',
           name: 'Original Engine Block',
           valueChange: 5000,
         };
@@ -184,7 +191,7 @@ export class Economy {
         // Negative discovery (5% chance: 0.10 to 0.15)
         discovery = {
           found: true,
-          type: 'negative' as const,
+          type: 'negative',
           name: 'Hidden Flood Damage',
           valueChange: -3000,
         };

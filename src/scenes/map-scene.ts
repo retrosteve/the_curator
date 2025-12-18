@@ -44,13 +44,27 @@ export class MapScene extends BaseGameScene {
 
   private showCannotAffordAuctionModal(openingBid: number): void {
     const player = this.gameManager.getPlayerState();
+    const isTutorialActive = this.tutorialManager.isTutorialActive();
     this.uiManager.showModal(
       'Not Enough Money',
-      `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nTip: Visit the Garage to sell something, then come back.`,
-      [
-        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-        { text: 'OK', onClick: () => {} },
-      ]
+      isTutorialActive
+        ? `You can't afford the opening bid for this tutorial auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nIf you're stuck, skip the tutorial to continue freely.`
+        : `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nTip: Visit the Garage to sell something, then come back.`,
+      isTutorialActive
+        ? [
+            { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+            {
+              text: 'Skip Tutorial',
+              onClick: () => {
+                setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+              },
+            },
+            { text: 'OK', onClick: () => {} },
+          ]
+        : [
+            { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+            { text: 'OK', onClick: () => {} },
+          ]
     );
   }
 
@@ -67,6 +81,9 @@ export class MapScene extends BaseGameScene {
       bottomColor: 0x16213e,
     });
     this.setupUI();
+    // MapScene uses tutorial dialogues with callbacks (e.g., Sterling intro).
+    // Without common listeners, those dialogues never render and the callback never fires.
+    this.setupCommonEventListeners();
     this.createDashboard();
     this.setupEventListeners();
   }
@@ -132,6 +149,11 @@ export class MapScene extends BaseGameScene {
     const canSeeRivals = player.skills.network >= 2;
     const isGarage = node.id === 'garage' || node.type === 'garage';
 
+    const isTutorialActive = this.tutorialManager.isTutorialActive();
+    const allowedLocationIds = this.tutorialManager.getAllowedMapLocationIds();
+    const isTutorialRestricted = isTutorialActive && allowedLocationIds !== null;
+    const isDisallowedByTutorial = isTutorialRestricted && !allowedLocationIds.has(node.id);
+
     // AP is charged once, at encounter start (no extra travel AP for regular locations).
     // If the player can't see rivals yet, avoid revealing rival presence via AP cost.
     const apCost = isGarage
@@ -142,12 +164,19 @@ export class MapScene extends BaseGameScene {
     let isLocked = false;
     let lockReason = '';
 
+    if (isDisallowedByTutorial) {
+      isLocked = true;
+      lockReason = 'Tutorial: Follow the current step to continue.';
+    }
+
     if (node.type === 'dealership' && player.prestige < GAME_CONFIG.progression.unlocks.dealership) {
       isLocked = true;
       lockReason = `Requires ${GAME_CONFIG.progression.unlocks.dealership} Prestige`;
     } else if (node.type === 'auction' && player.prestige < GAME_CONFIG.progression.unlocks.auction) {
-      isLocked = true;
-      lockReason = `Requires ${GAME_CONFIG.progression.unlocks.auction} Prestige`;
+      if (!this.tutorialManager.shouldBypassAuctionPrestigeLock()) {
+        isLocked = true;
+        lockReason = `Requires ${GAME_CONFIG.progression.unlocks.auction} Prestige`;
+      }
     }
 
     const world = this.gameManager.getWorldState();
@@ -158,7 +187,10 @@ export class MapScene extends BaseGameScene {
       Object.prototype.hasOwnProperty.call(offerMap, node.id) &&
       offerMap[node.id] === null;
 
+    const effectiveIsExhaustedToday = isExhaustedToday;
+
     return this.uiManager.createMapLocationCard({
+      locationId: node.id,
       name: node.name,
       description: this.getLocationDescription(node),
       icon: this.getLocationIcon(node),
@@ -167,7 +199,7 @@ export class MapScene extends BaseGameScene {
       isGarage,
       isLocked,
       lockReason,
-      isExhaustedToday,
+      isExhaustedToday: effectiveIsExhaustedToday,
       showRivalBadge: hasRival && canSeeRivals,
       showSpecialBadge: node.type === 'special',
       onVisit: () => this.visitNode(node),
@@ -242,8 +274,13 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
+    const isTutorialActive = this.tutorialManager.isTutorialActive();
+
+    const isTutorialScrapyardVisit = node.id === 'scrapyard_1' && isTutorialActive;
+
     // If the location's daily offer has already been consumed, block the visit.
-    if (node.type !== 'special') {
+    // Tutorial exception: allow scrapyard visit during early steps to prevent a soft-lock.
+    if (node.type !== 'special' && !isTutorialScrapyardVisit) {
       const world = this.gameManager.getWorldState();
       const offerMap = world.carOfferByLocation ?? {};
       const isExhaustedToday =
@@ -311,11 +348,9 @@ export class MapScene extends BaseGameScene {
     // Tutorial-specific encounters with specific cars
     try {
       if (this.tutorialManager && this.tutorialManager.isTutorialActive()) {
-        const step = this.tutorialManager.getCurrentStep();
-        
         // Force Rusty Sedan for first inspection/buy
-        if (step === 'first_visit_scrapyard' || step === 'first_inspect' || step === 'first_buy' || step === 'first_restore') {
-          const car = getCarById('tutorial_rusty_sedan') || getRandomCar();
+        if (node.id === 'scrapyard_1' && this.tutorialManager.isInScrapyardTutorialLoop()) {
+          const car = getCarById('car_tutorial_rusty_sedan') || getRandomCar();
           if (!this.hasGarageSpace()) {
             this.showGarageFullGate();
             return;
@@ -336,8 +371,8 @@ export class MapScene extends BaseGameScene {
         }
         
         // First loss: Force Sterling Vance encounter with Muscle Car
-        if (step === 'first_flip') {
-          const car = getCarById('tutorial_muscle_car') || getRandomCar();
+        if (node.id === 'auction_1' && this.tutorialManager.isInSterlingAuctionIntroBeat()) {
+          const car = getCarById('car_tutorial_muscle_car') || getRandomCar();
           const sterlingVance = getRivalById('sterling_vance');
           const interest = calculateRivalInterest(sterlingVance, car.tags);
 
@@ -359,15 +394,24 @@ export class MapScene extends BaseGameScene {
                 return;
               }
 
-              const player = this.gameManager.getPlayerState();
               const openingBid = this.getAuctionOpeningBid(car);
+              const player = this.gameManager.getPlayerState();
+
+              // Tutorial safety: avoid a hard soft-lock if somehow money is below the opening bid.
+              // We top the player up to exactly the opening bid so the tutorial can continue.
+              if (player.money < openingBid) {
+                const delta = openingBid - player.money;
+                this.gameManager.addMoney(delta);
+                this.uiManager.showToast("Tutorial: Uncle Ray covers the opening bid.");
+              }
+
               if (player.money < openingBid) {
                 this.showCannotAffordAuctionModal(openingBid);
                 return;
               }
 
-              // After dialogue is dismissed, advance step and start auction
-              this.tutorialManager.advanceStep('first_loss');
+              // After dialogue is dismissed, mark the Sterling encounter beat and start auction
+              this.tutorialManager.onSterlingEncounterStarted();
               this.timeSystem.spendAP(AUCTION_AP);
               this.applyArrivalEffects(node);
               // Use scene.switch to properly transition - this stops current scene and starts new one
@@ -376,13 +420,6 @@ export class MapScene extends BaseGameScene {
             }
           );
           return;
-        }
-        
-        // Skip redemption step - it's handled in AuctionScene after first_loss
-        // If player somehow gets to this state, treat as normal gameplay
-        if (step === 'first_loss' || step === 'redemption') {
-          // Tutorial should have advanced past this point
-          // Fall through to normal gameplay
         }
       }
     } catch (error) {

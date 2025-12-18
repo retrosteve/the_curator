@@ -50,8 +50,8 @@ export class Economy {
       challenges.push({
         id: 'rust_removal',
         name: 'Rust Removal Treatment',
-        cost: 500,
-        apCost: 2,
+        cost: GAME_CONFIG.economy.challenges.rustRemoval.cost,
+        apCost: GAME_CONFIG.economy.challenges.rustRemoval.apCost,
         description: 'Remove rust and treat metal surfaces before restoration.',
         requiredFor: ['Rust'],
       });
@@ -62,8 +62,8 @@ export class Economy {
       challenges.push({
         id: 'engine_rebuild',
         name: 'Engine Rebuild',
-        cost: 1500,
-        apCost: 4,
+        cost: GAME_CONFIG.economy.challenges.engineRebuild.cost,
+        apCost: GAME_CONFIG.economy.challenges.engineRebuild.apCost,
         description: 'Rebuild engine to fix water damage before restoration.',
         requiredFor: ['Flooded'],
       });

@@ -156,6 +156,18 @@ export const GAME_CONFIG = {
       10: 2400,
     },
 
+    // Restoration challenge costs
+    challenges: {
+      rustRemoval: {
+        cost: 500,
+        apCost: 2,
+      },
+      engineRebuild: {
+        cost: 1500,
+        apCost: 4,
+      },
+    },
+
     // Emergency cash injection - one-time use only
     bankLoan: {
       amount: 500,

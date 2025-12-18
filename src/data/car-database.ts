@@ -1,11 +1,6 @@
 /**
  * Car data structure.
  * Represents a single vehicle with its condition, history, and metadata.
- * 
- * Note on currentValue: This is a calculated field using calculateCarValue().
- * It's marked optional because it's not stored in the database - it's always
- * computed on-demand based on condition, history, and market modifiers.
- * Use calculateCarValue(car) to get the current market value.
  */
 import { GAME_CONFIG } from '@/config/game-config';
 
@@ -24,8 +19,6 @@ export interface Car {
   tags: string[]; // e.g., "Muscle", "JDM", "Classic"
   history: string[]; // e.g., "Flooded", "Rust", "Barn Find"
   tier: CarTier; // Car's rarity tier
-  /** @deprecated Use calculateCarValue(car) instead - this is a computed field */
-  currentValue?: number;
   inCollection?: boolean; // Whether car is in the private collection (requires condition >= 80)
 }
 

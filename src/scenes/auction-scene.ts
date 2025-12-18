@@ -43,6 +43,8 @@ export class AuctionScene extends BaseGameScene {
   private activeRivalBubbleHideTimeoutId?: number;
   private activeRivalBubbleRemoveTimeoutId?: number;
 
+  private pendingUIRefreshTimeoutId?: number;
+
   private auctionLog: AuctionLogEntry[] = [];
   private lastPatienceToastBand: 'normal' | 'medium' | 'low' | 'critical' = 'normal';
 
@@ -78,6 +80,7 @@ export class AuctionScene extends BaseGameScene {
     this.activeRivalBubbleText = undefined;
     this.activeRivalBubbleHideTimeoutId = undefined;
     this.activeRivalBubbleRemoveTimeoutId = undefined;
+    this.pendingUIRefreshTimeoutId = undefined;
 
     this.auctionLog = [];
     this.lastPatienceToastBand = 'normal';
@@ -150,8 +153,16 @@ Tip: Visit the Garage to sell something, then come back.`,
     
     // Ensure cleanup on scene shutdown
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.clearPendingUIRefresh();
       this.clearActiveRivalBubble();
     });
+  }
+
+  private clearPendingUIRefresh(): void {
+    if (this.pendingUIRefreshTimeoutId !== undefined) {
+      window.clearTimeout(this.pendingUIRefreshTimeoutId);
+      this.pendingUIRefreshTimeoutId = undefined;
+    }
   }
 
   private clearActiveRivalBubble(): void {
@@ -671,6 +682,7 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private playerQuit(): void {
+    this.clearPendingUIRefresh();
     this.consumeOfferIfNeeded();
     this.endAuction(false, 'You quit the auction.');
   }
@@ -711,15 +723,25 @@ Tip: Visit the Garage to sell something, then come back.`,
         `${this.rival.name}: Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
         'rival'
       );
-      
-      setTimeout(() => {
-        // Non-blocking update: refresh UI and keep momentum.
+
+      // Non-blocking update: refresh UI and keep momentum.
+      // Track and clear this timeout to avoid:
+      // - wiping modals via UIManager.clear() after the auction ends
+      // - updating UI after scene shutdown
+      this.clearPendingUIRefresh();
+      this.pendingUIRefreshTimeoutId = window.setTimeout(() => {
+        // Scene may have transitioned; don't update UI if we're not active.
+        if (!this.scene.isActive()) return;
         this.setupUI();
+        this.pendingUIRefreshTimeoutId = undefined;
       }, GAME_CONFIG.ui.modalDelays.rivalBid);
     }
   }
 
   private endAuction(playerWon: boolean, message: string): void {
+    // Prevent any scheduled UI refresh from wiping the final result modal.
+    this.clearPendingUIRefresh();
+
     // Show final bark
     if (playerWon) {
       this.showRivalBark('lose'); // Rival lost

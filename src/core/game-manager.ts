@@ -119,6 +119,43 @@ export class GameManager {
     }
   }
 
+  private static cloneCar(car: Car): Car {
+    return {
+      ...car,
+      tags: Array.isArray(car.tags) ? [...car.tags] : [],
+      history: Array.isArray(car.history) ? [...car.history] : [],
+    };
+  }
+
+  private static cloneInventory(inventory: Car[]): Car[] {
+    return inventory.map((car) => GameManager.cloneCar(car));
+  }
+
+  private static clonePlayerState(player: PlayerState): PlayerState {
+    return {
+      ...player,
+      inventory: GameManager.cloneInventory(player.inventory),
+      skills: { ...player.skills },
+      skillXP: { ...player.skillXP },
+      visitedLocations: new Set(player.visitedLocations),
+      claimedSets: new Set(player.claimedSets),
+    };
+  }
+
+  private static cloneWorldState(world: WorldState): WorldState {
+    const carOfferByLocation: Record<string, Car | null> = {};
+    for (const [locationId, offer] of Object.entries(world.carOfferByLocation ?? {})) {
+      carOfferByLocation[locationId] = offer ? GameManager.cloneCar(offer) : null;
+    }
+
+    return {
+      ...world,
+      carOfferByLocation,
+      rivalPresenceByLocation: { ...(world.rivalPresenceByLocation ?? {}) },
+      dayStats: { ...world.dayStats },
+    };
+  }
+
   /**
    * Initialize default game state (used when no save exists).
    */
@@ -239,7 +276,8 @@ export class GameManager {
       this.ensureDailyCarOffersForLocations([locationId]);
     }
 
-    return this.world.carOfferByLocation[locationId] ?? null;
+    const offer = this.world.carOfferByLocation[locationId] ?? null;
+    return offer ? GameManager.cloneCar(offer) : null;
   }
 
   /**
@@ -299,7 +337,7 @@ export class GameManager {
    * Treat returned objects as immutable.
    */
   public getPlayerState(): DeepReadonly<PlayerState> {
-    return this.player;
+    return GameManager.clonePlayerState(this.player);
   }
 
   /**
@@ -307,7 +345,7 @@ export class GameManager {
    * Treat returned objects as immutable.
    */
   public getWorldState(): DeepReadonly<WorldState> {
-    return this.world;
+    return GameManager.cloneWorldState(this.world);
   }
 
   /**
@@ -470,10 +508,14 @@ export class GameManager {
     }
 
     // New cars always enter the garage first (not in the collection).
-    car.inCollection = false;
-    this.player.inventory.push(car);
+    // Clone at the boundary to avoid external references mutating internal state.
+    const storedCar: Car = {
+      ...GameManager.cloneCar(car),
+      inCollection: false,
+    };
+    this.player.inventory.push(storedCar);
     this.world.dayStats.carsAcquired += 1;
-    eventBus.emit('inventory-changed', this.player.inventory);
+    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
     
     // Check for set completions
     this.checkNewSetCompletions();
@@ -487,7 +529,9 @@ export class GameManager {
    * Cars in the collection are still owned but do not consume garage slots.
    */
   public getGarageCars(): Car[] {
-    return this.player.inventory.filter((car) => car.inCollection !== true);
+    return this.player.inventory
+      .filter((car) => car.inCollection !== true)
+      .map((car) => GameManager.cloneCar(car));
   }
 
   /**
@@ -638,17 +682,17 @@ export class GameManager {
     });
   }
 
-  /**
-   * Replace an existing car in inventory (matched by id).
-   * @param updatedCar - The car with updated properties
-   * @returns True if car was found and updated, false otherwise
-   */
+    /**
+     * Replace an existing car in inventory (matched by id).
+     * @param updatedCar - The car with updated properties
+     * @returns True if car was found and updated, false otherwise
+     */
   public updateCar(updatedCar: Car): boolean {
     const index = this.player.inventory.findIndex((car) => car.id === updatedCar.id);
     if (index === -1) return false;
 
-    this.player.inventory[index] = updatedCar;
-    eventBus.emit('inventory-changed', this.player.inventory);
+    this.player.inventory[index] = GameManager.cloneCar(updatedCar);
+    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
     this.debouncedSave(); // Auto-save on car update
     return true;
   }
@@ -692,7 +736,7 @@ export class GameManager {
       car.inCollection = false;
     }
 
-    eventBus.emit('inventory-changed', this.player.inventory);
+    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
     this.debouncedSave(); // Auto-save on collection status change
 
     const action = car.inCollection ? 'added to' : 'removed from';
@@ -713,7 +757,9 @@ export class GameManager {
    * @returns Array of cars with inCollection flag set
    */
   public getCollectionCars(): Car[] {
-    return this.player.inventory.filter((car) => car.inCollection === true);
+    return this.player.inventory
+      .filter((car) => car.inCollection === true)
+      .map((car) => GameManager.cloneCar(car));
   }
 
   /**
@@ -773,7 +819,7 @@ export class GameManager {
     const index = this.player.inventory.findIndex((car) => car.id === carId);
     if (index !== -1) {
       this.player.inventory.splice(index, 1);
-      eventBus.emit('inventory-changed', this.player.inventory);
+      eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
       this.debouncedSave(); // Auto-save on inventory change
       return true;
     }
@@ -1052,7 +1098,7 @@ export class GameManager {
    */
   public getCar(carId: string): Car | undefined {
     const car = this.player.inventory.find((c) => c.id === carId);
-    return car ? { ...car } : undefined;
+    return car ? GameManager.cloneCar(car) : undefined;
   }
 
   /**
@@ -1165,7 +1211,7 @@ export class GameManager {
   public emitAllStateEvents(): void {
     eventBus.emit('money-changed', this.player.money);
     eventBus.emit('prestige-changed', this.player.prestige);
-    eventBus.emit('inventory-changed', this.player.inventory);
+    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
     eventBus.emit('day-changed', this.world.day);
     eventBus.emit('ap-changed', this.world.currentAP);
     eventBus.emit('location-changed', this.world.currentLocation);

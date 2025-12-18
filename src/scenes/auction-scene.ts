@@ -859,6 +859,20 @@ Tip: Visit the Garage to sell something, then come back.`,
       }
       
       // Normal loss flow
+      try {
+        if (this.tutorialManager.isOnRedemptionStep()) {
+          this.tutorialManager.showDialogueWithCallback(
+            'Uncle Ray',
+            'No worries—redemption means we keep coming back until we win. Head back to the Weekend Auction House and we\'ll run it again.',
+            () => this.scene.start('MapScene')
+          );
+          return;
+        }
+      } catch (error) {
+        console.error('Tutorial error in redemption loss flow:', error);
+        // Continue with normal loss flow
+      }
+
       this.uiManager.showModal(
         'Auction Lost',
         message,

@@ -118,7 +118,13 @@ export class TutorialManager {
         // Highlight scrapyard on the map if present; otherwise guide the player to the map.
         return ['map.location.scrapyard_1', 'garage.explore-map', 'garage.back'];
       case 'first_inspect':
-        return ['negotiation.accept-offer'];
+        // If the player backs out of negotiation, keep guiding them back to Joe's Scrapyard.
+        return [
+          'negotiation.accept-offer',
+          'map.location.scrapyard_1',
+          'garage.explore-map',
+          'garage.back',
+        ];
       case 'first_buy':
         // Player should restore the first car; if they're still on the map, highlight returning home.
         return ['garage.restore', 'garage.view-garage', 'map.location.garage', 'garage.back'];
@@ -130,7 +136,8 @@ export class TutorialManager {
         // Otherwise, fall back to the Garage's Explore Map button.
         return ['map.location.auction_1', 'garage.explore-map', 'garage.back'];
       case 'redemption':
-        return ['auction.power-bid'];
+        // If the player backs out of the auction, guide them back to the Auction House.
+        return ['auction.power-bid', 'map.location.auction_1', 'garage.explore-map', 'garage.back'];
       case 'intro':
       case 'first_loss':
       case 'complete':
@@ -185,12 +192,9 @@ export class TutorialManager {
 
     switch (action) {
       case 'end-day':
-        // Allow ending the day during the auction beat so AP shortages don't soft-lock the tutorial.
-        return (
-          this.currentStep === 'first_flip' ||
-          this.currentStep === 'first_loss' ||
-          this.currentStep === 'redemption'
-        );
+        // Allow ending the day at any time during the tutorial.
+        // This prevents AP-burning deviations (e.g., leaving encounters) from soft-locking progress.
+        return true;
       case 'upgrade-garage':
       case 'sell-car':
         return false;

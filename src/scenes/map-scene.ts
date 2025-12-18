@@ -155,6 +155,10 @@ export class MapScene extends BaseGameScene {
     const allowedLocationIds = this.tutorialManager.getAllowedMapLocationIds();
     const isTutorialRestricted = isTutorialActive && allowedLocationIds !== null;
     const isDisallowedByTutorial = isTutorialRestricted && !allowedLocationIds.has(node.id);
+    const isTutorialRedemptionAuction =
+      isTutorialActive && node.id === 'auction_1' && this.tutorialManager.isOnRedemptionStep();
+    const isTutorialScrapyardLoop =
+      isTutorialActive && node.id === 'scrapyard_1' && this.tutorialManager.isInScrapyardTutorialLoop();
 
     // AP is charged once, at encounter start (no extra travel AP for regular locations).
     // If the player can't see rivals yet, avoid revealing rival presence via AP cost.
@@ -189,7 +193,10 @@ export class MapScene extends BaseGameScene {
       Object.prototype.hasOwnProperty.call(offerMap, node.id) &&
       offerMap[node.id] === null;
 
-    const effectiveIsExhaustedToday = isExhaustedToday;
+    const effectiveIsExhaustedToday =
+      isExhaustedToday &&
+      !isTutorialRedemptionAuction &&
+      !isTutorialScrapyardLoop;
 
     return this.uiManager.createMapLocationCard({
       locationId: node.id,
@@ -278,23 +285,35 @@ export class MapScene extends BaseGameScene {
 
     const isTutorialActive = this.tutorialManager.isTutorialActive();
 
-    const isTutorialScrapyardVisit = node.id === 'scrapyard_1' && isTutorialActive;
+    const isTutorialScrapyardVisit =
+      node.id === 'scrapyard_1' && isTutorialActive && this.tutorialManager.isInScrapyardTutorialLoop();
+    const isTutorialRedemptionAuctionVisit =
+      node.id === 'auction_1' && isTutorialActive && this.tutorialManager.isOnRedemptionStep();
 
     // If the location's daily offer has already been consumed, block the visit.
-    // Tutorial exception: allow scrapyard visit during early steps to prevent a soft-lock.
-    if (node.type !== 'special' && !isTutorialScrapyardVisit) {
+    // Tutorial exceptions:
+    // - allow scrapyard visit during early steps to prevent a soft-lock
+    // - allow auction house visit during redemption to prevent a soft-lock
+    if (node.type !== 'special') {
       const world = this.gameManager.getWorldState();
       const offerMap = world.carOfferByLocation ?? {};
       const isExhaustedToday =
         Object.prototype.hasOwnProperty.call(offerMap, node.id) && offerMap[node.id] === null;
 
       if (isExhaustedToday) {
-        this.uiManager.showModal(
-          'Exhausted Today',
-          `${node.name} has already been picked clean today. Check back tomorrow.`,
-          [{ text: 'OK', onClick: () => {} }]
-        );
-        return;
+        if (isTutorialScrapyardVisit) {
+          // Allowed: tutorial loop protection.
+        } else if (isTutorialRedemptionAuctionVisit) {
+          // Allowed: redemption replays until the player wins.
+          this.uiManager.showToast('Tutorial: redemption auction is still running.');
+        } else {
+          this.uiManager.showModal(
+            'Exhausted Today',
+            `${node.name} has already been picked clean today. Check back tomorrow.`,
+            [{ text: 'OK', onClick: () => {} }]
+          );
+          return;
+        }
       }
     }
 
@@ -424,6 +443,44 @@ export class MapScene extends BaseGameScene {
               // Use scene.switch to properly transition - this stops current scene and starts new one
               this.scene.stop('MapScene');
               this.scene.start('AuctionScene', { car, rival: sterlingVance, interest, locationId: node.id });
+            }
+          );
+          return;
+        }
+
+        // Redemption: Force re-entry to the Boxy Wagon auction until the player wins.
+        // This prevents a tutorial stall if the player quits/loses the redemption auction.
+        if (node.id === 'auction_1' && this.tutorialManager.isOnRedemptionStep()) {
+          const boxywagon = getCarById('car_tutorial_boxy_wagon');
+          const scrappyJoe = getRivalById('scrapyard_joe');
+          if (!boxywagon || !scrappyJoe) {
+            this.uiManager.showToast('Tutorial: redemption auction data missing.');
+            return;
+          }
+
+          const apBlock = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
+          if (apBlock) {
+            this.uiManager.showModal(apBlock.title, apBlock.message, [
+              { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+            ]);
+            return;
+          }
+
+          this.tutorialManager.showDialogueWithCallback(
+            'Uncle Ray',
+            'Alright—back in. This time, use "Power Bid" early to rattle Scrapyard Joe and make him quit.',
+            () => {
+              if (!this.hasGarageSpace()) {
+                this.showGarageFullGate();
+                return;
+              }
+
+              this.timeSystem.spendAP(AUCTION_AP);
+              this.applyArrivalEffects(node);
+              this.scene.stop('MapScene');
+              const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
+              // Intentionally omit locationId so quitting doesn't consume the daily offer.
+              this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
             }
           );
           return;

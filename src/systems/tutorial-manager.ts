@@ -339,7 +339,7 @@ export class TutorialManager {
       case 'first_visit_scrapyard':
         this.showDialogue(
           "Uncle Ray",
-          "Now click the 'Explore Map' button, then click on 'Joe's Scrapyard' to find your first car. Exploring costs Action Points, so keep an eye on your AP."
+          "Now click \"Explore Map\", then select \"Joe's Scrapyard\" to find your first car. Exploring costs Action Points, so keep an eye on your AP."
         );
         break;
       

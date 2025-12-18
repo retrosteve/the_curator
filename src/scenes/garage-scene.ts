@@ -870,7 +870,7 @@ export class GarageScene extends BaseGameScene {
                         setTimeout(() => {
                           this.tutorialManager.showDialogueWithCallback(
                             'Uncle Ray',
-                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map", then visit the Weekend Auction House (Estate Sale). You'll face competition from other collectors there.`,
+                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map", then visit the Weekend Auction House. You'll face competition from other collectors there.`,
                             () => this.setupUI()
                           );
                         }, 300);

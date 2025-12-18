@@ -385,7 +385,7 @@ export class NegotiationScene extends BaseGameScene {
           if (this.tutorialManager.isOnFirstInspectStep()) {
             this.tutorialManager.showDialogueWithCallback(
               'Uncle Ray',
-              "Good purchase! You earned +10 Eye XP for inspecting that car. Hover over the skill bars in your garage to see what each level unlocks. Click 'Garage' to see your new car, then restore it to increase its value.",
+              "Good purchase! You earned +10 Eye XP for inspecting that car. Hover over the skill bars in your garage to see what each level unlocks. Now head back to \"Your Garage\" and restore your new car to increase its value.",
               () => {
                 this.tutorialManager.onFirstTutorialCarPurchased();
                 this.handleLeave();

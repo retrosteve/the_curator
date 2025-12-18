@@ -45,10 +45,12 @@ export class MapScene extends BaseGameScene {
   private showCannotAffordAuctionModal(openingBid: number): void {
     const player = this.gameManager.getPlayerState();
     const isTutorialActive = this.tutorialManager.isTutorialActive();
+    const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+    const minMoneyToBid = openingBid + bidIncrement;
     this.uiManager.showModal(
       'Not Enough Money',
       isTutorialActive
-        ? `You can't afford the opening bid for this tutorial auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nIf you're stuck, skip the tutorial to continue freely.`
+        ? `You can't afford to place a bid in this tutorial auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nBid increment: ${formatCurrency(bidIncrement)}\nMinimum to bid: ${formatCurrency(minMoneyToBid)}\nYour money: ${formatCurrency(player.money)}\n\nIf you're stuck, skip the tutorial to continue freely.`
         : `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nTip: Visit the Garage to sell something, then come back.`,
       isTutorialActive
         ? [
@@ -387,7 +389,7 @@ export class MapScene extends BaseGameScene {
           // Show Sterling's dramatic intro dialogue, then start auction
           this.tutorialManager.showDialogueWithCallback(
             "Sterling Vance",
-            "*smirks* Sorry kid, but this Muscle Car is mine. You'll need more than just money to beat me in a bidding war. Watch and learn.",
+            "*smirks* Sorry kid, but this Muscle Car is mine. Go ahead, place a bid if you want, but I've got deeper pockets. Watch and learn.",
             () => {
               if (!this.hasGarageSpace()) {
                 this.showGarageFullGate();

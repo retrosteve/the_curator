@@ -395,17 +395,22 @@ export class MapScene extends BaseGameScene {
               }
 
               const openingBid = this.getAuctionOpeningBid(car);
-              const player = this.gameManager.getPlayerState();
+              const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+              const minMoneyToParticipate = openingBid + bidIncrement;
 
-              // Tutorial safety: avoid a hard soft-lock if somehow money is below the opening bid.
-              // We top the player up to exactly the opening bid so the tutorial can continue.
-              if (player.money < openingBid) {
-                const delta = openingBid - player.money;
+              const beforeTopUp = this.gameManager.getPlayerState();
+
+              // Tutorial safety: avoid a hard soft-lock if money is too low to even place a first bid.
+              // The Auction UI requires at least (opening bid + bid increment) to take an action.
+              if (beforeTopUp.money < minMoneyToParticipate) {
+                const delta = minMoneyToParticipate - beforeTopUp.money;
                 this.gameManager.addMoney(delta);
-                this.uiManager.showToast("Tutorial: Uncle Ray covers the opening bid.");
+                this.uiManager.showToast('Tutorial: Uncle Ray covers your first bid.');
               }
 
-              if (player.money < openingBid) {
+              // Re-read after top-up (getPlayerState returns a snapshot clone).
+              const afterTopUp = this.gameManager.getPlayerState();
+              if (afterTopUp.money < minMoneyToParticipate) {
                 this.showCannotAffordAuctionModal(openingBid);
                 return;
               }

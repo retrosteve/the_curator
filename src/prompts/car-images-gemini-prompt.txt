@@ -1,56 +1,13 @@
-I want you to generate individual car images with the following common theme:
+I have a list of cars that I need generated as separate images.
 
-Studio photography, neutral grey background, 4k, highly detailed, photorealistic, side profile view, clean condition, appropriate colour.
+For each individual car in the list below, please generate a separate image using this specific prompt template:
 
-Each car should have be oriented so that the hood is on the left side of the image.
+'A clean, high-resolution 32-bit pixel art sprite of a [Insert Car Name]. The vehicle is shown in a strictly flat 2D orthographic side profile view with zero perspective, facing left, with the hood on the left side of the image. The framing is close-up to maximize the size and pixel detail of the car within the canvas. High-detail pixel shading, rich color palette appropriate for the car, isolated on a solid plain grey background.'
 
-Each car should be centred in the image.
+Please generate the images one by one for the following vehicles:
 
-Each car should be returned as a distinct image. 
-
-The Google Gemini star-shape logo in the bottom-right of each image should be removed from the images after generation.
-
-The list of cars is:
-
-
-Rusty Sedan
-Muscle Car
-Boxy Wagon
+Fictional Rusty Sedan
+Fictional Muscle Car
+Fictional Boxy Wagon
 1969 Dodge Charger
 1994 Toyota Supra
-1967 Ford Mustang
-1999 Nissan Skyline GT-R
-1970 Plymouth Barracuda
-1995 Mazda RX-7
-1968 Chevrolet Camaro
-1998 Mitsubishi 3000GT VR-4
-1986 Toyota MR2
-1971 Datsun 240Z
-2006 Pontiac GTO
-1993 Ford Mustang Cobra
-1967 Shelby GT500
-1987 Porsche 959
-1970 Plymouth Hemi 'Cuda
-2005 Ford GT
-1963 Chevrolet Corvette Stingray
-1973 BMW 3.0 CSL
-1969 Chevrolet Camaro ZL1
-1991 Acura NSX
-2002 Honda NSX
-1961 Ferrari 250 GT SWB
-1993 Mazda RX-7 FD Spirit R
-1970 Chevrolet Chevelle SS 454
-1967 Jaguar E-Type Series 1
-1985 Ferrari 288 GTO
-1987 Buick GNX
-2002 Lamborghini Murciélago
-1969 Pontiac GTO Judge
-1998 Dodge Viper GTS
-1962 Ferrari 250 GTO
-1954 Mercedes-Benz 300SL Gullwing
-1967 Toyota 2000GT
-1995 McLaren F1
-1971 Plymouth Hemi 'Cuda Convertible
-1955 Porsche 550 Spyder
-1970 Dodge Charger R/T Hemi
-1964 Aston Martin DB5

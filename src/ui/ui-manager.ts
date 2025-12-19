@@ -88,6 +88,10 @@ export class UIManager {
     }
     this.container = overlay;
 
+    // Pixel UI theme: keep gameplay visuals as-is, but style the DOM overlay with
+    // a crisp, low-frills look (square corners, minimal gradients).
+    this.container.classList.add('ui-pixel');
+
     this.toastManager = new ToastManager((el) => this.appendToOverlay(el));
     this.modalManager = new ModalManager({
       append: (el) => this.append(el),

@@ -446,6 +446,25 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.uiManager.showToast(toast, options);
   }
 
+  private logOnly(
+    entry: string,
+    logKind: AuctionLogKind = 'warning'
+  ): void {
+    let logEntry = entry.trim();
+    if (!logEntry) return;
+
+    // Ensure non-speech lines still get the prefix-based coloring.
+    if (!logEntry.includes(':')) {
+      if (logKind === 'error') logEntry = `Error: ${logEntry}`;
+      else if (logKind === 'warning') logEntry = `Warning: ${logEntry}`;
+    }
+
+    const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
+    if (!last || last.text !== logEntry) {
+      this.appendAuctionLog(logEntry, logKind);
+    }
+  }
+
   private maybeToastPatienceWarning(): void {
     const patience = this.rivalAI.getPatience();
     if (patience <= 0) return;
@@ -454,7 +473,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (patience < thresholds.critical) {
       if (this.lastPatienceToastBand !== 'critical') {
         this.lastPatienceToastBand = 'critical';
-        this.showToastAndLog('Warning: Rival is about to quit!', { backgroundColor: '#f44336' }, undefined, 'warning');
+        // Rival-related notifications should live in the auction log only.
+        this.logOnly('Warning: Rival is about to quit!', 'warning');
       }
       return;
     }
@@ -462,7 +482,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (patience < thresholds.low) {
       if (this.lastPatienceToastBand === 'normal' || this.lastPatienceToastBand === 'medium') {
         this.lastPatienceToastBand = 'low';
-        this.showToastAndLog('Rival is getting impatient…', { backgroundColor: '#ff9800' }, undefined, 'warning');
+        // Rival-related notifications should live in the auction log only.
+        this.logOnly('Rival is getting impatient…', 'warning');
       }
       return;
     }
@@ -470,7 +491,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (patience < thresholds.medium) {
       if (this.lastPatienceToastBand === 'normal') {
         this.lastPatienceToastBand = 'medium';
-        this.showToastAndLog('Rival looks annoyed.', { backgroundColor: '#FFC107' }, undefined, 'warning');
+        // Rival-related notifications should live in the auction log only.
+        this.logOnly('Rival looks annoyed.', 'warning');
       }
     }
   }

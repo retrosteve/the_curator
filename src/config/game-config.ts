@@ -300,7 +300,7 @@ export const GAME_CONFIG = {
     toast: {
       baseTopPosition: 80,     // Starting Y position for first toast (px)
       heightWithMargin: 60,    // Height of each toast including margin (px)
-      animationDuration: 2500, // Toast display duration (ms)
+      durationMs: 4000,        // How long top-right toasts stay on screen (ms)
     },
 
     // Modal delays

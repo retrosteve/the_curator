@@ -1,0 +1,25 @@
+I have a list of fictional game characters that I need generated as separate images.
+
+For each individual character listed below, please generate a separate image using this specific prompt template:
+
+"A clean, high-resolution 32-bit pixel art portrait of [Insert Character Description from List Below]. The character is shown in a head-and-shoulders 'bust' view, facing slightly to the right (3/4 view) to maximize facial visibility and expression. The framing is close-up to focus on the face and upper torso. High-detail pixel shading, expressive features, rich color palette appropriate for the character design, isolated on a solid plain grey background."
+
+Please generate the images one by one for the following characters:
+
+Uncle Ray: An older man with a weathered face, wearing a worn mechanic's jacket and a grease-stained cap. He has stubble and a sly, knowing smirk that shows his gruff-but-warm nature.
+
+Sterling Vance: A blue-blood collector with slicked-back hair, wearing an expensive, tailored Italian suit and a silk tie. He has an arrogant, dominant sneer and cold eyes.
+
+Scrapyard Joe: A man wearing dirty overalls and a beanie, with grease smudges on his cheeks and hands. He has a suspicious, stubborn look and a determined jaw.
+
+Marcus “The Shark” Thompson: A man in a flashy, sharp, aggressive business suit. He has intense, predatory eyes and a wide, confident, shark-like grin.
+
+Yuki Tanaka: A woman with a neat, practical haircut, wearing a branded Japanese tuning shop jacket. She has a calm, focused, and methodical expression.
+
+Sarah Mitchell: A woman in smart, conservative professional attire (perhaps a tweed blazer). She has a serious, critical eye and pursed lips, perhaps holding a clipboard and pen. A different face to Yuki Tanaka.
+
+Victor “Fast Vic” Rodriguez: A young guy with a backwards baseball cap and a graphic t-shirt featuring a turbocharger. He has a loud, energetic, confident open-mouthed grin, perhaps wearing sunglasses on his head.
+
+Eleanor Wright: An elegant woman with perfectly styled hair, wearing expensive jewelry and a high-end designer blouse. She has a polished, composed, and slightly icy look.
+
+Tommy “Rust Bucket” Chen: A laid-back guy with a scruffy beard and messy hair, wearing a comfortable, worn flannel shirt. He has a gentle, patient, slightly dreamy smile.

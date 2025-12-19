@@ -1,6 +1,6 @@
 import { formatCurrency } from '@/utils/format';
 import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
-import { ensureStyleElement } from './ui-style';
+import { ensureStyleElement, isPixelUIEnabled } from './ui-style';
 
 /**
  * Manages transient toast UI (money floating text, XP toasts).
@@ -11,7 +11,70 @@ export class ToastManager {
 
   constructor(private readonly appendToOverlay: (element: HTMLElement) => void) {}
 
+  private createTopRightToastElement(options: {
+    text: string;
+    background: string;
+    animationName: string;
+    durationMs: number;
+    maxWidthPx?: number;
+  }): HTMLDivElement {
+    const pixelUI = isPixelUIEnabled();
+    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
+    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
+
+    const toast = document.createElement('div');
+    toast.textContent = options.text;
+    toast.style.cssText = `
+      position: fixed;
+      top: ${topPosition}px;
+      right: 20px;
+      padding: 12px 20px;
+      background: ${options.background};
+      color: #fff;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      pointer-events: none;
+      z-index: 10000;
+      animation: ${options.animationName} ${options.durationMs}ms ease-out forwards;
+      transition: top 0.3s ease;
+      white-space: pre-wrap;
+    `;
+
+    if (options.maxWidthPx !== undefined) {
+      toast.style.maxWidth = `${options.maxWidthPx}px`;
+    }
+
+    if (pixelUI) {
+      toast.style.borderRadius = '0px';
+      toast.style.boxShadow = 'none';
+    }
+
+    return toast;
+  }
+
+  private enqueueToast(toast: HTMLElement, durationMs: number): void {
+    this.activeToasts.push(toast);
+    this.appendToOverlay(toast);
+
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+
+      const index = this.activeToasts.indexOf(toast);
+      if (index > -1) {
+        this.activeToasts.splice(index, 1);
+      }
+
+      this.repositionToasts();
+    }, durationMs);
+  }
+
   public showFloatingMoney(amount: number, isPositive: boolean = true): void {
+    const pixelUI = isPixelUIEnabled();
+
     const floatingText = document.createElement('div');
     const symbol = isPositive ? '+' : '-';
     const color = isPositive ? '#2ecc71' : '#e74c3c';
@@ -30,6 +93,10 @@ export class ToastManager {
       z-index: 10000;
       animation: floatUp 1.5s ease-out forwards;
     `;
+
+    if (pixelUI) {
+      floatingText.style.textShadow = 'none';
+    }
 
     ensureStyleElement(
       'floatingMoneyAnimation',
@@ -68,9 +135,6 @@ export class ToastManager {
     const skillName = skillMeta.name;
     const skillColor = skillMeta.color;
 
-    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
-    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
-
     let toastText = `${skillIcon} +${amount} ${skillName} XP`;
     if (currentXP !== undefined && requiredXP !== undefined && currentLevel !== undefined) {
       if (requiredXP === 0) {
@@ -80,26 +144,13 @@ export class ToastManager {
       }
     }
 
-    const toast = document.createElement('div');
-    toast.textContent = toastText;
-    toast.style.cssText = `
-      position: fixed;
-      top: ${topPosition}px;
-      right: 20px;
-      padding: 12px 20px;
-      background: ${skillColor};
-      color: #fff;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      pointer-events: none;
-      z-index: 10000;
-      animation: slideInFadeOut ${GAME_CONFIG.ui.toast.animationDuration}ms ease-out forwards;
-      transition: top 0.3s ease;
-    `;
-
-    this.activeToasts.push(toast);
+    const durationMs = GAME_CONFIG.ui.toast.durationMs;
+    const toast = this.createTopRightToastElement({
+      text: toastText,
+      background: skillColor,
+      animationName: 'slideInFadeOut',
+      durationMs,
+    });
 
     ensureStyleElement(
       'xpToastAnimation',
@@ -125,20 +176,7 @@ export class ToastManager {
       `
     );
 
-    this.appendToOverlay(toast);
-
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-
-      const index = this.activeToasts.indexOf(toast);
-      if (index > -1) {
-        this.activeToasts.splice(index, 1);
-      }
-
-      this.repositionToasts();
-    }, GAME_CONFIG.ui.toast.animationDuration);
+    this.enqueueToast(toast, durationMs);
   }
 
   public showToast(
@@ -148,34 +186,18 @@ export class ToastManager {
     const safeMessage = message?.trim();
     if (!safeMessage) return;
 
-    const durationMs = options?.durationMs ?? GAME_CONFIG.ui.toast.animationDuration;
+    const durationMs =
+      options?.durationMs ??
+      GAME_CONFIG.ui.toast.durationMs;
     const backgroundColor = options?.backgroundColor ?? 'rgba(44, 62, 80, 0.95)';
 
-    const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
-    const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
-
-    const toast = document.createElement('div');
-    toast.textContent = safeMessage;
-    toast.style.cssText = `
-      position: fixed;
-      top: ${topPosition}px;
-      right: 20px;
-      padding: 12px 20px;
-      background: ${backgroundColor};
-      color: #fff;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: bold;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      pointer-events: none;
-      z-index: 10000;
-      animation: toastSlideInFadeOut ${durationMs}ms ease-out forwards;
-      transition: top 0.3s ease;
-      max-width: 380px;
-      white-space: pre-wrap;
-    `;
-
-    this.activeToasts.push(toast);
+    const toast = this.createTopRightToastElement({
+      text: safeMessage,
+      background: backgroundColor,
+      animationName: 'toastSlideInFadeOut',
+      durationMs,
+      maxWidthPx: 380,
+    });
 
     ensureStyleElement(
       'genericToastAnimation',
@@ -201,20 +223,7 @@ export class ToastManager {
       `
     );
 
-    this.appendToOverlay(toast);
-
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-
-      const index = this.activeToasts.indexOf(toast);
-      if (index > -1) {
-        this.activeToasts.splice(index, 1);
-      }
-
-      this.repositionToasts();
-    }, durationMs);
+    this.enqueueToast(toast, durationMs);
   }
 
   private repositionToasts(): void {

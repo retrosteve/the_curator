@@ -41,6 +41,12 @@ body {
   pointer-events: auto;
 }
 
+/* Pixel UI Theme (scoped to the DOM overlay only)
+   This intentionally keeps the Phaser canvas visuals unchanged. */
+#ui-overlay.ui-pixel {
+  font-family: 'Orbitron', sans-serif;
+}
+
 /* Game Panel Styles */
 .game-panel {
   background: linear-gradient(145deg, rgba(18, 18, 35, 0.95), rgba(30, 30, 50, 0.95));
@@ -51,6 +57,13 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 
               inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
+}
+
+#ui-overlay.ui-pixel .game-panel {
+  background: rgba(18, 18, 35, 0.95);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 /* HUD (compact, less cluttered) */
@@ -168,6 +181,54 @@ body {
   overflow: hidden;
 }
 
+#ui-overlay.ui-pixel .game-button {
+  border-radius: 0;
+  box-shadow: none;
+  transition: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+#ui-overlay.ui-pixel .game-button:hover {
+  transform: none;
+  box-shadow: none;
+  filter: brightness(1.1);
+}
+
+#ui-overlay.ui-pixel .game-button:active {
+  transform: none;
+  box-shadow: none;
+  filter: brightness(0.95);
+}
+
+#ui-overlay.ui-pixel .game-button {
+  background: #2a2a3e;
+}
+
+#ui-overlay.ui-pixel .game-button.btn-primary {
+  background: #2196F3;
+}
+
+#ui-overlay.ui-pixel .game-button.btn-success {
+  background: #27ae60;
+}
+
+#ui-overlay.ui-pixel .game-button.btn-warning {
+  background: #e67e22;
+}
+
+#ui-overlay.ui-pixel .game-button.btn-danger {
+  background: #c0392b;
+}
+
+#ui-overlay.ui-pixel .game-button.btn-info {
+  background: #607D8B;
+}
+
+#ui-overlay.ui-pixel .game-button.btn-special {
+  background: #f39c12;
+}
+
 .game-button::before {
   content: none;
 }
@@ -268,6 +329,17 @@ h1, h2, h3 {
   margin: 0 0 16px 0;
 }
 
+#ui-overlay.ui-pixel h1,
+#ui-overlay.ui-pixel h2,
+#ui-overlay.ui-pixel h3 {
+  text-shadow: none;
+}
+
+#ui-overlay.ui-pixel h1 {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+}
+
 h1 {
   font-size: 36px;
   background: linear-gradient(135deg, #64b5f6, #42a5f5, #2196f3);
@@ -344,6 +416,13 @@ p {
   animation: slideUp 0.3s ease-out;
 }
 
+#ui-overlay.ui-pixel .tutorial-dialogue {
+  background: rgba(40, 30, 10, 0.98);
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -387,6 +466,10 @@ p {
   border-bottom: 2px solid rgba(243, 156, 18, 0.3);
 }
 
+#ui-overlay.ui-pixel .tutorial-header {
+  border-bottom-width: 3px;
+}
+
 /* Garage declutter */
 .garage-inventory-panel {
   max-width: 960px;
@@ -401,6 +484,10 @@ p {
 
 .garage-car-card {
   padding: 14px;
+}
+
+#ui-overlay.ui-pixel .garage-car-card img {
+  border-radius: 0 !important;
 }
 
 .garage-car-card h3 {

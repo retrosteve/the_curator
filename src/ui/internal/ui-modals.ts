@@ -1,6 +1,7 @@
 import { formatCurrency } from '@/utils/format';
 import { SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import type { ButtonVariant } from './ui-types';
+import { isPixelUIEnabled } from './ui-style';
 
 type CreateHeading = (
   text: string,
@@ -153,6 +154,8 @@ export class ModalManager {
     }>,
     onCancel: () => void
   ): void {
+    const pixelUI = isPixelUIEnabled();
+
     const stop = (event: Event): void => {
       event.preventDefault();
       event.stopPropagation();
@@ -168,7 +171,7 @@ export class ModalManager {
       height: '100vh',
       zIndex: '999',
       backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(8px)',
+      backdropFilter: pixelUI ? 'none' : 'blur(8px)',
       pointerEvents: 'auto',
     });
 
@@ -196,9 +199,11 @@ export class ModalManager {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
+      background: pixelUI
+        ? 'rgba(18, 18, 35, 0.98)'
+        : 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
       border: '3px solid rgba(100, 200, 255, 0.4)',
-      borderRadius: '20px',
+      borderRadius: pixelUI ? '0px' : '20px',
       padding: '32px',
       minWidth: '500px',
       maxWidth: '700px',
@@ -206,7 +211,9 @@ export class ModalManager {
       overflowY: 'auto',
       zIndex: '1000',
       pointerEvents: 'auto',
-      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      boxShadow: pixelUI
+        ? 'none'
+        : '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
     });
 
     const heading = this.deps.createHeading('Select Restoration Service', 2, {
@@ -230,22 +237,24 @@ export class ModalManager {
     options.forEach((opt) => {
       const card = document.createElement('div');
       Object.assign(card.style, {
-        background: 'linear-gradient(145deg, rgba(30, 30, 50, 0.8), rgba(40, 40, 60, 0.8))',
+        background: pixelUI
+          ? 'rgba(30, 30, 50, 0.8)'
+          : 'linear-gradient(145deg, rgba(30, 30, 50, 0.8), rgba(40, 40, 60, 0.8))',
         border: '2px solid rgba(100, 200, 255, 0.2)',
-        borderRadius: '12px',
+        borderRadius: pixelUI ? '0px' : '12px',
         padding: '16px',
         marginBottom: '16px',
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
+        transition: pixelUI ? 'none' : 'all 0.2s ease',
       });
 
       card.addEventListener('mouseenter', () => {
         card.style.borderColor = 'rgba(100, 200, 255, 0.5)';
-        card.style.transform = 'translateX(4px)';
+        if (!pixelUI) card.style.transform = 'translateX(4px)';
       });
       card.addEventListener('mouseleave', () => {
         card.style.borderColor = 'rgba(100, 200, 255, 0.2)';
-        card.style.transform = 'translateX(0)';
+        if (!pixelUI) card.style.transform = 'translateX(0)';
       });
 
       const cardHeader = document.createElement('div');
@@ -367,6 +376,8 @@ export class ModalManager {
     message: string,
     buttons: { text: string; onClick: () => void; variant?: ButtonVariant }[]
   ): HTMLDivElement {
+    const pixelUI = isPixelUIEnabled();
+
     const stop = (event: Event): void => {
       event.preventDefault();
       event.stopPropagation();
@@ -382,7 +393,7 @@ export class ModalManager {
       height: '100vh',
       zIndex: '999',
       backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      backdropFilter: 'blur(8px)',
+      backdropFilter: pixelUI ? 'none' : 'blur(8px)',
       pointerEvents: 'auto',
     });
 
@@ -410,16 +421,20 @@ export class ModalManager {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
+      background: pixelUI
+        ? 'rgba(18, 18, 35, 0.98)'
+        : 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
       border: '3px solid rgba(100, 200, 255, 0.4)',
-      borderRadius: '20px',
+      borderRadius: pixelUI ? '0px' : '20px',
       padding: '32px',
       minWidth: '400px',
       maxWidth: '700px',
       maxHeight: '85vh',
       zIndex: '1000',
       pointerEvents: 'auto',
-      boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      boxShadow: pixelUI
+        ? 'none'
+        : '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
       display: 'flex',
       flexDirection: 'column',
     });

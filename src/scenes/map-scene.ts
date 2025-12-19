@@ -51,7 +51,7 @@ export class MapScene extends BaseGameScene {
       'Not Enough Money',
       isTutorialActive
         ? `You can't afford to place a bid in this tutorial auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nBid increment: ${formatCurrency(bidIncrement)}\nMinimum to bid: ${formatCurrency(minMoneyToBid)}\nYour money: ${formatCurrency(player.money)}\n\nIf you're stuck, skip the tutorial to continue freely.`
-        : `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}\n\nTip: Visit the Garage to sell something, then come back.`,
+        : `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}`,
       isTutorialActive
         ? [
             { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
@@ -63,10 +63,7 @@ export class MapScene extends BaseGameScene {
             },
             { text: 'OK', onClick: () => {} },
           ]
-        : [
-            { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-            { text: 'OK', onClick: () => {} },
-          ]
+        : [{ text: 'OK', onClick: () => {} }]
     );
   }
 
@@ -451,6 +448,15 @@ export class MapScene extends BaseGameScene {
         // Redemption: Force re-entry to the Boxy Wagon auction until the player wins.
         // This prevents a tutorial stall if the player quits/loses the redemption auction.
         if (node.id === 'auction_1' && this.tutorialManager.isOnRedemptionStep()) {
+          const playerHasBoxyWagon = this.gameManager
+            .getPlayerState()
+            .inventory.some((ownedCar) => ownedCar.id === 'car_tutorial_boxy_wagon');
+
+          if (playerHasBoxyWagon) {
+            // Reconciliation safety: the player already acquired the redemption car (likely via save/load).
+            // Don't force a repeat auction; end the tutorial and proceed normally.
+            this.tutorialManager.completeTutorial();
+          } else {
           const boxywagon = getCarById('car_tutorial_boxy_wagon');
           const scrappyJoe = getRivalById('scrapyard_joe');
           if (!boxywagon || !scrappyJoe) {
@@ -484,6 +490,7 @@ export class MapScene extends BaseGameScene {
             }
           );
           return;
+          }
         }
       }
     } catch (error) {

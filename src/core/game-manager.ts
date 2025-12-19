@@ -1193,6 +1193,15 @@ export class GameManager {
       if (hydrated.tutorial) {
         const tutorialManager = TutorialManager.getInstance();
         tutorialManager.loadState(hydrated.tutorial);
+
+        // Save-load reconciliation: if the tutorial is stuck on redemption but the player already
+        // owns the Boxy Wagon, silently complete the tutorial so the map doesn't force re-entry.
+        if (tutorialManager.isOnRedemptionStep()) {
+          const alreadyOwnsBoxyWagon = this.player.inventory.some((car) => car.id === 'car_tutorial_boxy_wagon');
+          if (alreadyOwnsBoxyWagon) {
+            tutorialManager.completeTutorial();
+          }
+        }
       }
 
       console.log('Game loaded successfully');

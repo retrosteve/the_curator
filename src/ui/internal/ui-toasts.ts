@@ -59,6 +59,8 @@ export class ToastManager {
       portrait.style.flex = '0 0 auto';
       portrait.style.imageRendering = pixelUI ? 'pixelated' : 'auto';
       portrait.style.borderRadius = pixelUI ? '0px' : '6px';
+      portrait.style.border = '2px solid rgba(255,255,255,0.18)';
+      portrait.style.backgroundColor = 'rgba(0,0,0,0.18)';
 
       const text = document.createElement('div');
       text.textContent = options.text;

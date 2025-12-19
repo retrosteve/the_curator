@@ -5,6 +5,8 @@
  * - Sticky log panel with prefix-only coloring
  */
 
+import { isPixelUIEnabled } from './ui-style';
+
 export type EncounterLogStyle = {
   color: string;
   fontWeight?: string;
@@ -140,6 +142,8 @@ export function createEncounterLogPanel<K extends string>(
   for (const entry of recentEntries) {
     const kindStyle = getStyle(entry.kind);
 
+    const pixelUI = isPixelUIEnabled();
+
     const line = document.createElement('div');
     Object.assign(line.style, {
       display: 'flex',
@@ -160,7 +164,10 @@ export function createEncounterLogPanel<K extends string>(
       portrait.style.height = `${sizePx}px`;
       portrait.style.objectFit = 'cover';
       portrait.style.flex = '0 0 auto';
-      portrait.style.borderRadius = '4px';
+      portrait.style.borderRadius = pixelUI ? '0px' : '4px';
+      portrait.style.border = '2px solid rgba(255,255,255,0.18)';
+      portrait.style.backgroundColor = 'rgba(0,0,0,0.18)';
+      portrait.style.imageRendering = pixelUI ? 'pixelated' : 'auto';
       line.appendChild(portrait);
     }
 

@@ -19,6 +19,7 @@ export interface PlayerState {
   garageSlots: number;
   prestige: number;
   bankLoanTaken: boolean;
+  activeLoan: FinanceLoan | null;
   skills: {
     eye: number; // 1-5
     tongue: number; // 1-5
@@ -60,8 +61,17 @@ export interface WorldState {
   };
 }
 
+export interface FinanceLoan {
+  lenderName: 'Preston Banks';
+  principal: number;
+  fee: number;
+  takenDay: number;
+}
+
 const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
+const PRESTON_LOAN_AMOUNT = GAME_CONFIG.economy.finance.prestonLoan.amount;
+const PRESTON_LOAN_FEE_RATE = GAME_CONFIG.economy.finance.prestonLoan.feeRate;
 const MAX_AP = GAME_CONFIG.day.maxAP;
 
 const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for on-change autosave)
@@ -135,6 +145,7 @@ export class GameManager {
     return {
       ...player,
       inventory: GameManager.cloneInventory(player.inventory),
+      activeLoan: player.activeLoan ? { ...player.activeLoan } : null,
       skills: { ...player.skills },
       skillXP: { ...player.skillXP },
       visitedLocations: new Set(player.visitedLocations),
@@ -166,6 +177,7 @@ export class GameManager {
       garageSlots: GAME_CONFIG.player.startingGarageSlots,
       prestige: GAME_CONFIG.player.startingPrestige,
       bankLoanTaken: false,
+      activeLoan: null,
       skills: { ...GAME_CONFIG.player.startingSkills },
       skillXP: { eye: 0, tongue: 0, network: 0 },
       visitedLocations: new Set(['garage']), // Start with garage as visited
@@ -397,6 +409,66 @@ export class GameManager {
     eventBus.emit('money-changed', this.player.money);
     this.debouncedSave();
     return true;
+  }
+
+  public getActiveLoan(): DeepReadonly<FinanceLoan | null> {
+    return this.player.activeLoan ? { ...this.player.activeLoan } : null;
+  }
+
+  public canTakePrestonLoan(): boolean {
+    return this.player.activeLoan === null;
+  }
+
+  public getPrestonLoanTerms(): { principal: number; fee: number; totalDue: number } {
+    const principal = PRESTON_LOAN_AMOUNT;
+    const feeRaw = principal * PRESTON_LOAN_FEE_RATE;
+    // Keep fees tidy for UI (round to nearest 100).
+    const fee = Math.max(0, Math.round(feeRaw / 100) * 100);
+    return { principal, fee, totalDue: principal + fee };
+  }
+
+  public takePrestonLoan(): { ok: true; loan: FinanceLoan } | { ok: false; reason: string } {
+    if (!this.canTakePrestonLoan()) {
+      return { ok: false, reason: 'You already have an active loan.' };
+    }
+
+    const terms = this.getPrestonLoanTerms();
+    const loan: FinanceLoan = {
+      lenderName: 'Preston Banks',
+      principal: terms.principal,
+      fee: terms.fee,
+      takenDay: this.world.day,
+    };
+
+    this.player.activeLoan = loan;
+    // Do not count as “money earned” in day stats.
+    this.player.money += terms.principal;
+    eventBus.emit('money-changed', this.player.money);
+    this.debouncedSave();
+
+    return { ok: true, loan };
+  }
+
+  public repayActiveLoan():
+    | { ok: true; totalPaid: number }
+    | { ok: false; reason: string; totalDue: number } {
+    const loan = this.player.activeLoan;
+    if (!loan) {
+      return { ok: false, reason: 'No active loan to repay.', totalDue: 0 };
+    }
+
+    const totalDue = loan.principal + loan.fee;
+    if (this.player.money < totalDue) {
+      return { ok: false, reason: 'Not enough money to repay the loan.', totalDue };
+    }
+
+    // Do not count as “money spent” in day stats.
+    this.player.money -= totalDue;
+    this.player.activeLoan = null;
+    eventBus.emit('money-changed', this.player.money);
+    this.debouncedSave();
+
+    return { ok: true, totalPaid: totalDue };
   }
 
   /**

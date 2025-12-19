@@ -174,6 +174,14 @@ export const GAME_CONFIG = {
       oneTime: true,
     },
 
+    // Finance system (risk-free for now; only one active loan at a time).
+    finance: {
+      prestonLoan: {
+        amount: 10000,
+        feeRate: 0.1,
+      },
+    },
+
     sellAsIsMultiplier: 0.7,
 
     restoration: {

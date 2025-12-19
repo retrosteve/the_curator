@@ -47,5 +47,5 @@ export function getPlaceholderCharacterPortraitUrl(): string {
 
 export function getCharacterPortraitUrlOrPlaceholder(name: string | undefined): string {
   if (!name) return PLACEHOLDER_CHARACTER_PORTRAIT_URL;
-  return portraitsByKey.get(normalizeCharacterKey(name)) ?? PLACEHOLDER_CHARACTER_PORTRAIT_URL;
+  return getCharacterPortraitUrl(name) ?? PLACEHOLDER_CHARACTER_PORTRAIT_URL;
 }

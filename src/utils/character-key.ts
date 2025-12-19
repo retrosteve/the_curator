@@ -16,5 +16,9 @@ export function normalizeCharacterKey(input: string): string {
 
   // Collapse whitespace and case-fold for stable lookups.
   s = s.replace(/\s+/g, ' ').toLowerCase();
+
+  // Many character names include nicknames in quotes, but filenames may omit them.
+  // Drop straight quotes to make lookups tolerant either way.
+  s = s.replace(/["']/g, '');
   return s;
 }

@@ -443,6 +443,8 @@ export class UIManager {
       valueIncrease: number;
       netProfit: number;
       risk?: string;
+      portraitUrl?: string;
+      portraitAlt?: string;
       onClick: () => void;
     }>,
     onCancel: () => void
@@ -491,6 +493,25 @@ export class UIManager {
     buttons: { text: string; onClick: () => void }[]
   ): HTMLDivElement {
     return this.modalManager.showModal(title, message, buttons);
+  }
+
+  public showCharacterModal(
+    characterName: string,
+    title: string,
+    message: string,
+    buttons: { text: string; onClick: () => void }[],
+    options?: { portraitSizePx?: number }
+  ): HTMLDivElement {
+    return this.modalManager.showCharacterModal(
+      title,
+      message,
+      {
+        portraitUrl: getCharacterPortraitUrlOrPlaceholder(characterName),
+        portraitAlt: characterName,
+        portraitSizePx: options?.portraitSizePx,
+      },
+      buttons
+    );
   }
 
   /**

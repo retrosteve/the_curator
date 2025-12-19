@@ -255,6 +255,28 @@ export const RivalDatabase: Rival[] = [
     strategy: 'Passive',
     avatar: '#FFAA44',
   },
+  {
+    id: 'rival_007',
+    name: 'Teddy Rosso',
+    bio: 'A fast-talking used car dealer with a showroom smile and a razor-sharp nose for margin. Friendly on the surface, ruthless when the bidding starts.',
+    tier: 2,
+    budget: 42000,
+    patience: 55,
+    wishlist: ['Daily Driver', 'Budget', 'American', 'Practical'],
+    strategy: 'Aggressive',
+    avatar: '#C0392B',
+  },
+  {
+    id: 'rival_008',
+    name: 'Anya Petrova',
+    bio: 'A sharp and calculating broker who deals exclusively in high-end, imported vehicles. Her cold, professional demeanor hides a fierce negotiator.',
+    tier: 1,
+    budget: 85000,
+    patience: 65,
+    wishlist: ['Exotic', 'European', 'Italian', 'Supercar', 'Rare'],
+    strategy: 'Collector',
+    avatar: '#2C3E50',
+  },
 ];
 
 /**

@@ -231,6 +231,7 @@ export function hydrateLoadedState(saveData: SavedGameData): {
     garageSlots: rawPlayer.garageSlots ?? 1,
     prestige: rawPlayer.prestige ?? 0,
     bankLoanTaken: rawPlayer.bankLoanTaken ?? false,
+    activeLoan: rawPlayer.activeLoan ?? null,
     skills: rawPlayer.skills ?? { eye: 1, tongue: 1, network: 1 },
     skillXP: rawPlayer.skillXP ?? { eye: 0, tongue: 0, network: 0 },
     visitedLocations: new Set(rawPlayer.visitedLocations ?? ['garage']),

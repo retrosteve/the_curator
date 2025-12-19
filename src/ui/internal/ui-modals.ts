@@ -150,6 +150,8 @@ export class ModalManager {
       valueIncrease: number;
       netProfit: number;
       risk?: string;
+      portraitUrl?: string;
+      portraitAlt?: string;
       onClick: () => void;
     }>,
     onCancel: () => void
@@ -265,6 +267,31 @@ export class ModalManager {
         marginBottom: '8px',
       });
 
+      const leftHeader = document.createElement('div');
+      Object.assign(leftHeader.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minWidth: '0',
+      });
+
+      if (opt.portraitUrl) {
+        const portrait = document.createElement('img');
+        portrait.src = opt.portraitUrl;
+        portrait.alt = opt.portraitAlt ?? '';
+        Object.assign(portrait.style, {
+          width: '44px',
+          height: '44px',
+          objectFit: 'cover',
+          flex: '0 0 auto',
+          borderRadius: pixelUI ? '0px' : '10px',
+          border: '2px solid rgba(255,255,255,0.18)',
+          backgroundColor: 'rgba(0,0,0,0.18)',
+          imageRendering: pixelUI ? 'pixelated' : 'auto',
+        } as Partial<CSSStyleDeclaration>);
+        leftHeader.appendChild(portrait);
+      }
+
       const optionName = document.createElement('h3');
       optionName.textContent = opt.name;
       Object.assign(optionName.style, {
@@ -272,6 +299,10 @@ export class ModalManager {
         fontSize: '18px',
         color: '#64b5f6',
         fontFamily: 'Orbitron, sans-serif',
+        minWidth: '0',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
       });
 
       const costInfo = document.createElement('div');
@@ -282,7 +313,8 @@ export class ModalManager {
         fontWeight: 'bold',
       });
 
-      cardHeader.appendChild(optionName);
+      leftHeader.appendChild(optionName);
+      cardHeader.appendChild(leftHeader);
       cardHeader.appendChild(costInfo);
       card.appendChild(cardHeader);
 
@@ -481,6 +513,156 @@ export class ModalManager {
     });
 
     modal.appendChild(heading);
+    modal.appendChild(contentContainer);
+    modal.appendChild(buttonContainer);
+
+    this.deps.append(backdrop);
+    this.deps.append(modal);
+
+    return modal;
+  }
+
+  public showCharacterModal(
+    title: string,
+    message: string,
+    options: { portraitUrl: string; portraitAlt?: string; portraitSizePx?: number },
+    buttons: { text: string; onClick: () => void; variant?: ButtonVariant }[]
+  ): HTMLDivElement {
+    const pixelUI = isPixelUIEnabled();
+
+    const stop = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const backdrop = document.createElement('div');
+    backdrop.className = 'game-modal-backdrop';
+    Object.assign(backdrop.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      zIndex: '999',
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backdropFilter: pixelUI ? 'none' : 'blur(8px)',
+      pointerEvents: 'auto',
+    });
+
+    [
+      'pointerdown',
+      'pointerup',
+      'pointermove',
+      'click',
+      'mousedown',
+      'mouseup',
+      'mousemove',
+      'wheel',
+      'touchstart',
+      'touchend',
+      'touchmove',
+    ].forEach((eventName) => {
+      backdrop.addEventListener(eventName, stop, { capture: true });
+    });
+
+    const modal = document.createElement('div');
+    modal.className = 'game-modal';
+
+    Object.assign(modal.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: pixelUI
+        ? 'rgba(18, 18, 35, 0.98)'
+        : 'linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98))',
+      border: '3px solid rgba(100, 200, 255, 0.4)',
+      borderRadius: pixelUI ? '0px' : '20px',
+      padding: '32px',
+      minWidth: '400px',
+      maxWidth: '700px',
+      maxHeight: '85vh',
+      zIndex: '1000',
+      pointerEvents: 'auto',
+      boxShadow: pixelUI
+        ? 'none'
+        : '0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+      display: 'flex',
+      flexDirection: 'column',
+    });
+
+    const headingRow = document.createElement('div');
+    Object.assign(headingRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '12px',
+      marginBottom: '20px',
+      flexShrink: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const portrait = document.createElement('img');
+    portrait.src = options.portraitUrl;
+    portrait.alt = options.portraitAlt ?? '';
+    const sizePx = options.portraitSizePx ?? 56;
+    Object.assign(portrait.style, {
+      width: `${sizePx}px`,
+      height: `${sizePx}px`,
+      objectFit: 'cover',
+      flex: '0 0 auto',
+      borderRadius: pixelUI ? '0px' : '10px',
+      border: '2px solid rgba(255,255,255,0.18)',
+      backgroundColor: 'rgba(0,0,0,0.18)',
+      imageRendering: pixelUI ? 'pixelated' : 'auto',
+    } as Partial<CSSStyleDeclaration>);
+    headingRow.appendChild(portrait);
+
+    const heading = this.deps.createHeading(title, 2, {
+      textAlign: 'center',
+      marginBottom: '0',
+      flexShrink: '0',
+    });
+    headingRow.appendChild(heading);
+
+    const contentContainer = document.createElement('div');
+    Object.assign(contentContainer.style, {
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      marginBottom: '20px',
+      flexGrow: '1',
+      flexShrink: '1',
+      wordWrap: 'break-word',
+      textAlign: 'center',
+    });
+
+    // Security: always treat `message` as plain text (no HTML parsing).
+    const text = this.deps.createText(message, {
+      fontSize: '16px',
+    });
+    contentContainer.appendChild(text);
+
+    const buttonContainer = document.createElement('div');
+    Object.assign(buttonContainer.style, {
+      display: 'flex',
+      justifyContent: 'center',
+      gap: '10px',
+      flexShrink: '0',
+    });
+
+    buttons.forEach((btn) => {
+      const button = this.deps.createButton(
+        btn.text,
+        () => {
+          btn.onClick();
+          this.deps.remove(modal);
+          this.deps.remove(backdrop);
+        },
+        { variant: btn.variant }
+      );
+      buttonContainer.appendChild(button);
+    });
+
+    modal.appendChild(headingRow);
     modal.appendChild(contentContainer);
     modal.appendChild(buttonContainer);
 

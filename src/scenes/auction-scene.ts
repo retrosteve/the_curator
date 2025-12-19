@@ -26,6 +26,12 @@ type AuctionLogEntry = {
   portraitSizePx?: number;
 };
 
+const AUCTIONEER_NAMES = [
+  '"Fast Talkin\'" Fred Harvey',
+  'Victoria "The Gavel" Sterling',
+  'Barnaby "Old Timer" Brooks',
+] as const;
+
 /**
  * Auction Scene - Turn-based bidding battle against a rival.
  * Player uses various tactics (bid, power bid, stall, kick tires) to win the car.
@@ -36,6 +42,7 @@ export class AuctionScene extends BaseGameScene {
   private rival!: Rival;
   private rivalAI!: RivalAI;
   private locationId?: string;
+  private auctioneerName!: string;
   private encounterStarted: boolean = false;
   private currentBid: number = 0;
   private stallUsesThisAuction: number = 0;
@@ -73,6 +80,7 @@ export class AuctionScene extends BaseGameScene {
     this.rival = data.rival;
     this.rivalAI = new RivalAI(data.rival, data.interest);
     this.locationId = data.locationId;
+    this.auctioneerName = AUCTIONEER_NAMES[Math.floor(Math.random() * AUCTIONEER_NAMES.length)];
     this.encounterStarted = false;
     // Initialize with non-market value; we'll re-evaluate once managers are ready.
     this.currentBid = Math.floor(calculateCarValue(this.car) * AuctionScene.STARTING_BID_MULTIPLIER);
@@ -104,6 +112,11 @@ export class AuctionScene extends BaseGameScene {
 
     // Market-aware starting bid (use the cached estimate).
     this.currentBid = Math.floor(this.auctionMarketEstimateValue * AuctionScene.STARTING_BID_MULTIPLIER);
+
+    this.logOnly(`${this.auctioneerName}: Alright folks—let’s get this started.`, 'system', {
+      portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
+      portraitAlt: this.auctioneerName,
+    });
 
     this.appendAuctionLog(`Auction opens at ${formatCurrency(this.currentBid)}.`, 'system');
     const marketLine = this.auctionMarketEstimateFactors.length > 0

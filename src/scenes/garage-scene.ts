@@ -7,7 +7,6 @@ import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car, getCarById } from '@/data/car-database';
 import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
-import { getRivalMood, getRivalById } from '@/data/rival-database';
 import { getAllCharacterProfiles } from '@/data/character-database';
 import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
@@ -112,89 +111,68 @@ export class GarageScene extends BaseGameScene {
   }
 
   private createMorningPaper(): HTMLElement {
-    const paperPanel = document.createElement('div');
-    paperPanel.className = 'garage-brief';
+    const container = document.createElement('div');
+    container.className = 'garage-brief';
 
-    // Header
-    const header = document.createElement('div');
-    header.className = 'garage-brief-header';
-    header.innerHTML = `
-      <span class="garage-brief-title">Morning Brief</span>
-      <span class="garage-brief-day">Day ${this.gameManager.getWorldState().day}</span>
-    `;
-    paperPanel.appendChild(header);
+    const player = this.gameManager.getPlayerState();
+    const world = this.gameManager.getWorldState();
+    const garageCarCount = this.gameManager.getGarageCarCount();
+    const rentDue = this.gameManager.getDailyRent();
 
-    // 1. Market Section
     const marketSystem = MarketFluctuationSystem.getInstance();
     const marketState = marketSystem.getState();
     const marketEvent = marketState.currentEvent;
+    const marketSummary = marketEvent
+      ? `${marketEvent.type.replace(/([A-Z])/g, ' $1').trim()} (${marketEvent.daysRemaining}d)`
+      : 'Stable';
 
-    const marketSection = document.createElement('div');
-    marketSection.className = 'garage-brief-section';
-    
-    if (marketEvent) {
-      const trendIcon = marketEvent.type === 'boom' || marketEvent.type === 'nicheBoom' ? '📈' : '📉';
-      marketSection.innerHTML = `
-        <div class="garage-brief-kicker">${trendIcon} Market</div>
-        <div class="garage-brief-body">${marketEvent.description}</div>
-        <div class="garage-brief-muted">Expires in ${marketEvent.daysRemaining} days</div>
-      `;
-    } else {
-      marketSection.innerHTML = `
-        <div class="garage-brief-kicker">📊 Market</div>
-        <div class="garage-brief-body">Stable. Standard prices apply.</div>
-      `;
-    }
-    paperPanel.appendChild(marketSection);
-
-    // 2. Special Events Section
     const eventsSystem = SpecialEventsSystem.getInstance();
     const activeEvents = eventsSystem.getActiveEvents();
 
-    if (activeEvents.length > 0) {
-      const eventSection = document.createElement('div');
-      eventSection.className = 'garage-brief-section';
-      
-      const event = activeEvents[0]; // Just show the first one to save space
-      eventSection.innerHTML = `
-        <div class="garage-brief-kicker">🌟 Special</div>
-        <div class="garage-brief-body">${event.name}: ${event.description}</div>
-        ${activeEvents.length > 1 ? `<div class="garage-brief-muted">+${activeEvents.length - 1} other events</div>` : ''}
-      `;
-      paperPanel.appendChild(eventSection);
-    }
+    const lineStyle: Partial<CSSStyleDeclaration> = {
+      margin: '6px 0',
+      fontSize: '12px',
+      lineHeight: '1.35',
+      opacity: '0.9',
+    };
 
-    // 3. Rival Rumor Section
-    const rumorSection = document.createElement('div');
-    rumorSection.className = 'garage-brief-section garage-brief-section--wide';
-    
-    // Generate a random rumor
-    const rumor = this.generateRivalRumor();
-    rumorSection.innerHTML = `
-      <div class="garage-brief-kicker">🗣️ Gossip</div>
-      <div class="garage-brief-body garage-brief-body--quote">"${rumor}"</div>
-    `;
-    paperPanel.appendChild(rumorSection);
+    container.appendChild(
+      this.uiManager.createText(
+        `Day ${world.day} · AP ${world.currentAP}/${GAME_CONFIG.day.maxAP}`,
+        lineStyle
+      )
+    );
 
-    return paperPanel;
-  }
+    container.appendChild(
+      this.uiManager.createText(
+        `Cash: ${formatCurrency(player.money)} · Rent due tonight: ${formatCurrency(rentDue)}`,
+        lineStyle
+      )
+    );
 
-  private generateRivalRumor(): string {
-    const rivals = ['rival_001', 'rival_002', 'rival_003']; // IDs from RivalDatabase
-    const randomRivalId = rivals[Math.floor(Math.random() * rivals.length)];
-    const mood = getRivalMood(randomRivalId, this.gameManager.getWorldState().day);
-    const rivalName = getRivalById(randomRivalId)?.name || 'Unknown Rival';
+    container.appendChild(
+      this.uiManager.createText(
+        `Garage: ${garageCarCount}/${player.garageSlots} cars · Prestige: ${formatNumber(player.prestige)}`,
+        lineStyle
+      )
+    );
 
-    switch (mood) {
-      case 'Desperate':
-        return `Sources say ${rivalName} is desperate for a win after recent losses.`;
-      case 'Confident':
-        return `${rivalName} was seen celebrating. They seem overly confident today.`;
-      case 'Cautious':
-        return `Rumor has it ${rivalName} is playing it safe with their budget.`;
-      default:
-        return `${rivalName} has been spotted scouting the local dealerships.`;
-    }
+    const activeLoan = this.gameManager.getActiveLoan();
+    const financeLine = activeLoan
+      ? `Finance: Owes ${formatCurrency(activeLoan.principal + activeLoan.fee)} (${formatCurrency(activeLoan.principal)} + ${formatCurrency(activeLoan.fee)} fee, taken day ${activeLoan.takenDay})`
+      : 'Finance: No active loan';
+    container.appendChild(this.uiManager.createText(financeLine, lineStyle));
+
+    const eventsLine = activeEvents.length
+      ? activeEvents
+          .map((event) => `${event.name} (${event.expiresInDays}d)`)
+          .join(' · ')
+      : 'None';
+
+    container.appendChild(this.uiManager.createText(`Market: ${marketSummary}`, lineStyle));
+    container.appendChild(this.uiManager.createText(`Events: ${eventsLine}`, lineStyle));
+
+    return container;
   }
 
   private setupUI(): void {
@@ -314,6 +292,13 @@ export class GarageScene extends BaseGameScene {
       );
       secondaryActions.appendChild(upgradeBtn);
     }
+
+    const financeBtn = this.createTutorialAwareButton(
+      '💳 Finance (Preston Banks)',
+      () => this.showFinanceModal(),
+      { variant: 'info', style: compactButtonStyle }
+    );
+    secondaryActions.appendChild(financeBtn);
 
     // Victory Progress button
     const victoryBtn = this.createTutorialAwareButton(
@@ -435,7 +420,7 @@ export class GarageScene extends BaseGameScene {
     const peopleDetails = document.createElement('details');
     peopleDetails.className = 'garage-collapsible';
     const peopleSummary = document.createElement('summary');
-    peopleSummary.textContent = 'People — Uncle Ray & Rivals';
+    peopleSummary.textContent = 'People — Characters';
     peopleDetails.appendChild(peopleSummary);
 
     const peopleGrid = document.createElement('div');
@@ -866,6 +851,10 @@ export class GarageScene extends BaseGameScene {
         valueIncrease,
         netProfit,
         risk: opt.risk,
+        portraitUrl: getCharacterPortraitUrlOrPlaceholder(
+          opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan'
+        ),
+        portraitAlt: opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan',
         onClick: () => {
           const block = this.timeSystem.getAPBlockModal(opt.apCost, `restoring ${car.name}`);
           if (block) {
@@ -879,6 +868,12 @@ export class GarageScene extends BaseGameScene {
             const isTutorialFirstRestore = this.tutorialManager.shouldForceFirstRestorationSuccess();
             const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
             this.gameManager.updateCar(result.car);
+
+            const specialistName = opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan';
+            const backgroundColor = result.success
+              ? (opt.specialist === 'Charlie' ? 'rgba(96, 125, 139, 0.95)' : 'rgba(39, 174, 96, 0.95)')
+              : 'rgba(230, 126, 34, 0.95)';
+            this.uiManager.showCharacterToast(specialistName, result.message, { backgroundColor });
             
             // Show discovery message if found
             if (result.discovery) {
@@ -887,7 +882,8 @@ export class GarageScene extends BaseGameScene {
               const valueChange = result.discovery.valueChange;
               
               setTimeout(() => {
-                this.uiManager.showModal(
+                this.uiManager.showCharacterModal(
+                  specialistName,
                   `${discoveryIcon} Hidden Discovery!`,
                   result.message + `\n\n${discoveryName}\nValue change: ${formatCurrency(Math.abs(valueChange))}`,
                   [{ text: 'Continue', onClick: () => {
@@ -1480,6 +1476,72 @@ export class GarageScene extends BaseGameScene {
           },
         },
         { text: 'Back', onClick: () => {} },
+      ]
+    );
+  }
+
+  private showFinanceModal(): void {
+    const lenderName = 'Preston Banks';
+    const loan = this.gameManager.getActiveLoan();
+    const world = this.gameManager.getWorldState();
+
+    if (!loan) {
+      const terms = this.gameManager.getPrestonLoanTerms();
+      this.uiManager.showCharacterModal(
+        lenderName,
+        'Finance',
+        `Need liquidity for deals?\n\nTake a short-term loan: +${formatCurrency(terms.principal)}\nRepay anytime: ${formatCurrency(terms.totalDue)} (includes ${formatCurrency(terms.fee)} fee)\n\nRule: Only one active loan at a time.`,
+        [
+          {
+            text: `Take Loan (+${formatCurrency(terms.principal)})`,
+            onClick: () => {
+              const result = this.gameManager.takePrestonLoan();
+              if (!result.ok) {
+                setTimeout(() => {
+                  this.uiManager.showModal('Finance', result.reason, [{ text: 'OK', onClick: () => {} }]);
+                }, 0);
+                return;
+              }
+
+              this.uiManager.showCharacterToast(
+                lenderName,
+                `Approved. ${formatCurrency(terms.principal)} transferred. Repay ${formatCurrency(terms.totalDue)} anytime.`
+              );
+              this.setupUI();
+            },
+          },
+          { text: 'Cancel', onClick: () => {} },
+        ]
+      );
+      return;
+    }
+
+    const totalDue = loan.principal + loan.fee;
+    this.uiManager.showCharacterModal(
+      lenderName,
+      'Finance',
+      `Active loan:\n\nPrincipal: ${formatCurrency(loan.principal)}\nFee: ${formatCurrency(loan.fee)}\nTotal to repay: ${formatCurrency(totalDue)}\n\nTaken on day: ${loan.takenDay} (today is day ${world.day})`,
+      [
+        {
+          text: `Repay (${formatCurrency(totalDue)})`,
+          onClick: () => {
+            const repay = this.gameManager.repayActiveLoan();
+            if (!repay.ok) {
+              setTimeout(() => {
+                this.uiManager.showModal(
+                  'Not Enough Money',
+                  `${repay.reason}\n\nTotal due: ${formatCurrency(repay.totalDue)}`,
+                  [{ text: 'OK', onClick: () => this.showFinanceModal() }]
+                );
+              }, 0);
+              return;
+            }
+
+            this.uiManager.showCharacterToast(lenderName, 'Payment received. Pleasure doing business.');
+            this.setupUI();
+          },
+        },
+        { text: 'Close', onClick: () => {} },
       ]
     );
   }

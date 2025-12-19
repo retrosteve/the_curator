@@ -609,9 +609,9 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (anchoredToPortrait) {
         bubble.style.cssText = `
           position: absolute;
-          left: 50%;
-          bottom: calc(100% + 10px);
-          transform: translateX(-50%) translateY(8px);
+          left: calc(100% + 10px);
+          top: 50%;
+          transform: translateX(8px) translateY(-50%);
           background: #fff;
           color: #000;
           padding: 10px 15px;
@@ -659,14 +659,14 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (anchoredToPortrait) {
         tail.style.cssText = `
           position: absolute;
-          bottom: -10px;
-          left: 50%;
-          transform: translateX(-50%);
+          left: -10px;
+          top: 50%;
+          transform: translateY(-50%);
           width: 0;
           height: 0;
-          border-left: 10px solid transparent;
-          border-right: 10px solid transparent;
-          border-top: 10px solid #fff;
+          border-top: 10px solid transparent;
+          border-bottom: 10px solid transparent;
+          border-right: 10px solid #fff;
         `;
       } else {
         tail.style.cssText = `
@@ -709,10 +709,10 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     bubble.style.opacity = '0';
     if (this.rivalPortraitAnchor) {
-      bubble.style.transform = 'translateX(-50%) translateY(8px)';
+      bubble.style.transform = 'translateX(8px) translateY(-50%)';
       requestAnimationFrame(() => {
         bubble.style.opacity = '1';
-        bubble.style.transform = 'translateX(-50%) translateY(0px)';
+        bubble.style.transform = 'translateX(0px) translateY(-50%)';
       });
     } else {
       bubble.style.top = '30%';
@@ -725,7 +725,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.activeRivalBubbleHideTimeoutId = window.setTimeout(() => {
       bubble.style.opacity = '0';
       if (this.rivalPortraitAnchor) {
-        bubble.style.transform = 'translateX(-50%) translateY(8px)';
+        bubble.style.transform = 'translateX(8px) translateY(-50%)';
       }
       this.activeRivalBubbleRemoveTimeoutId = window.setTimeout(() => {
         this.clearActiveRivalBubble();

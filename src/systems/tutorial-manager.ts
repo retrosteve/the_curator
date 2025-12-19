@@ -63,16 +63,14 @@ export class TutorialManager {
   }
 
   /**
-   * Scrapyard loop covers the first car: visit -> inspect -> buy -> restore.
-   * Used for deterministic tutorial encounter forcing.
+   * Scrapyard loop covers the pre-purchase beats of the first car.
+   * Used for deterministic tutorial encounter forcing and soft-lock prevention.
    */
   public isInScrapyardTutorialLoop(): boolean {
     if (!this.isActive) return false;
     return (
       this.currentStep === 'first_visit_scrapyard' ||
-      this.currentStep === 'first_inspect' ||
-      this.currentStep === 'first_buy' ||
-      this.currentStep === 'first_restore'
+      this.currentStep === 'first_inspect'
     );
   }
 
@@ -84,8 +82,7 @@ export class TutorialManager {
     if (!this.isActive) return false;
     return (
       this.currentStep === 'first_visit_scrapyard' ||
-      this.currentStep === 'first_inspect' ||
-      this.currentStep === 'first_buy'
+      this.currentStep === 'first_inspect'
     );
   }
 
@@ -157,9 +154,12 @@ export class TutorialManager {
       // Early loop: only the scrapyard path is relevant.
       case 'first_visit_scrapyard':
       case 'first_inspect':
+        return new Set(['garage', 'scrapyard_1']);
+
+      // After purchasing the first car, funnel the player back to the Garage to restore it.
       case 'first_buy':
       case 'first_restore':
-        return new Set(['garage', 'scrapyard_1']);
+        return new Set(['garage']);
 
       // Auction beat: funnel to the estate sale / auction house.
       case 'first_flip':

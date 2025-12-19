@@ -574,7 +574,10 @@ export class GarageScene extends BaseGameScene {
     img.style.width = '100%';
     img.style.height = '120px';
     img.style.objectFit = 'cover';
-    img.style.borderRadius = '10px';
+        img.style.borderRadius = isPixelUIEnabled() ? '0px' : '10px';
+        img.style.border = '2px solid rgba(255,255,255,0.2)';
+        img.style.backgroundColor = 'rgba(0,0,0,0.2)';
+        img.style.imageRendering = isPixelUIEnabled() ? 'pixelated' : 'auto';
     img.style.margin = '0 0 10px 0';
     carPanel.appendChild(img);
 

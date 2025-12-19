@@ -28,7 +28,7 @@ type AuctionLogEntry = {
 
 const AUCTIONEER_NAMES = [
   '"Fast Talkin\'" Fred Harvey',
-  'Victoria "The Gavel" Sterling',
+  'Victoria "The Gavel" St Clair',
   'Barnaby "Old Timer" Brooks',
 ] as const;
 
@@ -54,6 +54,8 @@ export class AuctionScene extends BaseGameScene {
   private activeRivalBubbleText?: HTMLSpanElement;
   private activeRivalBubbleHideTimeoutId?: number;
   private activeRivalBubbleRemoveTimeoutId?: number;
+
+  private rivalPortraitAnchor?: HTMLDivElement;
 
   private pendingUIRefreshTimeoutId?: number;
 
@@ -93,6 +95,7 @@ export class AuctionScene extends BaseGameScene {
     this.activeRivalBubbleText = undefined;
     this.activeRivalBubbleHideTimeoutId = undefined;
     this.activeRivalBubbleRemoveTimeoutId = undefined;
+    this.rivalPortraitAnchor = undefined;
     this.pendingUIRefreshTimeoutId = undefined;
 
     this.auctionLog = [];
@@ -220,6 +223,11 @@ Tip: Visit the Garage to sell something, then come back.`,
 
 
   private setupUI(): void {
+    // resetUIWithHUD() clears the entire overlay, so ensure any transient overlay-owned
+    // elements (like the rival speech bubble) are cleared + references reset first.
+    this.clearActiveRivalBubble();
+    this.rivalPortraitAnchor = undefined;
+
     this.resetUIWithHUD();
 
     const player = this.gameManager.getPlayerState();
@@ -284,6 +292,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     );
 
     const portraitUrl = getCharacterPortraitUrlOrPlaceholder(this.rival.name);
+
+    const portraitAnchor = document.createElement('div');
+    Object.assign(portraitAnchor.style, {
+      position: 'relative',
+      width: '72px',
+      height: '72px',
+      margin: '0 auto 10px auto',
+    } as Partial<CSSStyleDeclaration>);
+
     const portraitImg = document.createElement('img');
     portraitImg.src = portraitUrl;
     portraitImg.alt = `${this.rival.name} portrait`;
@@ -291,14 +308,17 @@ Tip: Visit the Garage to sell something, then come back.`,
       width: '72px',
       height: '72px',
       display: 'block',
-      margin: '0 auto 10px auto',
+      margin: '0',
       objectFit: 'cover',
       borderRadius: isPixelUIEnabled() ? '0px' : '10px',
       border: '2px solid rgba(255,255,255,0.2)',
       backgroundColor: 'rgba(0,0,0,0.2)',
       imageRendering: isPixelUIEnabled() ? 'pixelated' : 'auto',
     } as Partial<CSSStyleDeclaration>);
-    rightPanel.appendChild(portraitImg);
+
+    portraitAnchor.appendChild(portraitImg);
+    rightPanel.appendChild(portraitAnchor);
+    this.rivalPortraitAnchor = portraitAnchor;
 
     rightPanel.appendChild(
       this.uiManager.createText(this.rival.name, { textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0' })
@@ -576,48 +596,99 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.appendAuctionLog(`${this.rival.name}: “${trimmed}”`, 'rival');
 
     // Keep only one rival speech bubble visible at a time.
+    // Note: the auction UI is periodically rebuilt via resetUIWithHUD(), which clears
+    // the overlay and can orphan DOM nodes; if that happens, recreate the bubble.
+    if (this.activeRivalBubble && !this.activeRivalBubble.isConnected) {
+      this.clearActiveRivalBubble();
+    }
+
     if (!this.activeRivalBubble) {
       const bubble = document.createElement('div');
-      bubble.style.cssText = `
-        position: absolute;
-        top: 30%;
-        right: 25%;
-        transform: translateX(50%);
-        background: #fff;
-        color: #000;
-        padding: 10px 15px;
-        border-radius: 15px;
-        border-bottom-left-radius: 0;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-        font-size: 14px;
-        font-weight: bold;
-        z-index: 100;
-        opacity: 0;
-        transition: opacity 0.3s ease, top 0.3s ease;
-        max-width: 200px;
-        text-align: center;
-        pointer-events: none;
-      `;
+
+      const anchoredToPortrait = this.rivalPortraitAnchor !== undefined;
+      if (anchoredToPortrait) {
+        bubble.style.cssText = `
+          position: absolute;
+          left: 50%;
+          bottom: calc(100% + 10px);
+          transform: translateX(-50%) translateY(8px);
+          background: #fff;
+          color: #000;
+          padding: 10px 15px;
+          border-radius: 15px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+          font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+          font-size: 14px;
+          font-weight: bold;
+          z-index: 100;
+          opacity: 0;
+          transition: opacity 0.3s ease, transform 0.3s ease;
+          max-width: 200px;
+          text-align: center;
+          pointer-events: none;
+          white-space: normal;
+        `;
+      } else {
+        // Fallback (should be rare): use the old overlay positioning.
+        bubble.style.cssText = `
+          position: absolute;
+          top: 30%;
+          right: 25%;
+          transform: translateX(50%);
+          background: #fff;
+          color: #000;
+          padding: 10px 15px;
+          border-radius: 15px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+          font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+          font-size: 14px;
+          font-weight: bold;
+          z-index: 100;
+          opacity: 0;
+          transition: opacity 0.3s ease, top 0.3s ease;
+          max-width: 200px;
+          text-align: center;
+          pointer-events: none;
+        `;
+      }
 
       const messageSpan = document.createElement('span');
       bubble.appendChild(messageSpan);
 
       const tail = document.createElement('div');
-      tail.style.cssText = `
-        position: absolute;
-        bottom: -8px;
-        left: 0;
-        width: 0;
-        height: 0;
-        border-left: 10px solid #fff;
-        border-bottom: 10px solid transparent;
-      `;
+      if (anchoredToPortrait) {
+        tail.style.cssText = `
+          position: absolute;
+          bottom: -10px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 10px solid transparent;
+          border-right: 10px solid transparent;
+          border-top: 10px solid #fff;
+        `;
+      } else {
+        tail.style.cssText = `
+          position: absolute;
+          bottom: -8px;
+          left: 0;
+          width: 0;
+          height: 0;
+          border-left: 10px solid #fff;
+          border-bottom: 10px solid transparent;
+        `;
+      }
       bubble.appendChild(tail);
 
       this.activeRivalBubble = bubble;
       this.activeRivalBubbleText = messageSpan;
-      this.uiManager.appendToOverlay(bubble);
+
+      if (this.rivalPortraitAnchor) {
+        this.rivalPortraitAnchor.appendChild(bubble);
+      } else {
+        this.uiManager.appendToOverlay(bubble);
+      }
     }
 
     if (this.activeRivalBubbleText) {
@@ -637,14 +708,25 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (!bubble) return;
 
     bubble.style.opacity = '0';
-    bubble.style.top = '30%';
-    requestAnimationFrame(() => {
-      bubble.style.opacity = '1';
-      bubble.style.top = '28%';
-    });
+    if (this.rivalPortraitAnchor) {
+      bubble.style.transform = 'translateX(-50%) translateY(8px)';
+      requestAnimationFrame(() => {
+        bubble.style.opacity = '1';
+        bubble.style.transform = 'translateX(-50%) translateY(0px)';
+      });
+    } else {
+      bubble.style.top = '30%';
+      requestAnimationFrame(() => {
+        bubble.style.opacity = '1';
+        bubble.style.top = '28%';
+      });
+    }
 
     this.activeRivalBubbleHideTimeoutId = window.setTimeout(() => {
       bubble.style.opacity = '0';
+      if (this.rivalPortraitAnchor) {
+        bubble.style.transform = 'translateX(-50%) translateY(8px)';
+      }
       this.activeRivalBubbleRemoveTimeoutId = window.setTimeout(() => {
         this.clearActiveRivalBubble();
       }, 300);

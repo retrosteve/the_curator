@@ -7,6 +7,8 @@ import { ToastManager } from '@/ui/internal/ui-toasts';
 import { TutorialUI } from '@/ui/internal/ui-tutorial';
 import { eventBus } from '@/core/event-bus';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
+import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
+import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -525,6 +527,8 @@ export class UIManager {
     customValueText?: string;
     showCondition?: boolean;
     showTags?: boolean;
+    showImage?: boolean;
+    imageHeightPx?: number;
     style?: Partial<CSSStyleDeclaration>;
     titleColor?: string;
   }): HTMLDivElement {
@@ -538,6 +542,28 @@ export class UIManager {
       marginBottom: '10px'
     });
     panel.appendChild(title);
+
+    if (options?.showImage !== false) {
+      const templateId = car.templateId ?? car.id;
+      const imageUrl = getCarImageUrlOrPlaceholder(templateId);
+
+      const img = document.createElement('img');
+      img.src = imageUrl;
+      img.alt = car.name;
+      img.loading = 'lazy';
+      Object.assign(img.style, {
+        width: '100%',
+        height: `${options?.imageHeightPx ?? 140}px`,
+        display: 'block',
+        margin: '0 0 12px 0',
+        objectFit: 'cover',
+        borderRadius: isPixelUIEnabled() ? '0px' : '10px',
+        border: '2px solid rgba(255,255,255,0.2)',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        imageRendering: isPixelUIEnabled() ? 'pixelated' : 'auto',
+      } as Partial<CSSStyleDeclaration>);
+      panel.appendChild(img);
+    }
 
     const details: string[] = [];
     if (options?.showCondition !== false) {

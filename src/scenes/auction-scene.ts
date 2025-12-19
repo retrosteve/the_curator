@@ -1,6 +1,7 @@
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
 import { Rival, getTierName, getRivalById, calculateRivalInterest, getMoodModifiers, getRivalBark, BarkTrigger } from '@/data/rival-database';
+import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
@@ -13,6 +14,7 @@ import {
   formatEncounterNeedLabel,
   ensureEncounterLayoutStyles,
 } from '@/ui/internal/ui-encounter';
+import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 
 type AuctionLogKind = 'system' | 'player' | 'rival' | 'market' | 'warning' | 'error';
 
@@ -264,6 +266,23 @@ Tip: Visit the Garage to sell something, then come back.`,
         color: '#ffd700',
       })
     );
+
+    const portraitUrl = getCharacterPortraitUrlOrPlaceholder(this.rival.name);
+    const portraitImg = document.createElement('img');
+    portraitImg.src = portraitUrl;
+    portraitImg.alt = `${this.rival.name} portrait`;
+    Object.assign(portraitImg.style, {
+      width: '72px',
+      height: '72px',
+      display: 'block',
+      margin: '0 auto 10px auto',
+      objectFit: 'cover',
+      borderRadius: isPixelUIEnabled() ? '0px' : '10px',
+      border: '2px solid rgba(255,255,255,0.2)',
+      backgroundColor: 'rgba(0,0,0,0.2)',
+      imageRendering: isPixelUIEnabled() ? 'pixelated' : 'auto',
+    } as Partial<CSSStyleDeclaration>);
+    rightPanel.appendChild(portraitImg);
 
     rightPanel.appendChild(
       this.uiManager.createText(this.rival.name, { textAlign: 'center', fontWeight: 'bold', margin: '0 0 4px 0' })

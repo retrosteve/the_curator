@@ -6,11 +6,14 @@ import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car, getCarById } from '@/data/car-database';
 import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
+import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { getRivalMood, getRivalById } from '@/data/rival-database';
+import { getAllCharacterProfiles } from '@/data/character-database';
 import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
 import type { VictoryResult } from '@/core/game-manager';
 import type { DeepReadonly } from '@/utils/types';
+import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -428,6 +431,58 @@ export class GarageScene extends BaseGameScene {
 
     skillsDetails.appendChild(skillsPanel);
     infoContainer.appendChild(skillsDetails);
+
+    const peopleDetails = document.createElement('details');
+    peopleDetails.className = 'garage-collapsible';
+    const peopleSummary = document.createElement('summary');
+    peopleSummary.textContent = 'People — Uncle Ray & Rivals';
+    peopleDetails.appendChild(peopleSummary);
+
+    const peopleGrid = document.createElement('div');
+    peopleGrid.style.cssText =
+      'display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; margin-top: 10px;';
+
+    const pixelUI = isPixelUIEnabled();
+    const profiles = getAllCharacterProfiles();
+    for (const profile of profiles) {
+      const card = document.createElement('div');
+      card.style.cssText =
+        `display: flex; gap: 10px; align-items: flex-start; padding: 10px; ` +
+        `background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.12); ` +
+        `border-radius: ${pixelUI ? '0px' : '10px'};`;
+
+      const portrait = document.createElement('img');
+      portrait.src = getCharacterPortraitUrlOrPlaceholder(profile.name);
+      portrait.alt = `${profile.name} portrait`;
+      portrait.style.cssText =
+        `width: 56px; height: 56px; object-fit: cover; flex: 0 0 auto; ` +
+        `border: 2px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.18); ` +
+        `border-radius: ${pixelUI ? '0px' : '10px'}; image-rendering: ${pixelUI ? 'pixelated' : 'auto'};`;
+      card.appendChild(portrait);
+
+      const textCol = document.createElement('div');
+      textCol.style.cssText = 'min-width: 0;';
+
+      const nameLine = this.uiManager.createText(profile.name, {
+        margin: '0',
+        fontWeight: 'bold',
+      });
+      textCol.appendChild(nameLine);
+
+      const bioLine = this.uiManager.createText(profile.bio, {
+        margin: '6px 0 0 0',
+        fontSize: '12px',
+        lineHeight: '1.4',
+        color: '#ccc',
+      });
+      textCol.appendChild(bioLine);
+
+      card.appendChild(textCol);
+      peopleGrid.appendChild(card);
+    }
+
+    peopleDetails.appendChild(peopleGrid);
+    infoContainer.appendChild(peopleDetails);
 
     menuPanel.appendChild(infoContainer);
     menuPanel.appendChild(moreActions);

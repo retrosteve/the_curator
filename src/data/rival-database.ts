@@ -149,6 +149,7 @@ export function getTierName(tier: 1 | 2 | 3): string {
 export interface Rival {
   id: string;
   name: string;
+  bio: string;
   tier: 1 | 2 | 3; // 1 = Tycoon, 2 = Enthusiast, 3 = Scrapper
   budget: number;
   patience: number; // 0-100
@@ -168,6 +169,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'sterling_vance',
     name: 'Sterling Vance',
+    bio: 'A high-rolling blue-blood collector who treats auctions like conquest; impatient, dominant, and convinced premium taste is the same thing as superiority.',
     tier: 1,
     budget: 75000,
     patience: 50,
@@ -178,6 +180,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'scrapyard_joe',
     name: 'Scrapyard Joe',
+    bio: 'A grease-under-the-nails bargain hunter who knows every trick for spotting value in junk; cautious spender, stubborn, and quietly proud of winning on fundamentals.',
     tier: 3,
     budget: 8000,
     patience: 30,
@@ -189,6 +192,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_001',
     name: 'Marcus "The Shark" Thompson',
+    bio: 'A predatory dealmaker who smells hesitation and punishes it; aggressive, pressure-driven, and always trying to make you overpay just to prove he can.',
     tier: 1,
     budget: 50000,
     patience: 30,
@@ -199,6 +203,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_002',
     name: 'Yuki Tanaka',
+    bio: 'A disciplined enthusiast with a laser focus on specific builds (especially performance/JDM); calm, methodical, and willing to splurge when the car matches her “perfect spec.”',
     tier: 2,
     budget: 60000,
     patience: 70,
@@ -209,6 +214,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_003',
     name: 'Sarah Mitchell',
+    bio: 'A patient, detail-obsessed purist who cares about provenance and originality; conservative bidder, hard to rattle, and more satisfied walking away than buying the wrong example.',
     tier: 2,
     budget: 40000,
     patience: 50,
@@ -219,6 +225,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_004',
     name: 'Victor "Fast Vic" Rodriguez',
+    bio: 'An adrenaline-first tuner who chases track-ready cars and bragging rights; loud confidence, quick bids, and a tendency to escalate just to keep the spotlight.',
     tier: 1,
     budget: 55000,
     patience: 40,
@@ -229,6 +236,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_005',
     name: 'Eleanor Wright',
+    bio: 'A luxury-minded curator who collects pristine, low-mile “museum pieces”; polished and selective, but brutally competitive when a true trophy appears.',
     tier: 1,
     budget: 45000,
     patience: 60,
@@ -239,6 +247,7 @@ export const RivalDatabase: Rival[] = [
   {
     id: 'rival_006',
     name: 'Tommy "Rust Bucket" Chen',
+    bio: 'A romantic project-car rescuer who sees potential where others see rot; laid-back and patient, but emotionally attached to barn finds and stubborn about “saving” them.',
     tier: 3,
     budget: 35000,
     patience: 80,

@@ -303,8 +303,13 @@ export function getRivalById(id: string, day: number = 1): Rival {
  * @param day - Current game day (for mood generation)
  * @returns A rival appropriate for the player's current prestige level with mood
  */
-export function getRivalByTierProgression(playerPrestige: number, day: number = 1): Rival {
+export function getRivalByTierProgression(
+  playerPrestige: number,
+  day: number = 1,
+  options?: { excludeIds?: readonly string[] }
+): Rival {
   const { tierProgression } = GAME_CONFIG.rivalAI;
+  const excludeIds = new Set(options?.excludeIds ?? []);
 
   let availableTiers: (1 | 2 | 3)[];
 
@@ -320,11 +325,36 @@ export function getRivalByTierProgression(playerPrestige: number, day: number = 
   }
 
   const selectedTier = availableTiers[Math.floor(Math.random() * availableTiers.length)];
-  const tierRivals = RivalDatabase.filter(rival => rival.tier === selectedTier);
+  const tierRivals = RivalDatabase.filter(
+    (rival) => rival.tier === selectedTier && !excludeIds.has(rival.id)
+  );
 
   if (tierRivals.length === 0) {
-    // Fallback to any rival if no rivals match the selected tier
-    console.warn(`No rivals found for tier ${selectedTier}, falling back to random rival`);
+    // Fallback: try any rival within the allowed tiers, respecting exclusions.
+    const allowedTierSet = new Set<(1 | 2 | 3)>(availableTiers);
+    const allowedTierCandidates = RivalDatabase.filter(
+      (rival) => allowedTierSet.has(rival.tier) && !excludeIds.has(rival.id)
+    );
+
+    if (allowedTierCandidates.length > 0) {
+      const randomIndex = Math.floor(Math.random() * allowedTierCandidates.length);
+      const rival = { ...allowedTierCandidates[randomIndex] };
+      rival.mood = getRivalMood(rival.id, day);
+      return rival;
+    }
+
+    // Final fallback: any rival not excluded.
+    const anyCandidates = RivalDatabase.filter((rival) => !excludeIds.has(rival.id));
+    if (anyCandidates.length > 0) {
+      const randomIndex = Math.floor(Math.random() * anyCandidates.length);
+      const rival = { ...anyCandidates[randomIndex] };
+      rival.mood = getRivalMood(rival.id, day);
+      return rival;
+    }
+
+    console.warn(
+      `No rivals found for tier ${selectedTier} (or all excluded), falling back to random rival`
+    );
     return getRandomRival(day);
   }
 

@@ -21,6 +21,9 @@ type AuctionLogKind = 'system' | 'player' | 'rival' | 'market' | 'warning' | 'er
 type AuctionLogEntry = {
   text: string;
   kind: AuctionLogKind;
+  portraitUrl?: string;
+  portraitAlt?: string;
+  portraitSizePx?: number;
 };
 
 /**
@@ -437,7 +440,19 @@ Tip: Visit the Garage to sell something, then come back.`,
   private appendAuctionLog(entry: string, kind: AuctionLogKind = 'system'): void {
     const trimmed = entry.trim();
     if (!trimmed) return;
-    this.auctionLog.push({ text: trimmed, kind });
+
+    const rivalPortrait = kind === 'rival'
+      ? {
+          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
+          portraitAlt: this.rival.name,
+        }
+      : undefined;
+
+    this.auctionLog.push({
+      text: trimmed,
+      kind,
+      ...rivalPortrait,
+    });
     if (this.auctionLog.length > 50) {
       this.auctionLog.splice(0, this.auctionLog.length - 50);
     }
@@ -467,7 +482,8 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private logOnly(
     entry: string,
-    logKind: AuctionLogKind = 'warning'
+    logKind: AuctionLogKind = 'warning',
+    options?: { portraitUrl?: string; portraitAlt?: string; portraitSizePx?: number }
   ): void {
     let logEntry = entry.trim();
     if (!logEntry) return;
@@ -480,7 +496,18 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
     if (!last || last.text !== logEntry) {
-      this.appendAuctionLog(logEntry, logKind);
+      const trimmed = logEntry.trim();
+      if (!trimmed) return;
+      this.auctionLog.push({
+        text: trimmed,
+        kind: logKind,
+        portraitUrl: options?.portraitUrl,
+        portraitAlt: options?.portraitAlt,
+        portraitSizePx: options?.portraitSizePx,
+      });
+      if (this.auctionLog.length > 50) {
+        this.auctionLog.splice(0, this.auctionLog.length - 50);
+      }
     }
   }
 
@@ -493,7 +520,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (this.lastPatienceToastBand !== 'critical') {
         this.lastPatienceToastBand = 'critical';
         // Rival-related notifications should live in the auction log only.
-        this.logOnly('Warning: Rival is about to quit!', 'warning');
+        this.logOnly('Warning: Rival is about to quit!', 'warning', {
+          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
+          portraitAlt: this.rival.name,
+        });
       }
       return;
     }
@@ -502,7 +532,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (this.lastPatienceToastBand === 'normal' || this.lastPatienceToastBand === 'medium') {
         this.lastPatienceToastBand = 'low';
         // Rival-related notifications should live in the auction log only.
-        this.logOnly('Rival is getting impatient…', 'warning');
+        this.logOnly('Rival is getting impatient…', 'warning', {
+          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
+          portraitAlt: this.rival.name,
+        });
       }
       return;
     }
@@ -511,7 +544,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (this.lastPatienceToastBand === 'normal') {
         this.lastPatienceToastBand = 'medium';
         // Rival-related notifications should live in the auction log only.
-        this.logOnly('Rival looks annoyed.', 'warning');
+        this.logOnly('Rival looks annoyed.', 'warning', {
+          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
+          portraitAlt: this.rival.name,
+        });
       }
     }
   }

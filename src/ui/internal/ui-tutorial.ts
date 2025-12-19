@@ -1,4 +1,5 @@
 import type { ButtonVariant } from './ui-types';
+import { isPixelUIEnabled } from './ui-style';
 
 /**
  * Factory signature for creating a styled DOM button.
@@ -30,8 +31,19 @@ export class TutorialUI {
     return { backdrop: this.tutorialBackdropElement, dialogue: this.tutorialDialogueElement };
   }
 
-  public showTutorialDialogue(speaker: string, text: string, onDismiss?: () => void): void {
+  public showTutorialDialogue(
+    speaker: string,
+    text: string,
+    onDismiss?: () => void,
+    options?: {
+      portraitUrl?: string;
+      portraitAlt?: string;
+      portraitSizePx?: number;
+    }
+  ): void {
     this.hideTutorialDialogue();
+
+    const pixelUI = isPixelUIEnabled();
 
     const backdrop = document.createElement('div');
     backdrop.className = 'tutorial-backdrop';
@@ -44,6 +56,22 @@ export class TutorialUI {
 
     const header = document.createElement('div');
     header.className = 'tutorial-header';
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.gap = '12px';
+
+    if (options?.portraitUrl) {
+      const portrait = document.createElement('img');
+      portrait.src = options.portraitUrl;
+      portrait.alt = options.portraitAlt ?? '';
+      portrait.style.width = `${options.portraitSizePx ?? 56}px`;
+      portrait.style.height = `${options.portraitSizePx ?? 56}px`;
+      portrait.style.objectFit = 'cover';
+      portrait.style.flex = '0 0 auto';
+      portrait.style.imageRendering = pixelUI ? 'pixelated' : 'auto';
+      portrait.style.borderRadius = pixelUI ? '0px' : '8px';
+      header.appendChild(portrait);
+    }
 
     const speakerName = document.createElement('h3');
     speakerName.textContent = speaker;

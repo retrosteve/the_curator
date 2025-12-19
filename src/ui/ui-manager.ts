@@ -6,6 +6,7 @@ import { ModalManager } from '@/ui/internal/ui-modals';
 import { ToastManager } from '@/ui/internal/ui-toasts';
 import { TutorialUI } from '@/ui/internal/ui-tutorial';
 import { eventBus } from '@/core/event-bus';
+import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -175,9 +176,35 @@ export class UIManager {
    */
   public showToast(
     message: string,
-    options?: { backgroundColor?: string; durationMs?: number }
+    options?: {
+      backgroundColor?: string;
+      durationMs?: number;
+      portraitUrl?: string;
+      portraitAlt?: string;
+      portraitSizePx?: number;
+    }
   ): void {
     this.toastManager.showToast(message, options);
+  }
+
+  /**
+   * Show a generic toast notification, decorated with a character portrait.
+   * Intended for character-driven notifications where a face helps recognition.
+   */
+  public showCharacterToast(
+    characterName: string,
+    message: string,
+    options?: {
+      backgroundColor?: string;
+      durationMs?: number;
+      portraitSizePx?: number;
+    }
+  ): void {
+    this.toastManager.showToast(message, {
+      ...options,
+      portraitUrl: getCharacterPortraitUrlOrPlaceholder(characterName),
+      portraitAlt: characterName,
+    });
   }
 
   /**
@@ -853,8 +880,33 @@ export class UIManager {
    * @param text - Dialogue text to display
    * @param onDismiss - Optional callback when dialogue is dismissed
    */
-  public showTutorialDialogue(speaker: string, text: string, onDismiss?: () => void): void {
-    this.tutorialUI.showTutorialDialogue(speaker, text, onDismiss);
+  public showTutorialDialogue(
+    speaker: string,
+    text: string,
+    onDismiss?: () => void,
+    options?: {
+      portraitUrl?: string;
+      portraitAlt?: string;
+      portraitSizePx?: number;
+    }
+  ): void {
+    this.tutorialUI.showTutorialDialogue(speaker, text, onDismiss, options);
+  }
+
+  /**
+   * Show a tutorial dialogue with portrait resolved from a character name.
+   */
+  public showCharacterTutorialDialogue(
+    characterName: string,
+    text: string,
+    onDismiss?: () => void,
+    options?: { portraitSizePx?: number }
+  ): void {
+    this.tutorialUI.showTutorialDialogue(characterName, text, onDismiss, {
+      portraitUrl: getCharacterPortraitUrlOrPlaceholder(characterName),
+      portraitAlt: characterName,
+      portraitSizePx: options?.portraitSizePx,
+    });
   }
 
   /**

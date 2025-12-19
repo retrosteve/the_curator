@@ -17,13 +17,16 @@ export class ToastManager {
     animationName: string;
     durationMs: number;
     maxWidthPx?: number;
+    portraitUrl?: string;
+    portraitAlt?: string;
+    portraitSizePx?: number;
   }): HTMLDivElement {
     const pixelUI = isPixelUIEnabled();
     const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
     const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
 
     const toast = document.createElement('div');
-    toast.textContent = options.text;
+
     toast.style.cssText = `
       position: fixed;
       top: ${topPosition}px;
@@ -41,6 +44,32 @@ export class ToastManager {
       transition: top 0.3s ease;
       white-space: pre-wrap;
     `;
+
+    if (options.portraitUrl) {
+      toast.style.display = 'flex';
+      toast.style.alignItems = 'flex-start';
+      toast.style.gap = '10px';
+
+      const portrait = document.createElement('img');
+      portrait.src = options.portraitUrl;
+      portrait.alt = options.portraitAlt ?? '';
+      portrait.style.width = `${options.portraitSizePx ?? 32}px`;
+      portrait.style.height = `${options.portraitSizePx ?? 32}px`;
+      portrait.style.objectFit = 'cover';
+      portrait.style.flex = '0 0 auto';
+      portrait.style.imageRendering = pixelUI ? 'pixelated' : 'auto';
+      portrait.style.borderRadius = pixelUI ? '0px' : '6px';
+
+      const text = document.createElement('div');
+      text.textContent = options.text;
+      text.style.whiteSpace = 'pre-wrap';
+      text.style.lineHeight = '1.2';
+
+      toast.appendChild(portrait);
+      toast.appendChild(text);
+    } else {
+      toast.textContent = options.text;
+    }
 
     if (options.maxWidthPx !== undefined) {
       toast.style.maxWidth = `${options.maxWidthPx}px`;
@@ -181,7 +210,13 @@ export class ToastManager {
 
   public showToast(
     message: string,
-    options?: { backgroundColor?: string; durationMs?: number }
+    options?: {
+      backgroundColor?: string;
+      durationMs?: number;
+      portraitUrl?: string;
+      portraitAlt?: string;
+      portraitSizePx?: number;
+    }
   ): void {
     const safeMessage = message?.trim();
     if (!safeMessage) return;
@@ -197,6 +232,9 @@ export class ToastManager {
       animationName: 'toastSlideInFadeOut',
       durationMs,
       maxWidthPx: 380,
+      portraitUrl: options?.portraitUrl,
+      portraitAlt: options?.portraitAlt,
+      portraitSizePx: options?.portraitSizePx,
     });
 
     ensureStyleElement(

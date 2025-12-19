@@ -13,6 +13,9 @@ export type EncounterLogStyle = {
 export type EncounterLogEntry<K extends string = string> = {
   text: string;
   kind: K;
+  portraitUrl?: string;
+  portraitAlt?: string;
+  portraitSizePx?: number;
 };
 
 export type EncounterUIDeps = {
@@ -139,15 +142,34 @@ export function createEncounterLogPanel<K extends string>(
 
     const line = document.createElement('div');
     Object.assign(line.style, {
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '8px',
       fontSize: '13px',
       margin: '0 0 6px 0',
       lineHeight: '1.3',
       color: '#ccc',
     } satisfies Partial<CSSStyleDeclaration>);
 
+    if (entry.portraitUrl) {
+      const portrait = document.createElement('img');
+      portrait.src = entry.portraitUrl;
+      portrait.alt = entry.portraitAlt ?? '';
+      const sizePx = entry.portraitSizePx ?? 20;
+      portrait.style.width = `${sizePx}px`;
+      portrait.style.height = `${sizePx}px`;
+      portrait.style.objectFit = 'cover';
+      portrait.style.flex = '0 0 auto';
+      portrait.style.borderRadius = '4px';
+      line.appendChild(portrait);
+    }
+
+    const message = document.createElement('div');
+    message.style.flex = '1 1 auto';
+
     const bullet = document.createElement('span');
     bullet.textContent = '• ';
-    line.appendChild(bullet);
+    message.appendChild(bullet);
 
     const colonIndex = entry.text.indexOf(':');
     if (colonIndex > 0) {
@@ -155,16 +177,18 @@ export function createEncounterLogPanel<K extends string>(
       prefix.textContent = entry.text.slice(0, colonIndex + 1);
       prefix.style.color = kindStyle.color;
       if (kindStyle.fontWeight) prefix.style.fontWeight = kindStyle.fontWeight;
-      line.appendChild(prefix);
+      message.appendChild(prefix);
 
       const rest = document.createElement('span');
       rest.textContent = entry.text.slice(colonIndex + 1);
-      line.appendChild(rest);
+      message.appendChild(rest);
     } else {
       const whole = document.createElement('span');
       whole.textContent = entry.text;
-      line.appendChild(whole);
+      message.appendChild(whole);
     }
+
+    line.appendChild(message);
 
     logPanel.appendChild(line);
   }

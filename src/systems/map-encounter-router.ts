@@ -34,7 +34,10 @@ export function routeRegularEncounter(params: {
   const { locationId, car, hasRival, playerPrestige, auctionApCost, inspectApCost } = params;
 
   if (hasRival) {
-    const rival = getRivalByTierProgression(playerPrestige);
+    const rival =
+      locationId === 'scrapyard_1'
+        ? getRivalByTierProgression(playerPrestige, 1, { excludeIds: ['scrapyard_joe'] })
+        : getRivalByTierProgression(playerPrestige);
     const interest = calculateRivalInterest(rival, car.tags);
 
     return {

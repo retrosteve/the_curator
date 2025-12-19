@@ -179,7 +179,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     text: string;
     onDismiss?: () => void;
   }): void => {
-    this.uiManager.showTutorialDialogue(data.speaker, data.text, data.onDismiss);
+    this.uiManager.showCharacterTutorialDialogue(data.speaker, data.text, data.onDismiss);
   };
 
   protected readonly handleTutorialDialogueHide = (): void => {

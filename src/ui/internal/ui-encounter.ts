@@ -104,42 +104,127 @@ export function createEncounterTwoColGrid(className: string): HTMLDivElement {
 export function createEncounterLogPanel<K extends string>(
   deps: EncounterUIDeps,
   params: {
-    title?: string;
+    title?: string | null;
     entries: Array<EncounterLogEntry<K>>;
     getStyle: (kind: K) => EncounterLogStyle;
     maxEntries?: number;
+    maxHeight?: string;
+    height?: string;
+    topContent?: HTMLElement;
+    newestFirst?: boolean;
   }
 ): HTMLDivElement {
-  const { title = 'Log', entries, getStyle, maxEntries = 20 } = params;
+  const {
+    title,
+    entries,
+    getStyle,
+    maxEntries = 20,
+    maxHeight,
+    height,
+    topContent,
+    newestFirst = false,
+  } = params;
+
+  const resolvedTitle = title === undefined ? 'Log' : title;
+  const resolvedMaxHeight = maxHeight ?? height ?? '260px';
+
+  const hasTitle = Boolean(resolvedTitle && resolvedTitle.trim().length > 0);
+  const hasHeader = hasTitle || Boolean(topContent);
 
   const logPanel = deps.createPanel({
-    padding: '18px',
-    maxHeight: '260px',
-    overflowY: 'auto',
+    padding: hasHeader ? '0px' : '18px',
+    maxHeight: resolvedMaxHeight,
+    overflowY: 'hidden',
   });
+  logPanel.style.overflowX = 'hidden';
 
-  const logHeader = document.createElement('div');
-  Object.assign(logHeader.style, {
-    position: 'sticky',
-    top: '0',
-    zIndex: '1',
-    // Opaque header so log text doesn't show through underneath while scrolling.
-    backgroundColor: 'rgba(0,0,0,0.92)',
-    margin: '0 -18px 10px -18px',
-    padding: '10px 18px',
-    borderBottom: '1px solid rgba(255,255,255,0.12)',
+  // Keep the scroll area width stable (avoid layout shifts when the scrollbar appears).
+  if (!document.getElementById('encounterLogPanelStyles')) {
+    const style = document.createElement('style');
+    style.id = 'encounterLogPanelStyles';
+    style.textContent = `
+      .encounter-log-scroll {
+        scrollbar-gutter: stable;
+        overflow-x: hidden;
+        box-sizing: border-box;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  Object.assign(logPanel.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0px',
   } satisfies Partial<CSSStyleDeclaration>);
 
-  logHeader.appendChild(
-    deps.createHeading(title, 3, {
-      textAlign: 'center',
-      marginBottom: '0',
-    })
-  );
-  logPanel.appendChild(logHeader);
+  if (height) {
+    logPanel.style.height = height;
+  }
+
+  if (hasHeader) {
+    const stickyHeader = document.createElement('div');
+
+    const headerPaddingTop = topContent ? '12px' : '0px';
+
+    Object.assign(stickyHeader.style, {
+      // Keep the header opaque (and visually consistent with the panel background)
+      // so log text doesn't show through underneath while scrolling.
+      margin: '0 0 10px 0',
+      padding: `${headerPaddingTop} 18px 0px 18px`,
+      borderBottom: '1px solid rgba(255,255,255,0.12)',
+    } satisfies Partial<CSSStyleDeclaration>);
+    // The header should never scroll (only the log area below it should).
+    // Keep overflow visible so anchored bark bubbles aren't clipped.
+    stickyHeader.style.overflow = 'visible';
+
+    // Match the panel background + top rounding so the sticky header doesn't look like
+    // a separate slab inside the panel.
+    const panelBackground = logPanel.style.background || logPanel.style.backgroundColor;
+    if (panelBackground) {
+      stickyHeader.style.background = panelBackground;
+    } else {
+      stickyHeader.style.backgroundColor = 'rgba(0,0,0,1)';
+    }
+
+    const panelRadius = logPanel.style.borderRadius || '16px';
+    stickyHeader.style.borderTopLeftRadius = panelRadius;
+    stickyHeader.style.borderTopRightRadius = panelRadius;
+
+    if (hasTitle) {
+      stickyHeader.appendChild(
+        deps.createHeading(resolvedTitle as string, 3, {
+          textAlign: 'center',
+          marginBottom: topContent ? '10px' : '0',
+        })
+      );
+    }
+
+    if (topContent) {
+      stickyHeader.appendChild(topContent);
+    }
+
+    logPanel.appendChild(stickyHeader);
+  }
+
+  const logScrollArea = document.createElement('div');
+  logScrollArea.classList.add('encounter-log-scroll');
+  Object.assign(logScrollArea.style, {
+    flex: '1 1 auto',
+    minHeight: '0',
+    minWidth: '0',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    padding: hasHeader ? '0 18px 18px 18px' : '0',
+    boxSizing: 'border-box',
+  } satisfies Partial<CSSStyleDeclaration>);
+  logPanel.appendChild(logScrollArea);
+
+  // Note: topContent is rendered above the scroll area.
 
   const recentEntries = entries.slice(-maxEntries);
-  for (const entry of recentEntries) {
+  const renderEntries = newestFirst ? recentEntries.slice().reverse() : recentEntries;
+  for (const entry of renderEntries) {
     const kindStyle = getStyle(entry.kind);
 
     const pixelUI = isPixelUIEnabled();
@@ -153,6 +238,7 @@ export function createEncounterLogPanel<K extends string>(
       margin: '0 0 6px 0',
       lineHeight: '1.3',
       color: '#ccc',
+      minWidth: '0',
     } satisfies Partial<CSSStyleDeclaration>);
 
     if (entry.portraitUrl) {
@@ -164,6 +250,7 @@ export function createEncounterLogPanel<K extends string>(
       portrait.style.height = `${sizePx}px`;
       portrait.style.objectFit = 'cover';
       portrait.style.flex = '0 0 auto';
+      portrait.style.boxSizing = 'border-box';
       portrait.style.borderRadius = pixelUI ? '0px' : '4px';
       portrait.style.border = '2px solid rgba(255,255,255,0.18)';
       portrait.style.backgroundColor = 'rgba(0,0,0,0.18)';
@@ -172,7 +259,12 @@ export function createEncounterLogPanel<K extends string>(
     }
 
     const message = document.createElement('div');
-    message.style.flex = '1 1 auto';
+    Object.assign(message.style, {
+      flex: '1 1 auto',
+      minWidth: '0',
+      overflowWrap: 'anywhere',
+      wordBreak: 'break-word',
+    } satisfies Partial<CSSStyleDeclaration>);
 
     const bullet = document.createElement('span');
     bullet.textContent = '• ';
@@ -197,7 +289,7 @@ export function createEncounterLogPanel<K extends string>(
 
     line.appendChild(message);
 
-    logPanel.appendChild(line);
+    logScrollArea.appendChild(line);
   }
 
   return logPanel;

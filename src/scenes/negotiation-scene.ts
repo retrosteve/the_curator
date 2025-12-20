@@ -287,6 +287,7 @@ export class NegotiationScene extends BaseGameScene {
     const logPanel = createEncounterLogPanel(this.uiManager, {
       entries: this.negotiationLog,
       getStyle: (kind) => this.getLogStyle(kind),
+      newestFirst: true
     });
 
     bottomGrid.appendChild(actionsPanel);

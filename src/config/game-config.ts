@@ -313,7 +313,9 @@ export const GAME_CONFIG = {
 
     // Modal delays
     modalDelays: {
-      rivalBid: 500, // Delay before showing rival bid result (ms)
+      rivalBid: 900, // Delay before showing rival bid result (ms)
+      rivalBarkAfterAuctioneer: 650, // Delay between auctioneer bark and rival bark (ms)
+      auctionLogLine: 500, // Delay between bursty auction log lines (ms)
     },
   },
 } as const;

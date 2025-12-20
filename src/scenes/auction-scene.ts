@@ -9,6 +9,7 @@ import {
   createEncounterCenteredLayoutRoot,
   createEncounterActionsPanel,
   createEncounterLogPanel,
+  type EncounterLogPanelApi,
   createEncounterTwoColGrid,
   disableEncounterActionButton,
   formatEncounterNeedLabel,
@@ -75,6 +76,8 @@ export class AuctionScene extends BaseGameScene {
 
   private pendingUIRefreshTimeoutId?: number;
   private pendingRivalBarkTimeoutId?: number;
+
+  private logPanelApi?: EncounterLogPanelApi<AuctionLogKind>;
 
   private auctionLog: AuctionLogEntry[] = [];
   private lastPatienceToastBand: 'normal' | 'medium' | 'low' | 'critical' = 'normal';
@@ -297,6 +300,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.clearActiveAuctioneerBubble();
     this.rivalPortraitAnchor = undefined;
     this.auctioneerPortraitAnchor = undefined;
+    this.logPanelApi = undefined;
 
     this.resetUIWithHUD();
 
@@ -441,6 +445,9 @@ Tip: Visit the Garage to sell something, then come back.`,
       height: '520px',
       topContent: participantStrip,
       newestFirst: true,
+      onReady: (api) => {
+        this.logPanelApi = api;
+      },
     });
 
     topGrid.appendChild(leftPanel);
@@ -535,38 +542,55 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.restorePersistentBarks();
   }
 
-  private appendAuctionLog(entry: string, kind: AuctionLogKind = 'system'): void {
+  private appendAuctionLog(
+    entry: string,
+    kind: AuctionLogKind = 'system',
+    options?: { portraitUrl?: string; portraitAlt?: string; portraitSizePx?: number }
+  ): void {
     const trimmed = entry.trim();
     if (!trimmed) return;
 
-    const portrait = kind === 'rival'
-      ? {
-          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-          portraitAlt: this.rival.name,
-          portraitSizePx: 48,
-        }
-      : kind === 'auctioneer'
+    const portrait =
+      options?.portraitUrl
         ? {
-            portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
-            portraitAlt: this.auctioneerName,
-            portraitSizePx: 48,
+            portraitUrl: options.portraitUrl,
+            portraitAlt: options.portraitAlt,
+            portraitSizePx: options.portraitSizePx,
           }
-      : kind === 'player'
-        ? {
-            portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
-            portraitAlt: 'You',
-            portraitSizePx: 48,
-          }
-        : undefined;
+        : kind === 'rival'
+          ? {
+              portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
+              portraitAlt: this.rival.name,
+              portraitSizePx: 48,
+            }
+          : kind === 'auctioneer'
+            ? {
+                portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
+                portraitAlt: this.auctioneerName,
+                portraitSizePx: 48,
+              }
+            : kind === 'player'
+              ? {
+                  portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
+                  portraitAlt: 'You',
+                  portraitSizePx: 48,
+                }
+              : undefined;
 
-    this.auctionLog.push({
+    const logEntry: AuctionLogEntry = {
       text: trimmed,
       kind,
       ...portrait,
-    });
+    };
+
+    this.auctionLog.push(logEntry);
     if (this.auctionLog.length > 50) {
       this.auctionLog.splice(0, this.auctionLog.length - 50);
     }
+
+    // Incrementally render into the existing log panel (when available) so logs
+    // don't batch-appear only after a full UI rebuild.
+    this.logPanelApi?.appendEntry(logEntry);
   }
 
   private showToastAndLog(
@@ -607,18 +631,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
     if (!last || last.text !== logEntry) {
-      const trimmed = logEntry.trim();
-      if (!trimmed) return;
-      this.auctionLog.push({
-        text: trimmed,
-        kind: logKind,
-        portraitUrl: options?.portraitUrl,
-        portraitAlt: options?.portraitAlt,
-        portraitSizePx: options?.portraitSizePx,
-      });
-      if (this.auctionLog.length > 50) {
-        this.auctionLog.splice(0, this.auctionLog.length - 50);
-      }
+      this.appendAuctionLog(logEntry, logKind, options);
     }
   }
 

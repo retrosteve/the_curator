@@ -20,6 +20,11 @@ export type EncounterLogEntry<K extends string = string> = {
   portraitSizePx?: number;
 };
 
+export type EncounterLogPanelApi<K extends string = string> = {
+  appendEntry: (entry: EncounterLogEntry<K>) => void;
+  sync: (entries: Array<EncounterLogEntry<K>>) => void;
+};
+
 export type EncounterUIDeps = {
   createPanel: (options: { padding?: string; maxHeight?: string; overflowY?: string }) => HTMLDivElement;
   createHeading: (text: string, level?: 1 | 2 | 3, style?: Partial<CSSStyleDeclaration>) => HTMLElement;
@@ -112,6 +117,7 @@ export function createEncounterLogPanel<K extends string>(
     height?: string;
     topContent?: HTMLElement;
     newestFirst?: boolean;
+    onReady?: (api: EncounterLogPanelApi<K>) => void;
   }
 ): HTMLDivElement {
   const {
@@ -123,6 +129,7 @@ export function createEncounterLogPanel<K extends string>(
     height,
     topContent,
     newestFirst = false,
+    onReady,
   } = params;
 
   const resolvedTitle = title === undefined ? 'Log' : title;
@@ -222,11 +229,8 @@ export function createEncounterLogPanel<K extends string>(
 
   // Note: topContent is rendered above the scroll area.
 
-  const recentEntries = entries.slice(-maxEntries);
-  const renderEntries = newestFirst ? recentEntries.slice().reverse() : recentEntries;
-  for (const entry of renderEntries) {
+  const renderLine = (entry: EncounterLogEntry<K>): HTMLDivElement => {
     const kindStyle = getStyle(entry.kind);
-
     const pixelUI = isPixelUIEnabled();
 
     const line = document.createElement('div');
@@ -288,9 +292,56 @@ export function createEncounterLogPanel<K extends string>(
     }
 
     line.appendChild(message);
+    return line;
+  };
+
+  const trimDomToMax = (): void => {
+    while (logScrollArea.childElementCount > maxEntries) {
+      if (newestFirst) {
+        // Newest lines are prepended, so trim from the bottom.
+        logScrollArea.lastElementChild?.remove();
+      } else {
+        // Newest lines are appended, so trim from the top.
+        logScrollArea.firstElementChild?.remove();
+      }
+    }
+  };
+
+  const appendEntryToDom = (entry: EncounterLogEntry<K>): void => {
+    const line = renderLine(entry);
+    if (newestFirst) {
+      logScrollArea.insertBefore(line, logScrollArea.firstChild);
+      trimDomToMax();
+      logScrollArea.scrollTop = 0;
+      return;
+    }
 
     logScrollArea.appendChild(line);
-  }
+    trimDomToMax();
+    logScrollArea.scrollTop = logScrollArea.scrollHeight;
+  };
+
+  const syncDomFromEntries = (allEntries: Array<EncounterLogEntry<K>>): void => {
+    logScrollArea.innerHTML = '';
+    const recentEntries = allEntries.slice(-maxEntries);
+    const renderEntries = newestFirst ? recentEntries.slice().reverse() : recentEntries;
+    for (const entry of renderEntries) {
+      // Keep the same insertion behavior as initial render.
+      logScrollArea.appendChild(renderLine(entry));
+    }
+    if (newestFirst) {
+      logScrollArea.scrollTop = 0;
+    } else {
+      logScrollArea.scrollTop = logScrollArea.scrollHeight;
+    }
+  };
+
+  syncDomFromEntries(entries);
+
+  onReady?.({
+    appendEntry: appendEntryToDom,
+    sync: syncDomFromEntries,
+  });
 
   return logPanel;
 }

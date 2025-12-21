@@ -78,6 +78,12 @@ export class AuctionScene extends BaseGameScene {
   private pendingRivalBarkTimeoutId?: number;
   private pendingRivalTurnTimeoutId?: number;
   private pendingLogRenderTimeoutId?: number;
+  private pendingPlayerTurnEnableTimeoutId?: number;
+  private pendingEndAuctionTimeoutId?: number;
+  private lastLogRenderAtMs: number = 0;
+
+  private isPlayerTurn: boolean = false;
+  private lastBidder?: 'player' | 'rival';
 
   private logPanelApi?: EncounterLogPanelApi<AuctionLogKind>;
 
@@ -86,7 +92,6 @@ export class AuctionScene extends BaseGameScene {
   // What the player has actually seen in the panel.
   private auctionLogRendered: AuctionLogEntry[] = [];
   private pendingLogRenderQueue: AuctionLogEntry[] = [];
-  private lastPatienceToastBand: 'normal' | 'medium' | 'low' | 'critical' = 'normal';
   private hasAnyBids: boolean = false;
 
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
@@ -111,6 +116,8 @@ export class AuctionScene extends BaseGameScene {
     this.locationId = data.locationId;
     this.auctioneerName = AUCTIONEER_NAMES[Math.floor(Math.random() * AUCTIONEER_NAMES.length)];
     this.encounterStarted = false;
+    this.isPlayerTurn = false;
+    this.lastBidder = undefined;
     // Initialize with non-market value; we'll re-evaluate once managers are ready.
     this.currentBid = Math.floor(calculateCarValue(this.car) * AuctionScene.STARTING_BID_MULTIPLIER);
     this.stallUsesThisAuction = 0;
@@ -139,7 +146,6 @@ export class AuctionScene extends BaseGameScene {
     this.auctionLog = [];
     this.auctionLogRendered = [];
     this.pendingLogRenderQueue = [];
-    this.lastPatienceToastBand = 'normal';
     this.hasAnyBids = false;
   }
 
@@ -206,6 +212,17 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     // First bark after the UI exists so the bubble can anchor to the portrait.
     this.showAuctioneerBark('start');
+
+    // Auctioneer opening prompt, then enable the player's first turn.
+    this.clearPendingPlayerTurnEnable();
+    this.pendingPlayerTurnEnableTimeoutId = window.setTimeout(() => {
+      this.pendingPlayerTurnEnableTimeoutId = undefined;
+      if (!this.scene.isActive()) return;
+
+      this.showAuctioneerBark('opening_prompt');
+      this.isPlayerTurn = true;
+      this.setupUI();
+    }, GAME_CONFIG.ui.modalDelays.openingPromptAfterStart);
     
     // Ensure cleanup on scene shutdown
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -213,9 +230,113 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.clearPendingRivalTurn();
       this.clearPendingRivalBark();
       this.clearPendingLogRender();
+      this.clearPendingPlayerTurnEnable();
+      this.clearPendingEndAuction();
       this.clearActiveRivalBubble();
       this.clearActiveAuctioneerBubble();
     });
+  }
+
+  private clearPendingPlayerTurnEnable(): void {
+    if (this.pendingPlayerTurnEnableTimeoutId !== undefined) {
+      window.clearTimeout(this.pendingPlayerTurnEnableTimeoutId);
+      this.pendingPlayerTurnEnableTimeoutId = undefined;
+    }
+  }
+
+  private scheduleEnablePlayerTurn(delayMs: number = GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer): void {
+    this.clearPendingPlayerTurnEnable();
+    this.pendingPlayerTurnEnableTimeoutId = window.setTimeout(() => {
+      this.pendingPlayerTurnEnableTimeoutId = undefined;
+      if (!this.scene.isActive()) return;
+      this.isPlayerTurn = true;
+      this.setupUI();
+    }, delayMs);
+  }
+
+  private clearPendingEndAuction(): void {
+    if (this.pendingEndAuctionTimeoutId !== undefined) {
+      window.clearTimeout(this.pendingEndAuctionTimeoutId);
+      this.pendingEndAuctionTimeoutId = undefined;
+    }
+  }
+
+  private playerEndAuctionEarly(): void {
+    if (!this.encounterStarted) return;
+
+    // Lock out any remaining turns and play a quick closeout before resolving.
+    this.isPlayerTurn = false;
+    this.setupUI();
+
+    this.clearPendingUIRefresh();
+    this.clearPendingRivalTurn();
+    this.clearPendingRivalBark();
+    this.clearPendingLogRender();
+    this.clearPendingPlayerTurnEnable();
+    this.clearPendingEndAuction();
+
+    this.showAuctioneerBark('stall');
+    this.pendingEndAuctionTimeoutId = window.setTimeout(() => {
+      this.pendingEndAuctionTimeoutId = undefined;
+      if (!this.scene.isActive()) return;
+
+      this.showAuctioneerBark('stall');
+      this.pendingEndAuctionTimeoutId = window.setTimeout(() => {
+        this.pendingEndAuctionTimeoutId = undefined;
+        if (!this.scene.isActive()) return;
+
+        this.resolveAuctionAfterPlayerEnded();
+      }, GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
+    }, GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
+  }
+
+  private resolveAuctionAfterPlayerEnded(): void {
+    if (!this.scene.isActive()) return;
+
+    // Player opted out: consider this encounter consumed.
+    this.consumeOfferIfNeeded();
+
+    // If nobody has bid yet, assume the rival snaps up the opening bid.
+    if (!this.hasAnyBids) {
+      this.hasAnyBids = true;
+      this.lastBidder = 'rival';
+      this.appendAuctionLog(`${this.rival.name}: Opening bid → ${formatCurrency(this.currentBid)}.`, 'rival');
+      this.showAuctioneerBark('rival_bid');
+      this.showRivalBarkAfterAuctioneer('bid');
+      this.endAuction(false, 'You ended the auction early.');
+      return;
+    }
+
+    // If the rival is already winning, just close it out.
+    if (this.lastBidder === 'rival') {
+      this.endAuction(false, 'You ended the auction early.');
+      return;
+    }
+
+    // If the player is winning, give the rival one final chance to outbid.
+    if (this.lastBidder === 'player') {
+      const decision = this.rivalAI.decideBid(this.currentBid);
+
+      if (!decision.shouldBid) {
+        this.appendAuctionLog(`${this.rival.name}: ${decision.reason}.`, 'rival');
+        this.endAuction(true, `${this.rival.name} ${decision.reason}!`);
+        return;
+      }
+
+      this.currentBid += decision.bidAmount;
+      this.lastBidder = 'rival';
+      this.appendAuctionLog(
+        `${this.rival.name}: Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.`,
+        'rival'
+      );
+      this.showAuctioneerBark('rival_bid');
+      this.showRivalBarkAfterAuctioneer('bid');
+      this.endAuction(false, 'You ended the auction early.');
+      return;
+    }
+
+    // Fallback: treat as rival win.
+    this.endAuction(false, 'You ended the auction early.');
   }
 
   private clearPendingUIRefresh(): void {
@@ -254,6 +375,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.pendingLogRenderTimeoutId = undefined;
     }
     this.pendingLogRenderQueue = [];
+    this.lastLogRenderAtMs = 0;
   }
 
   private renderAuctionLogEntryNow(entry: AuctionLogEntry): void {
@@ -261,6 +383,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (this.auctionLogRendered.length > 50) {
       this.auctionLogRendered.splice(0, this.auctionLogRendered.length - 50);
     }
+    this.lastLogRenderAtMs = performance.now();
     this.logPanelApi?.appendEntry(entry);
   }
 
@@ -284,14 +407,10 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.pendingLogRenderQueue.push(entry);
     if (this.pendingLogRenderTimeoutId !== undefined) return;
 
-    const first = this.pendingLogRenderQueue.shift();
-    if (!first) return;
-
-    // Render the first line immediately, then pace subsequent lines.
-    this.renderAuctionLogEntryNow(first);
-    if (this.pendingLogRenderQueue.length > 0) {
-      this.scheduleNextLogRender(GAME_CONFIG.ui.modalDelays.auctionLogLine);
-    }
+    const now = performance.now();
+    const gapMs = GAME_CONFIG.ui.modalDelays.auctionLogLine;
+    const delayMs = this.lastLogRenderAtMs <= 0 ? 0 : Math.max(0, gapMs - (now - this.lastLogRenderAtMs));
+    this.scheduleNextLogRender(delayMs);
   }
 
   private showRivalBarkAfterAuctioneer(
@@ -521,7 +640,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       maxEntries: 50,
       height: '520px',
       topContent: participantStrip,
-      newestFirst: false,
+      newestFirst: true,
       onReady: (api) => {
         this.logPanelApi = api;
       },
@@ -596,7 +715,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
     buttonGrid.appendChild(stallBtn);
 
-    const quitBtn = this.uiManager.createButton('Quit Auction', () => this.playerQuit(), {
+    // Turn gating: only allow player actions on the player's turn.
+    if (!this.isPlayerTurn) {
+      disableEncounterActionButton(bidBtn, 'Bid\nWaiting');
+      disableEncounterActionButton(powerBidBtn, 'Power Bid\nWaiting');
+      disableEncounterActionButton(kickTiresBtn, 'Kick Tires\nWaiting');
+      disableEncounterActionButton(stallBtn, 'Stall\nWaiting');
+    }
+
+    const quitBtn = this.uiManager.createButton('End Auction', () => this.playerEndAuctionEarly(), {
       variant: 'danger',
       style: {
         ...buttonTextStyle,
@@ -665,14 +792,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.auctionLog.splice(0, this.auctionLog.length - 50);
     }
 
-    // Rival/auctioneer speech can arrive in bursts; drip-feed those lines so they
-    // don't visually batch.
-    if (kind === 'rival' || kind === 'auctioneer') {
-      this.enqueueAuctionLogRender(logEntry);
-      return;
-    }
-
-    this.renderAuctionLogEntryNow(logEntry);
+    // Drip-feed all lines so bursts don't visually batch.
+    this.enqueueAuctionLogRender(logEntry);
   }
 
   private showToastAndLog(
@@ -695,67 +816,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
 
     this.uiManager.showToast(toast, options);
-  }
-
-  private logOnly(
-    entry: string,
-    logKind: AuctionLogKind = 'warning',
-    options?: { portraitUrl?: string; portraitAlt?: string; portraitSizePx?: number }
-  ): void {
-    let logEntry = entry.trim();
-    if (!logEntry) return;
-
-    // Ensure non-speech lines still get the prefix-based coloring.
-    if (!logEntry.includes(':')) {
-      if (logKind === 'error') logEntry = `Error: ${logEntry}`;
-      else if (logKind === 'warning') logEntry = `Warning: ${logEntry}`;
-    }
-
-    const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
-    if (!last || last.text !== logEntry) {
-      this.appendAuctionLog(logEntry, logKind, options);
-    }
-  }
-
-  private maybeToastPatienceWarning(): void {
-    const patience = this.rivalAI.getPatience();
-    if (patience <= 0) return;
-
-    const thresholds = GAME_CONFIG.auction.patienceThresholds;
-    if (patience < thresholds.critical) {
-      if (this.lastPatienceToastBand !== 'critical') {
-        this.lastPatienceToastBand = 'critical';
-        // Rival-related notifications should live in the auction log only.
-        this.logOnly('Warning: Rival is about to quit!', 'warning', {
-          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-          portraitAlt: this.rival.name,
-        });
-      }
-      return;
-    }
-
-    if (patience < thresholds.low) {
-      if (this.lastPatienceToastBand === 'normal' || this.lastPatienceToastBand === 'medium') {
-        this.lastPatienceToastBand = 'low';
-        // Rival-related notifications should live in the auction log only.
-        this.logOnly('Rival is getting impatient…', 'warning', {
-          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-          portraitAlt: this.rival.name,
-        });
-      }
-      return;
-    }
-
-    if (patience < thresholds.medium) {
-      if (this.lastPatienceToastBand === 'normal') {
-        this.lastPatienceToastBand = 'medium';
-        // Rival-related notifications should live in the auction log only.
-        this.logOnly('Rival looks annoyed.', 'warning', {
-          portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-          portraitAlt: this.rival.name,
-        });
-      }
-    }
   }
 
   private renderRivalBarkText(trimmed: string, options?: { suppressLog?: boolean; animate?: boolean }): void {
@@ -1063,13 +1123,19 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
   }
 
-  private showAuctioneerBark(trigger: 'start' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
+  private showAuctioneerBark(trigger: 'start' | 'opening_prompt' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)] ?? '';
 
     let text = '';
     switch (trigger) {
       case 'start':
         text = 'Alright folks—let\'s get this started.';
+        break;
+      case 'opening_prompt':
+        text = pick([
+          `Opening bid at ${formatCurrency(this.currentBid)}. Who wants it?`,
+          `We\'re starting at ${formatCurrency(this.currentBid)}. Do I hear a bid?`,
+        ]);
         break;
       case 'player_bid':
         text = pick([
@@ -1120,6 +1186,8 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private playerBid(amount: number, options?: { power?: boolean }): void {
+    if (!this.isPlayerTurn) return;
+
     const isFirstBid = !this.hasAnyBids;
     const openingBid = this.currentBid;
     const nextBid = this.currentBid + amount;
@@ -1139,6 +1207,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       }
 
       this.hasAnyBids = true;
+      this.lastBidder = 'player';
       this.appendAuctionLog(`You: Opening bid → ${formatCurrency(openingBid)}.`, 'player');
 
       // If the player clicked Power Bid as their first action, treat it as:
@@ -1155,13 +1224,12 @@ Tip: Visit the Garage to sell something, then come back.`,
         }
 
         this.currentBid = nextBid;
+        this.lastBidder = 'player';
         this.appendAuctionLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
         this.showAuctioneerBark('player_power_bid');
 
         this.powerBidStreak++;
         this.rivalAI.onPlayerPowerBid();
-
-        this.maybeToastPatienceWarning();
 
         // Check for patience reaction
         if (this.rivalAI.getPatience() < 30 && this.rivalAI.getPatience() > 0) {
@@ -1179,7 +1247,9 @@ Tip: Visit the Garage to sell something, then come back.`,
       }
 
       // Rival's turn
-      this.scheduleRivalTurn();
+      this.isPlayerTurn = false;
+      this.setupUI();
+      this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
       return;
     }
 
@@ -1194,6 +1264,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
 
     this.currentBid = nextBid;
+
+    this.lastBidder = 'player';
 
     if (options?.power) {
       this.appendAuctionLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
@@ -1212,7 +1284,6 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.powerBidStreak++;
       this.rivalAI.onPlayerPowerBid();
 
-      this.maybeToastPatienceWarning();
       
       // Check for patience reaction
       if (this.rivalAI.getPatience() < 30 && this.rivalAI.getPatience() > 0) {
@@ -1228,10 +1299,14 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
 
     // Rival's turn
-    this.scheduleRivalTurn();
+    this.isPlayerTurn = false;
+    this.setupUI();
+    this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
   }
 
   private playerKickTires(): void {
+    if (!this.isPlayerTurn) return;
+
     const player = this.gameManager.getPlayerState();
     if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
       this.showToastAndLog(
@@ -1256,10 +1331,14 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
 
     // Rival's turn
-    this.scheduleRivalTurn();
+    this.isPlayerTurn = false;
+    this.setupUI();
+    this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
   }
 
   private playerStall(): void {
+    if (!this.isPlayerTurn) return;
+
     const player = this.gameManager.getPlayerState();
     const tongue = player.skills.tongue;
     if (tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
@@ -1289,8 +1368,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.showAuctioneerBark('stall');
 
     this.appendAuctionLog(`You: Stall (-${AuctionScene.STALL_PATIENCE_PENALTY} rival patience).`, 'player');
-    this.maybeToastPatienceWarning();
-    
     // Check for patience reaction
     if (this.rivalAI.getPatience() < 30 && this.rivalAI.getPatience() > 0) {
       this.showRivalBarkAfterAuctioneer('patience_low');
@@ -1300,14 +1377,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.endAuction(true, `${this.rival.name} lost patience and quit!`);
     } else {
       // Stalling pressures the rival but hands them the turn.
-      this.scheduleRivalTurn();
+      this.isPlayerTurn = false;
+      this.setupUI();
+      this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
     }
-  }
-
-  private playerQuit(): void {
-    this.clearPendingUIRefresh();
-    this.consumeOfferIfNeeded();
-    this.endAuction(false, 'You quit the auction.');
   }
 
   private consumeOfferIfNeeded(): void {
@@ -1327,8 +1400,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       const isFirstBid = !this.hasAnyBids;
       if (isFirstBid) {
         this.hasAnyBids = true;
+        this.lastBidder = 'rival';
       } else {
         this.currentBid += decision.bidAmount;
+        this.lastBidder = 'rival';
       }
 
       // Add flavor text based on rival's patience level
@@ -1367,6 +1442,9 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (this.scene.isActive()) {
         this.setupUI();
       }
+
+      // Auctioneer responded; now hand the turn back to the player.
+      this.scheduleEnablePlayerTurn();
     }
   }
 
@@ -1376,6 +1454,14 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.clearPendingRivalTurn();
     this.clearPendingRivalBark();
     this.clearPendingLogRender();
+    this.clearPendingPlayerTurnEnable();
+    this.clearPendingEndAuction();
+    this.isPlayerTurn = false;
+
+    // Rebuild UI so action buttons are visibly disabled post-auction.
+    if (this.scene.isActive()) {
+      this.setupUI();
+    }
 
     // Show final bark
     if (playerWon) {
@@ -1397,6 +1483,7 @@ Tip: Visit the Garage to sell something, then come back.`,
           "Won But Can't Pay",
           `${message}\n\nYou pressured ${this.rival.name} into quitting, but the winning bid is ${formatCurrency(this.currentBid)} and you only have ${formatCurrency(player.money)}.\n\nYou forfeit the car.`,
           [
+            { text: 'Stay', onClick: () => {} },
             {
               text: 'Back to Map',
               onClick: () => this.scene.start('MapScene'),
@@ -1414,7 +1501,11 @@ Tip: Visit the Garage to sell something, then come back.`,
             `You won the auction, but your garage is full!\n\nYou are forced to forfeit the car.`,
             [
               {
-                text: 'Continue',
+                text: 'Stay',
+                onClick: () => {},
+              },
+              {
+                text: 'Back to Map',
                 onClick: () => this.scene.start('MapScene'),
               },
             ]
@@ -1448,7 +1539,11 @@ Tip: Visit the Garage to sell something, then come back.`,
           `${message}\n\nYou bought ${this.car.name} for ${formatCurrency(this.currentBid)}!${leveledUp ? '\n\n🎉 Your Tongue skill leveled up!' : ''}`,
           [
             {
-              text: 'Continue',
+              text: 'Stay',
+              onClick: () => {},
+            },
+            {
+              text: 'Back to Map',
               onClick: () => {
                 if (isTutorialComplete) {
                   // Show tutorial completion dialogue before returning to map
@@ -1479,13 +1574,25 @@ Tip: Visit the Garage to sell something, then come back.`,
             "Uncle Ray",
             "Don't let that loss get you down! Look - there's another car here nobody else noticed: a Boxy Wagon. This time you're facing a weaker rival. Use aggressive tactics like Power Bid to make them quit early!",
             () => {
-              this.tutorialManager.onRedemptionPromptAccepted();
-              const boxywagon = getCarById('car_tutorial_boxy_wagon');
-              const scrappyJoe = getRivalById('scrapyard_joe');
-              if (boxywagon && scrappyJoe) {
-                const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
-                this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
-              }
+              this.uiManager.showModal(
+                'Redemption Auction',
+                'Uncle Ray found another car in the same sale. Want to jump straight into the next auction?',
+                [
+                  { text: 'Stay', onClick: () => {} },
+                  {
+                    text: 'Start Next Auction',
+                    onClick: () => {
+                      this.tutorialManager.onRedemptionPromptAccepted();
+                      const boxywagon = getCarById('car_tutorial_boxy_wagon');
+                      const scrappyJoe = getRivalById('scrapyard_joe');
+                      if (boxywagon && scrappyJoe) {
+                        const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
+                        this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+                      }
+                    },
+                  },
+                ]
+              );
             }
           );
           return;
@@ -1501,7 +1608,16 @@ Tip: Visit the Garage to sell something, then come back.`,
           this.tutorialManager.showDialogueWithCallback(
             'Uncle Ray',
             'No worries—redemption means we keep coming back until we win. Head back to the Weekend Auction House and we\'ll run it again.',
-            () => this.scene.start('MapScene')
+            () => {
+              this.uiManager.showModal(
+                'Back to Map',
+                'Head back to the Weekend Auction House and try again when you are ready.',
+                [
+                  { text: 'Stay', onClick: () => {} },
+                  { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
+                ]
+              );
+            }
           );
           return;
         }
@@ -1519,7 +1635,11 @@ Tip: Visit the Garage to sell something, then come back.`,
             onClick: () => this.showAuctionDebrief(),
           },
           {
-            text: 'Continue',
+            text: 'Stay',
+            onClick: () => {},
+          },
+          {
+            text: 'Back to Map',
             onClick: () => this.scene.start('MapScene'),
           },
         ]
@@ -1580,6 +1700,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       '📊 Auction Debrief',
       analysis,
       [
+        {
+          text: 'Close',
+          onClick: () => {},
+        },
         {
           text: 'Back to Map',
           onClick: () => this.scene.start('MapScene'),

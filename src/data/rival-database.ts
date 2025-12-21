@@ -49,7 +49,7 @@ export function getRivalBark(mood: RivalMood, trigger: BarkTrigger): string {
       patience_low: ["You're boring me.", "Are we done yet?", "Stop wasting my time."]
     },
     Normal: {
-      bid: ["I'll bid.", "Here's my offer.", "Let's keep this moving."],
+      bid: ["Still in.", "Beat that.", "Let's keep it moving."],
       outbid: ["Higher? Fine.", "I can match that.", "Okay, let's go."],
       win: ["Good auction.", "I'll take it.", "Nice doing business."],
       lose: ["Fair play.", "It's yours.", "I'm out."],

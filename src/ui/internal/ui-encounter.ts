@@ -309,14 +309,28 @@ export function createEncounterLogPanel<K extends string>(
 
   const appendEntryToDom = (entry: EncounterLogEntry<K>): void => {
     const line = renderLine(entry);
+
+    // Brief arrival highlight so new lines feel "delivered".
+    // Only applied for incremental appends, not for full sync().
+    const flashArrival = (): void => {
+      line.style.borderRadius = '8px';
+      line.style.transition = 'background-color 650ms ease';
+      line.style.backgroundColor = 'rgba(255,255,255,0.10)';
+      requestAnimationFrame(() => {
+        line.style.backgroundColor = 'transparent';
+      });
+    };
+
     if (newestFirst) {
       logScrollArea.insertBefore(line, logScrollArea.firstChild);
+      flashArrival();
       trimDomToMax();
       logScrollArea.scrollTop = 0;
       return;
     }
 
     logScrollArea.appendChild(line);
+    flashArrival();
     trimDomToMax();
     logScrollArea.scrollTop = logScrollArea.scrollHeight;
   };

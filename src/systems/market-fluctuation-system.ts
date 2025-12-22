@@ -186,14 +186,16 @@ export class MarketFluctuationSystem {
    */
   private getSeasonalModifier(carTags: readonly string[], gameDay?: number): number {
     const seasonalConfigs = GAME_CONFIG.economy.market.seasonal;
-    type SeasonalConfig = { startDay: number; endDay: number; tags: readonly string[]; modifier: number };
-    type SeasonKey = keyof typeof seasonalConfigs;
-    const seasonKey = this.getCurrentSeason(gameDay).toLowerCase() as SeasonKey;
-    const seasonalConfig = seasonalConfigs[seasonKey] as unknown as SeasonalConfig | undefined;
-    if (!seasonalConfig) return 1.0;
+    const seasonKey = this.getCurrentSeason(gameDay).toLowerCase();
+    if (seasonKey !== 'winter' && seasonKey !== 'spring' && seasonKey !== 'summer' && seasonKey !== 'fall') {
+      return 1.0;
+    }
+
+    const seasonalConfig = seasonalConfigs[seasonKey];
+    const affectedTags = seasonalConfig.tags as readonly string[];
 
     // Check if car has any of the affected tags
-    const hasAffectedTag = carTags.some(tag => seasonalConfig.tags.includes(tag));
+    const hasAffectedTag = carTags.some((tag) => affectedTags.includes(tag));
     return hasAffectedTag ? seasonalConfig.modifier : 1.0;
   }
 

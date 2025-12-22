@@ -8,6 +8,7 @@ import type { SpecialEvent } from '@/systems/special-events-system';
 import { buildSaveData, hydrateLoadedState, readSaveData, writeSaveData, type SavedGameData } from '@/core/game-persistence';
 import type { SkillKey } from '@/config/game-config';
 import type { DeepReadonly } from '@/utils/types';
+import { debugLog } from '@/utils/log';
 
 /**
  * Player State - Represents all player-owned resources and progression.
@@ -127,6 +128,30 @@ export class GameManager {
       // Initialize default state if no save or load failed
       this.initializeDefaultState();
     }
+  }
+
+  private emitMoneyChanged(): void {
+    eventBus.emit('money-changed', this.player.money);
+  }
+
+  private emitPrestigeChanged(): void {
+    eventBus.emit('prestige-changed', this.player.prestige);
+  }
+
+  private emitInventoryChanged(): void {
+    this.emitInventoryChanged();
+  }
+
+  private emitAPChanged(): void {
+    eventBus.emit('ap-changed', this.world.currentAP);
+  }
+
+  private emitDayChanged(): void {
+    eventBus.emit('day-changed', this.world.day);
+  }
+
+  private emitLocationChanged(location: string): void {
+    eventBus.emit('location-changed', location);
   }
 
   private static cloneCar(car: Car): Car {
@@ -375,7 +400,7 @@ export class GameManager {
     if (amount > 0) {
       this.world.dayStats.moneyEarned += amount;
     }
-    eventBus.emit('money-changed', this.player.money);
+    this.emitMoneyChanged();
     this.debouncedSave();
   }
 
@@ -406,7 +431,7 @@ export class GameManager {
 
     this.player.bankLoanTaken = true;
     this.player.money += BANK_LOAN_AMOUNT;
-    eventBus.emit('money-changed', this.player.money);
+    this.emitMoneyChanged();
     this.debouncedSave();
     return true;
   }
@@ -443,7 +468,7 @@ export class GameManager {
     this.player.activeLoan = loan;
     // Do not count as “money earned” in day stats.
     this.player.money += terms.principal;
-    eventBus.emit('money-changed', this.player.money);
+    this.emitMoneyChanged();
     this.debouncedSave();
 
     return { ok: true, loan };
@@ -465,14 +490,14 @@ export class GameManager {
     // Do not count as “money spent” in day stats.
     this.player.money -= totalDue;
     this.player.activeLoan = null;
-    eventBus.emit('money-changed', this.player.money);
+    this.emitMoneyChanged();
     this.debouncedSave();
 
     return { ok: true, totalPaid: totalDue };
   }
 
   /**
-    * Attempt to spend money.
+   * Attempt to spend money.
    * @param amount - Amount to spend (positive number)
    * @returns True if transaction succeeded, false if insufficient funds
    */
@@ -482,7 +507,7 @@ export class GameManager {
 
     this.player.money -= amount;
     this.world.dayStats.moneySpent += amount;
-    eventBus.emit('money-changed', this.player.money);
+    this.emitMoneyChanged();
     this.debouncedSave();
     return true;
   }
@@ -494,7 +519,7 @@ export class GameManager {
   private applyDailyRent(): number {
     const rent = this.getDailyRent();
     this.player.money -= rent;
-    eventBus.emit('money-changed', this.player.money);
+    this.emitMoneyChanged();
     return rent;
   }
 
@@ -508,7 +533,7 @@ export class GameManager {
     if (amount > 0) {
       this.world.dayStats.prestigeGained += amount;
     }
-    eventBus.emit('prestige-changed', this.player.prestige);
+    this.emitPrestigeChanged();
     this.debouncedSave();
   }
 
@@ -538,7 +563,7 @@ export class GameManager {
 
     this.player.prestige -= cost;
     this.player.garageSlots += 1;
-    eventBus.emit('prestige-changed', this.player.prestige);
+    this.emitPrestigeChanged();
     this.debouncedSave(); // Auto-save on upgrade
     return true;
   }
@@ -587,7 +612,7 @@ export class GameManager {
     };
     this.player.inventory.push(storedCar);
     this.world.dayStats.carsAcquired += 1;
-    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
+    this.emitInventoryChanged();
     
     // Check for set completions
     this.checkNewSetCompletions();
@@ -764,7 +789,7 @@ export class GameManager {
     if (index === -1) return false;
 
     this.player.inventory[index] = GameManager.cloneCar(updatedCar);
-    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
+    this.emitInventoryChanged();
     this.debouncedSave(); // Auto-save on car update
     return true;
   }
@@ -891,7 +916,7 @@ export class GameManager {
     const index = this.player.inventory.findIndex((car) => car.id === carId);
     if (index !== -1) {
       this.player.inventory.splice(index, 1);
-      eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
+      this.emitInventoryChanged();
       this.debouncedSave(); // Auto-save on inventory change
       return true;
     }
@@ -935,7 +960,7 @@ export class GameManager {
       return;
     }
     this.world.currentAP = Math.max(0, this.world.currentAP - cost);
-    eventBus.emit('ap-changed', this.world.currentAP);
+    this.emitAPChanged();
     this.debouncedSave();
   }
 
@@ -978,8 +1003,8 @@ export class GameManager {
       eventBus.emit('victory', victoryCheck);
     }
 
-    eventBus.emit('day-changed', this.world.day);
-    eventBus.emit('ap-changed', this.world.currentAP);
+    this.emitDayChanged();
+    this.emitAPChanged();
 
     this.save(); // Immediate save on day end (critical checkpoint)
     return { bankrupt: false, rentPaid };
@@ -1159,7 +1184,7 @@ export class GameManager {
    */
   public setLocation(location: string): void {
     this.world.currentLocation = location;
-    eventBus.emit('location-changed', location);
+    this.emitLocationChanged(location);
   }
 
   /**
@@ -1223,7 +1248,7 @@ export class GameManager {
         tutorial: tutorialManager.getState(),
       });
       writeSaveData(saveData);
-      console.log('Game saved successfully');
+      debugLog('Game saved successfully');
       return true;
     } catch (error) {
       console.error('Failed to save game:', error);
@@ -1276,7 +1301,7 @@ export class GameManager {
         }
       }
 
-      console.log('Game loaded successfully');
+      debugLog('Game loaded successfully');
       return true;
     } catch (error) {
       console.error('Failed to load game:', error);
@@ -1290,11 +1315,11 @@ export class GameManager {
    * Ensures UI is synchronized with current state.
    */
   public emitAllStateEvents(): void {
-    eventBus.emit('money-changed', this.player.money);
-    eventBus.emit('prestige-changed', this.player.prestige);
-    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
-    eventBus.emit('day-changed', this.world.day);
-    eventBus.emit('ap-changed', this.world.currentAP);
-    eventBus.emit('location-changed', this.world.currentLocation);
+    this.emitMoneyChanged();
+    this.emitPrestigeChanged();
+    this.emitInventoryChanged();
+    this.emitDayChanged();
+    this.emitAPChanged();
+    this.emitLocationChanged(this.world.currentLocation);
   }
 }

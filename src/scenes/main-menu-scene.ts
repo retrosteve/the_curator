@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
+import { debugLog } from '@/utils/log';
 
 /**
  * Main Menu Scene - Entry point for the game.
@@ -17,7 +18,7 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   create(): void {
-    console.log('Main Menu Scene: Loaded');
+    debugLog('Main Menu Scene: Loaded');
 
     this.gameManager = GameManager.getInstance();
     this.uiManager = UIManager.getInstance();

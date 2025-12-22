@@ -1,3 +1,4 @@
+import { debugLog, errorLog } from '@/utils/log';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
 import { Rival, getRivalById, calculateRivalInterest, getRivalBark, BarkTrigger } from '@/data/rival-database';
@@ -150,7 +151,7 @@ export class AuctionScene extends BaseGameScene {
   }
 
   create(): void {
-    console.log('Auction Scene: Loaded');
+    debugLog('Auction Scene: Loaded');
 
     this.initializeManagers('auction');
 
@@ -1531,7 +1532,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         try {
           isTutorialComplete = this.tutorialManager.isOnRedemptionStep();
         } catch (error) {
-          console.error('Tutorial error checking completion:', error);
+          errorLog('Tutorial error checking completion:', error);
         }
         
         this.uiManager.showModal(
@@ -1598,7 +1599,7 @@ Tip: Visit the Garage to sell something, then come back.`,
           return;
         }
       } catch (error) {
-        console.error('Tutorial error in redemption flow:', error);
+        errorLog('Tutorial error in redemption flow:', error);
         // Continue with normal loss flow
       }
       
@@ -1622,7 +1623,7 @@ Tip: Visit the Garage to sell something, then come back.`,
           return;
         }
       } catch (error) {
-        console.error('Tutorial error in redemption loss flow:', error);
+        errorLog('Tutorial error in redemption loss flow:', error);
         // Continue with normal loss flow
       }
 

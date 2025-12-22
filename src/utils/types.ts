@@ -2,7 +2,7 @@ export type Primitive = null | undefined | string | number | boolean | bigint | 
 
 export type DeepReadonly<T> =
   // Keep functions callable
-  T extends (...args: any[]) => any ? T :
+  T extends (...args: infer A) => infer R ? (...args: A) => R :
   // Primitives are already immutable
   T extends Primitive ? T :
   // Arrays
@@ -13,3 +13,11 @@ export type DeepReadonly<T> =
   // Objects
   T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } :
   T;
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+export function hasOwn<T extends object>(obj: T, key: PropertyKey): key is keyof T {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}

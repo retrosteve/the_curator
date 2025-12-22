@@ -12,6 +12,7 @@ import {
   formatEncounterNeedLabel,
   ensureEncounterLayoutStyles,
 } from '@/ui/internal/ui-encounter';
+import { debugLog } from '@/utils/log';
 
 type NegotiationLogKind = 'system' | 'player' | 'seller' | 'warning' | 'error';
 
@@ -61,7 +62,7 @@ export class NegotiationScene extends BaseGameScene {
   }
 
   create(): void {
-    console.log('Negotiation Scene: Loaded');
+    debugLog('Negotiation Scene: Loaded');
 
     this.initializeManagers('negotiation');
 

@@ -12,5 +12,13 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    rollupOptions: {
+      output: {
+        // Keep Phaser in its own chunk so the app entry bundle stays smaller.
+        manualChunks: {
+          phaser: ['phaser'],
+        },
+      },
+    },
   },
 });

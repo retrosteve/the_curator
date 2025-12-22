@@ -8,7 +8,6 @@ import { TutorialUI } from '@/ui/internal/ui-tutorial';
 import { eventBus } from '@/core/event-bus';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
-import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -297,18 +296,13 @@ export class UIManager {
    */
   public createPanel(style?: Partial<CSSStyleDeclaration>): HTMLDivElement {
     const panel = document.createElement('div');
+    // Base visuals are defined in CSS via .game-panel.
     panel.className = 'game-panel';
-    
-    Object.assign(panel.style, {
-      background: 'linear-gradient(145deg, rgba(18, 18, 35, 0.95), rgba(30, 30, 50, 0.95))',
-      border: '2px solid rgba(100, 200, 255, 0.3)',
-      borderRadius: '16px',
-      padding: '24px',
-      color: '#e0e6ed',
-      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-      backdropFilter: 'blur(10px)',
-      ...style,
-    });
+
+    // Callers can still override layout/positioning via inline styles.
+    if (style) {
+      Object.assign(panel.style, style);
+    }
 
     return panel;
   }
@@ -325,16 +319,12 @@ export class UIManager {
   ): HTMLParagraphElement {
     const p = document.createElement('p');
     p.textContent = text;
-    
-    Object.assign(p.style, {
-      margin: '8px 0',
-      fontSize: '15px',
-      color: '#e0e6ed',
-      lineHeight: '1.6',
-      fontFamily: 'Rajdhani, sans-serif',
-      whiteSpace: 'pre-line',
-      ...style,
-    });
+    // Keep newlines from game strings ("\n") visible.
+    p.className = 'game-text';
+
+    if (style) {
+      Object.assign(p.style, style);
+    }
 
     return p;
   }
@@ -353,15 +343,11 @@ export class UIManager {
   ): HTMLHeadingElement {
     const heading = document.createElement(`h${level}`) as HTMLHeadingElement;
     heading.textContent = text;
-    
-    Object.assign(heading.style, {
-      margin: '0 0 16px 0',
-      color: '#64b5f6',
-      fontFamily: 'Orbitron, sans-serif',
-      fontWeight: '700',
-      textShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
-      ...style,
-    });
+    heading.classList.add('game-heading');
+
+    if (style) {
+      Object.assign(heading.style, style);
+    }
 
     return heading;
   }
@@ -374,12 +360,11 @@ export class UIManager {
    */
   public createButtonContainer(style?: Partial<CSSStyleDeclaration>): HTMLDivElement {
     const container = document.createElement('div');
-    Object.assign(container.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      ...style,
-    });
+    container.className = 'game-button-container';
+
+    if (style) {
+      Object.assign(container.style, style);
+    }
     return container;
   }
 
@@ -536,6 +521,7 @@ export class UIManager {
       textAlign: 'center',
       ...options?.style
     });
+    panel.classList.add('car-info-panel');
 
     const title = this.createHeading(car.name, 2, {
       color: options?.titleColor || '#ecf0f1',
@@ -551,17 +537,8 @@ export class UIManager {
       img.src = imageUrl;
       img.alt = car.name;
       img.loading = 'lazy';
-      Object.assign(img.style, {
-        width: '100%',
-        height: `${options?.imageHeightPx ?? 140}px`,
-        display: 'block',
-        margin: '0 0 12px 0',
-        objectFit: 'cover',
-        borderRadius: isPixelUIEnabled() ? '0px' : '10px',
-        border: '2px solid rgba(255,255,255,0.2)',
-        backgroundColor: 'rgba(0,0,0,0.2)',
-        imageRendering: isPixelUIEnabled() ? 'pixelated' : 'auto',
-      } as Partial<CSSStyleDeclaration>);
+      img.className = 'car-info-image';
+      img.style.height = `${options?.imageHeightPx ?? 140}px`;
       panel.appendChild(img);
     }
 
@@ -577,19 +554,14 @@ export class UIManager {
     }
 
     if (details.length > 0) {
-      const infoText = this.createText(details.join(' | '), {
-        marginBottom: '10px',
-        fontSize: '16px'
-      });
+      const infoText = this.createText(details.join(' | '));
+      infoText.classList.add('car-info-details');
       panel.appendChild(infoText);
     }
 
     if (options?.showTags !== false && car.tags && car.tags.length > 0) {
-       const tagsText = this.createText(`Tags: ${car.tags.join(', ')}`, {
-         color: '#90caf9',
-         fontSize: '14px',
-         fontStyle: 'italic'
-       });
+       const tagsText = this.createText(`Tags: ${car.tags.join(', ')}`);
+       tagsText.classList.add('car-info-tags');
        panel.appendChild(tagsText);
     }
 

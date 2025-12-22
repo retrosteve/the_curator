@@ -2,6 +2,7 @@ import type { PlayerState, WorldState } from '@/core/game-manager';
 import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
 import type { SpecialEventsState } from '@/systems/special-events-system';
 import type { TutorialStep } from '@/systems/tutorial-manager';
+import { isRecord } from '@/utils/types';
 
 /** LocalStorage key used for the game's save slot. */
 export const SAVE_KEY = 'theCuratorSave';
@@ -127,8 +128,8 @@ export function readSaveData(): SavedGameData | null {
     const migrated = migrateSaveData(parsedJson);
     if (!migrated) {
       const maybeVersion =
-        parsedJson && typeof parsedJson === 'object'
-          ? (parsedJson as Record<string, unknown>).version
+        isRecord(parsedJson)
+          ? parsedJson.version
           : undefined;
       const versionLabel = typeof maybeVersion === 'string' ? maybeVersion : 'missing/invalid';
       console.warn(`Save rejected: unsupported or invalid version (${versionLabel}).`);
@@ -155,14 +156,15 @@ export function readSaveData(): SavedGameData | null {
  * - Unknown version: return null (caller should start fresh).
  */
 export function migrateSaveData(parsed: unknown): SavedGameData | null {
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!isRecord(parsed)) return null;
 
-  const obj = parsed as Record<string, unknown>;
+  const parsedValue: unknown = parsed;
+  const obj = parsed;
   const version = obj.version;
 
   // Legacy saves (pre-versioning): accept, migrate, and stamp current.
   if (version === undefined || version === null) {
-    const legacy = obj as unknown as SavedGameData;
+    const legacy = parsedValue as SavedGameData;
     const migratedPlayer = migrateLegacyPlayerFields(legacy.player);
 
     return {
@@ -173,12 +175,12 @@ export function migrateSaveData(parsed: unknown): SavedGameData | null {
   }
 
   if (typeof version !== 'string') return null;
-  if (version === SAVE_VERSION) return obj as unknown as SavedGameData;
+  if (version === SAVE_VERSION) return parsedValue as SavedGameData;
 
   // Future-proofing: add explicit migrations here when SAVE_VERSION changes.
   switch (version) {
     case '1.0': {
-      const v1 = obj as unknown as SavedGameData;
+      const v1 = parsedValue as SavedGameData;
       const migratedPlayer = migrateLegacyPlayerFields(v1.player);
 
       return {
@@ -218,7 +220,8 @@ export function hydrateLoadedState(saveData: SavedGameData): {
   specialEvents?: SpecialEventsState;
   tutorial?: { currentStep: TutorialStep; isActive: boolean };
 } {
-  const rawPlayer = migrateLegacyPlayerFields(saveData.player) as unknown as Partial<PlayerState> & {
+  const migratedPlayer = migrateLegacyPlayerFields(saveData.player);
+  const rawPlayer = (isRecord(migratedPlayer) ? migratedPlayer : {}) as Partial<PlayerState> & {
     visitedLocations?: string[];
     claimedSets?: string[];
   };
@@ -238,7 +241,7 @@ export function hydrateLoadedState(saveData: SavedGameData): {
     claimedSets: new Set(rawPlayer.claimedSets ?? []),
   };
 
-  const rawWorld = saveData.world as unknown as Partial<WorldState>;
+  const rawWorld = saveData.world as Partial<WorldState>;
   const world: WorldState = {
     day: rawWorld.day ?? 1,
     currentAP: rawWorld.currentAP ?? 0,

@@ -1,4 +1,5 @@
 import { eventBus } from '@/core/event-bus';
+import { debugLog } from '@/utils/log';
 
 /**
  * Tutorial step identifiers.
@@ -276,7 +277,7 @@ export class TutorialManager {
     eventBus.emit('tutorial-skip-prompt', {
       onSkip: () => {
         this.completeTutorial();
-        console.log('Tutorial skipped by user');
+        debugLog('Tutorial skipped by user');
       },
       onContinue: () => {},
     });
@@ -306,13 +307,13 @@ export class TutorialManager {
   public startTutorial(): void {
     // Prevent restarting if already active or completed
     if (this.isActive || this.currentStep !== 'intro') {
-      console.log('Tutorial already started or completed, skipping restart');
+      debugLog('Tutorial already started or completed, skipping restart');
       return;
     }
     
     this.isActive = true;
     this.currentStep = 'intro';
-    console.log('Tutorial started');
+    debugLog('Tutorial started');
     // Trigger intro dialogue with callback to advance to next step
     this.showDialogueWithCallback(
       "Uncle Ray", 
@@ -330,7 +331,7 @@ export class TutorialManager {
   public advanceStep(step: TutorialStep): void {
     if (!this.isActive) return;
     this.currentStep = step;
-    console.log(`Tutorial advanced to: ${step}`);
+    debugLog(`Tutorial advanced to: ${step}`);
     
     // Emit event so scenes can react to step changes
     eventBus.emit('tutorial-step-changed', { step });
@@ -455,7 +456,7 @@ export class TutorialManager {
   public loadState(state: { currentStep: TutorialStep; isActive: boolean }): void {
     this.currentStep = state.currentStep;
     this.isActive = state.isActive;
-    console.log(`Tutorial state loaded: step=${state.currentStep}, active=${state.isActive}`);
+    debugLog(`Tutorial state loaded: step=${state.currentStep}, active=${state.isActive}`);
 
     // Refresh UI hinting after loading.
     eventBus.emit('tutorial-highlight-changed', { targets: [...this.getHighlightTargetsForCurrentStep()] });
@@ -476,7 +477,7 @@ export class TutorialManager {
     this.currentStep = 'complete';
     this.hideTutorialDialogue();
     eventBus.emit('tutorial-highlight-changed', { targets: [] });
-    console.log('Tutorial completed');
+    debugLog('Tutorial completed');
   }
 
   /**
@@ -488,6 +489,6 @@ export class TutorialManager {
     this.isActive = false;
     this.hideTutorialDialogue();
     eventBus.emit('tutorial-highlight-changed', { targets: [] });
-    console.log('Tutorial reset to initial state');
+    debugLog('Tutorial reset to initial state');
   }
 }

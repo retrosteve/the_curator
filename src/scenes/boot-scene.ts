@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
+import { debugLog } from '@/utils/log';
 
 /**
  * Boot Scene - Initial loading and setup.
@@ -17,12 +18,12 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    console.log('Boot Scene: Initializing game...');
+    debugLog('Boot Scene: Initializing game...');
     
     // Initialize GameManager
     const gameManager = GameManager.getInstance();
     gameManager.setLocation('boot');
-    console.log('GameManager initialized:', gameManager);
+    debugLog('GameManager initialized:', gameManager);
 
     // Transition to Main Menu scene
     this.scene.start('MainMenuScene');

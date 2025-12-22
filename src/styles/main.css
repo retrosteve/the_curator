@@ -364,6 +364,199 @@ p {
   margin: 8px 0;
 }
 
+/* Text created by UIManager.createText() */
+.game-text {
+  font-size: 15px;
+  color: #e0e6ed;
+  font-family: 'Rajdhani', sans-serif;
+  white-space: pre-line;
+}
+
+/* Container created by UIManager.createButtonContainer() */
+.game-button-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Map dashboard + cards (used by ui-map.ts) */
+.map-dashboard {
+  position: absolute;
+  top: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 1200px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.map-location-card {
+  --map-accent-color: #64b5f6;
+
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.map-location-card.is-exhausted {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.map-location-card.is-locked {
+  cursor: not-allowed;
+  opacity: 0.5;
+  filter: grayscale(0.8);
+}
+
+.map-location-card:not(.is-locked):not(.is-exhausted):hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+  border-color: rgba(255,255,255,0.4);
+}
+
+#ui-overlay.ui-pixel .map-location-card {
+  border-radius: 0;
+  transition: none;
+  backdrop-filter: none;
+}
+
+.map-location-card__accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--map-accent-color);
+}
+
+.map-location-card.is-locked .map-location-card__accent {
+  background: #999;
+}
+
+.map-location-card__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-left: 8px;
+}
+
+.map-location-card__icon {
+  font-size: 28px;
+}
+
+.map-location-card__name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  flex: 1;
+}
+
+.map-location-card__description {
+  color: rgba(255,255,255,0.7);
+  font-size: 13px;
+  margin-bottom: 12px;
+  padding-left: 8px;
+  line-height: 1.4;
+}
+
+.map-location-card__status {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding-left: 8px;
+}
+
+.map-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.map-badge--locked {
+  background: rgba(100,100,100,0.5);
+  color: #fff;
+}
+
+.map-badge--ap {
+  background: rgba(255,215,0,0.2);
+  color: #ffd700;
+}
+
+.map-badge--free {
+  background: rgba(46,204,113,0.2);
+  color: #2ecc71;
+}
+
+.map-badge--exhausted {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+}
+
+.map-badge--rival {
+  background: rgba(255,69,58,0.2);
+  color: #ff453a;
+}
+
+.map-badge--special {
+  background: rgba(191,64,191,0.2);
+  color: #bf40bf;
+}
+
+.map-location-card__button {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+  background: var(--map-accent-color);
+  color: #fff;
+}
+
+.map-location-card__button:disabled {
+  background: #555;
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+.map-location-card:not(.is-locked):not(.is-exhausted) .map-location-card__button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+#ui-overlay.ui-pixel .map-location-card__button {
+  border-radius: 0;
+  transition: none;
+}
+
+/* MapScene HUD hint (daily intel) */
+.hud-daily-intel {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(100, 200, 255, 0.2);
+  font-size: 12px;
+  color: rgba(224, 230, 237, 0.8);
+}
+
 /* Scrollbar Styles */
 ::-webkit-scrollbar {
   width: 10px;
@@ -394,6 +587,232 @@ p {
   z-index: 9998;
   pointer-events: auto;
   animation: fadeIn 0.2s ease-out;
+}
+
+/* Modal system (used by ui-modals.ts) */
+.game-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 999;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+#ui-overlay.ui-pixel .game-modal-backdrop {
+  backdrop-filter: none;
+}
+
+.game-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(145deg, rgba(18, 18, 35, 0.98), rgba(30, 30, 50, 0.98));
+  border: 3px solid rgba(100, 200, 255, 0.4);
+  border-radius: 20px;
+  padding: 32px;
+  min-width: 400px;
+  max-width: 700px;
+  max-height: 85vh;
+  z-index: 1000;
+  pointer-events: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+}
+
+#ui-overlay.ui-pixel .game-modal {
+  background: rgba(18, 18, 35, 0.98);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.game-modal__content {
+  overflow-y: auto;
+  overflow-x: hidden;
+  margin-bottom: 20px;
+  flex-grow: 1;
+  flex-shrink: 1;
+  word-wrap: break-word;
+  text-align: center;
+}
+
+.game-modal__buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.game-modal__heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+/* Shared portrait styling (modals, restoration cards, etc.) */
+.game-portrait {
+  object-fit: cover;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.18);
+  background-color: rgba(0,0,0,0.18);
+  image-rendering: auto;
+}
+
+#ui-overlay.ui-pixel .game-portrait {
+  border-radius: 0;
+  image-rendering: pixelated;
+}
+
+.game-portrait--sm {
+  width: 44px;
+  height: 44px;
+}
+
+/* Restoration modal */
+.restoration-modal {
+  min-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.restoration-modal__subtitle {
+  font-size: 16px;
+  color: #90caf9;
+}
+
+.restoration-option-card {
+  background: linear-gradient(145deg, rgba(30, 30, 50, 0.8), rgba(40, 40, 60, 0.8));
+  border: 2px solid rgba(100, 200, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#ui-overlay.ui-pixel .restoration-option-card {
+  background: rgba(30, 30, 50, 0.8);
+  border-radius: 0;
+  transition: none;
+}
+
+.restoration-option-card:hover {
+  border-color: rgba(100, 200, 255, 0.5);
+  transform: translateX(4px);
+}
+
+#ui-overlay.ui-pixel .restoration-option-card:hover {
+  transform: none;
+}
+
+.restoration-option-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.restoration-option-card__header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.restoration-option-card__title {
+  margin: 0;
+  font-size: 18px;
+  color: #64b5f6;
+  font-family: 'Orbitron', sans-serif;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.restoration-option-card__cost {
+  font-size: 16px;
+  color: #ffd54f;
+  font-weight: bold;
+}
+
+.restoration-option-card__description {
+  font-size: 14px;
+  color: #b0bec5;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.restoration-option-card__stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.restoration-option-card__stat {
+  font-size: 14px;
+}
+
+.restoration-option-card__stat--condition {
+  color: #81c784;
+}
+
+.restoration-option-card__stat--value {
+  color: #64b5f6;
+}
+
+.restoration-option-card__stat--profit {
+  font-weight: bold;
+}
+
+.restoration-option-card__risk {
+  font-size: 13px;
+  color: #ff9800;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.restoration-modal__cancel {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Car info panel */
+.car-info-image {
+  width: 100%;
+  display: block;
+  margin: 0 0 12px 0;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid rgba(255,255,255,0.2);
+  background-color: rgba(0,0,0,0.2);
+  image-rendering: auto;
+}
+
+#ui-overlay.ui-pixel .car-info-image {
+  border-radius: 0;
+  image-rendering: pixelated;
+}
+
+.car-info-details {
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.car-info-tags {
+  color: #90caf9;
+  font-size: 14px;
+  font-style: italic;
 }
 
 /* Tutorial Dialogue Styles */

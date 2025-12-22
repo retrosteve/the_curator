@@ -1,3 +1,4 @@
+import { debugLog, errorLog } from '@/utils/log';
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { calculateCarValue, getCarById, getRandomCar, type Car } from '@/data/car-database';
@@ -72,7 +73,7 @@ export class MapScene extends BaseGameScene {
   }
 
   create(): void {
-    console.log('Map Scene: Loaded');
+    debugLog('Map Scene: Loaded');
 
     this.initializeManagers('map');
     this.setupBackground('OPERATIONS CENTER', {
@@ -260,15 +261,9 @@ export class MapScene extends BaseGameScene {
     if (hud && !hud.querySelector('[data-hud="daily-intel"]')) {
       const intelHint = document.createElement('div');
       intelHint.setAttribute('data-hud', 'daily-intel');
+      intelHint.className = 'hud-daily-intel';
       intelHint.textContent = '📰 Today\'s intel is locked (rivals & offers don\'t reroll)';
       intelHint.title = 'Rival presence and location offers are fixed for the current day.';
-      intelHint.style.cssText = `
-        margin-top: 8px;
-        padding-top: 8px;
-        border-top: 1px solid rgba(100, 200, 255, 0.2);
-        font-size: 12px;
-        color: rgba(224, 230, 237, 0.8);
-      `;
       hud.appendChild(intelHint);
     }
   }
@@ -494,7 +489,7 @@ export class MapScene extends BaseGameScene {
         }
       }
     } catch (error) {
-      console.error('Tutorial error in MapScene:', error);
+      errorLog('Tutorial error in MapScene:', error);
       // Continue with normal gameplay if tutorial fails
     }
     

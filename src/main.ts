@@ -6,6 +6,7 @@ import { GarageScene } from './scenes/garage-scene';
 import { MapScene } from './scenes/map-scene';
 import { AuctionScene } from './scenes/auction-scene';
 import { NegotiationScene } from './scenes/negotiation-scene';
+import { debugLog } from '@/utils/log';
 
 /**
  * Main entry point for The Curator.
@@ -33,5 +34,5 @@ const config: Phaser.Types.Core.GameConfig = {
 
 const game = new Phaser.Game(config);
 
-console.log('The Curator - Game Started');
-console.log('Game instance:', game);
+debugLog('The Curator - Game Started');
+debugLog('Game instance:', game);

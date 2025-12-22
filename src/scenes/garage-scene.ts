@@ -1,3 +1,4 @@
+import { debugLog, errorLog, warnLog } from '@/utils/log';
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
@@ -87,7 +88,7 @@ export class GarageScene extends BaseGameScene {
   }
 
   create(): void {
-    console.log('Garage Scene: Loaded');
+    debugLog('Garage Scene: Loaded');
 
     this.initializeManagers('garage');
     this.setupBackground('THE GARAGE', {
@@ -680,7 +681,7 @@ export class GarageScene extends BaseGameScene {
   private initializeTutorial(): void {
     try {
       if (!this.tutorialManager) {
-        console.warn('TutorialManager not initialized');
+        warnLog('TutorialManager not initialized');
         return;
       }
       
@@ -692,7 +693,7 @@ export class GarageScene extends BaseGameScene {
         this.tutorialManager.startTutorial();
       }
     } catch (error) {
-      console.error('Error initializing tutorial:', error);
+      errorLog('Error initializing tutorial:', error);
     }
   }
 
@@ -779,7 +780,7 @@ export class GarageScene extends BaseGameScene {
   /**
    * Show restoration challenges that must be completed before standard restoration.
    */
-  private showRestorationChallenges(car: Car, challenges: typeof Economy.getRestorationChallenges extends (...args: any) => infer R ? R : never): void {
+  private showRestorationChallenges(car: Car, challenges: ReturnType<typeof Economy.getRestorationChallenges>): void {
     // Build plain text message with proper formatting
     let message = '⚠️ RESTORATION BLOCKED\n\n';
     message += 'This car requires special treatment before standard restoration can begin.\n\n';
@@ -1230,7 +1231,7 @@ export class GarageScene extends BaseGameScene {
     try {
       this.scene.start('MapScene');
     } catch (error) {
-      console.error('Error going to map:', error);
+      errorLog('Error going to map:', error);
       // Fallback: still go to map even if tutorial fails
       this.scene.start('MapScene');
     }

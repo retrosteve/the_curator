@@ -52,8 +52,17 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 
 ### Garage Expansion
 - **Starting Capacity:** 1 garage slot.
-- **Upgrade Mechanics:** Prestige-based upgrades unlock additional slots (up to 5 total).
-- **Upgrade Costs:** Slot 2: 100 prestige, Slot 3: 200 prestige, Slot 4: 400 prestige, Slot 5: 800 prestige.
+- **Upgrade Mechanics:** Prestige-based upgrades unlock additional slots (up to 10 total).
+- **Upgrade Costs:**
+  - Slot 2: 100 prestige
+  - Slot 3: 200 prestige
+  - Slot 4: 400 prestige
+  - Slot 5: 800 prestige
+  - Slot 6: 1000 prestige
+  - Slot 7: 1200 prestige
+  - Slot 8: 1400 prestige
+  - Slot 9: 1600 prestige
+  - Slot 10: 1800 prestige
 - **Garage Full:** Players cannot acquire new cars when garage is full; must sell or scrap existing cars first.
 
 ### Private Collection Mechanic

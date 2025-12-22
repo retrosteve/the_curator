@@ -396,10 +396,14 @@ export class GarageScene extends BaseGameScene {
 
       const label = document.createElement('div');
       label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; opacity: 0.95;';
-      label.innerHTML = `
-        <span>${skillMeta.icon} ${skillMeta.name} Lv ${progress.level}</span>
-        <span>${isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`}</span>
-      `;
+
+      const leftSpan = document.createElement('span');
+      leftSpan.textContent = `${skillMeta.icon} ${skillMeta.name} Lv ${progress.level}`;
+      label.appendChild(leftSpan);
+
+      const rightSpan = document.createElement('span');
+      rightSpan.textContent = isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`;
+      label.appendChild(rightSpan);
       skillRow.appendChild(label);
 
       if (!isMaxLevel) {
@@ -724,10 +728,14 @@ export class GarageScene extends BaseGameScene {
       
       const labelDiv = document.createElement('div');
       labelDiv.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold;';
-      labelDiv.innerHTML = `
-        <span>${met ? '✅' : '⬜'} ${label}</span>
-        <span>${current} / ${required}</span>
-      `;
+
+      const leftLabel = document.createElement('span');
+      leftLabel.textContent = `${met ? '✅' : '⬜'} ${label}`;
+      labelDiv.appendChild(leftLabel);
+
+      const rightLabel = document.createElement('span');
+      rightLabel.textContent = `${current} / ${required}`;
+      labelDiv.appendChild(rightLabel);
       row.appendChild(labelDiv);
       
       const progressBar = document.createElement('div');
@@ -760,17 +768,34 @@ export class GarageScene extends BaseGameScene {
     
     const paceDetails = document.createElement('div');
     paceDetails.style.cssText = 'font-size: 14px; color: #bbb;';
-    paceDetails.innerHTML = `
-      • Current Rate: <span style="color: ${paceColor}; font-weight: bold;">${prestigePerDay.toFixed(1)} prestige/day</span><br>
-      • Days Played: ${currentDay}<br>
-      • Est. Days to Victory: ${daysToVictory < 999 ? daysToVictory : 'N/A'}<br>
-      <br>
-      <span style="font-size: 12px; font-style: italic;">
-        ${paceStatus === 'on-track' ? '✓ Great pace! Keep it up!' : 
-          paceStatus === 'slow' ? '⚡ Consider focusing on your collection and sets.' :
-          '💡 Tip: Add high-condition cars to your collection for daily prestige.'}
-      </span>
-    `;
+
+    const rateLine = document.createElement('div');
+    rateLine.appendChild(document.createTextNode('• Current Rate: '));
+    const rateValue = document.createElement('span');
+    rateValue.style.cssText = `color: ${paceColor}; font-weight: bold;`;
+    rateValue.textContent = `${prestigePerDay.toFixed(1)} prestige/day`;
+    rateLine.appendChild(rateValue);
+    paceDetails.appendChild(rateLine);
+
+    const daysPlayedLine = document.createElement('div');
+    daysPlayedLine.textContent = `• Days Played: ${currentDay}`;
+    paceDetails.appendChild(daysPlayedLine);
+
+    const etaLine = document.createElement('div');
+    etaLine.textContent = `• Est. Days to Victory: ${daysToVictory < 999 ? daysToVictory : 'N/A'}`;
+    paceDetails.appendChild(etaLine);
+
+    paceDetails.appendChild(document.createElement('br'));
+
+    const tipLine = document.createElement('span');
+    tipLine.style.cssText = 'font-size: 12px; font-style: italic;';
+    tipLine.textContent =
+      paceStatus === 'on-track'
+        ? '✓ Great pace! Keep it up!'
+        : paceStatus === 'slow'
+          ? '⚡ Consider focusing on your collection and sets.'
+          : '💡 Tip: Add high-condition cars to your collection for daily prestige.';
+    paceDetails.appendChild(tipLine);
     paceDiv.appendChild(paceDetails);
     modalContent.appendChild(paceDiv);
 
@@ -962,9 +987,11 @@ export class GarageScene extends BaseGameScene {
       const canSellFromGarage = garageCarCount > 0;
       const canMoveFromCollectionToGarage = collectionCarCount > 0 && this.gameManager.hasGarageSpace();
       const hasAnyCars = canSellFromGarage || collectionCarCount > 0;
-      const canLoan = this.gameManager.canTakeBankLoan();
+      const canBankLoan = this.gameManager.canTakeBankLoan();
+      const canPrestonLoan = this.gameManager.canTakePrestonLoan();
+      const canAnyLoan = canBankLoan || canPrestonLoan;
 
-      if (!hasAnyCars && !canLoan) {
+      if (!hasAnyCars && !canAnyLoan) {
         this.uiManager.showModal(
           'Bankrupt',
           `You can't pay today's rent (${formatCurrency(rent)}).\n\nGame Over.`,
@@ -996,12 +1023,29 @@ export class GarageScene extends BaseGameScene {
         });
       }
 
-      if (canLoan) {
+      if (canBankLoan) {
         const loanAmount = this.gameManager.getBankLoanAmount();
         buttons.push({
           text: `Take Bank Loan (+${formatCurrency(loanAmount)})`,
           onClick: () => {
             this.gameManager.takeBankLoan();
+            this.endDay();
+          },
+        });
+      }
+
+      if (canPrestonLoan) {
+        const terms = this.gameManager.getPrestonLoanTerms();
+        buttons.push({
+          text: `Take Finance Loan (+${formatCurrency(terms.principal)})`,
+          onClick: () => {
+            const result = this.gameManager.takePrestonLoan();
+            if (!result.ok) {
+              setTimeout(() => {
+                this.uiManager.showModal('Finance', result.reason, [{ text: 'OK', onClick: () => {} }]);
+              }, 0);
+              return;
+            }
             this.endDay();
           },
         });
@@ -1014,7 +1058,7 @@ export class GarageScene extends BaseGameScene {
 
       this.uiManager.showModal(
         'Rent Due',
-        `Daily rent is ${formatCurrency(rent)}, but you only have ${formatCurrency(playerBefore.money)} (short ${formatCurrency(shortfall)}).\n\nSell a car or take a bank loan to avoid bankruptcy.`,
+        `Daily rent is ${formatCurrency(rent)}, but you only have ${formatCurrency(playerBefore.money)} (short ${formatCurrency(shortfall)}).\n\nSell a car or take a loan to avoid bankruptcy.`,
         buttons
       );
 
@@ -1384,25 +1428,32 @@ export class GarageScene extends BaseGameScene {
         `;
 
         const leftSide = document.createElement('div');
-        leftSide.innerHTML = `
-          <div style="font-size: 18px; margin-bottom: 4px;">${collection.icon} ${collection.name}</div>
-          <div style="font-size: 12px; color: #95a5a6;">${collection.description}</div>
-        `;
+
+        const leftTitle = document.createElement('div');
+        leftTitle.style.cssText = 'font-size: 18px; margin-bottom: 4px;';
+        leftTitle.textContent = `${collection.icon} ${collection.name}`;
+        leftSide.appendChild(leftTitle);
+
+        const leftDescription = document.createElement('div');
+        leftDescription.style.cssText = 'font-size: 12px; color: #95a5a6;';
+        leftDescription.textContent = collection.description;
+        leftSide.appendChild(leftDescription);
 
         const rightSide = document.createElement('div');
         rightSide.style.cssText = 'text-align: right;';
         
         const statusIcon = collection.isClaimed ? '✅' : collection.isComplete ? '🎁' : '⬜';
         const statusText = collection.isClaimed ? 'Completed!' : collection.isComplete ? 'Ready to Claim!' : `${collection.current}/${collection.required}`;
-        
-        rightSide.innerHTML = `
-          <div style="font-size: 16px; font-weight: bold; color: ${collection.isClaimed ? '#2ecc71' : collection.isComplete ? '#f39c12' : '#64b5f6'};">
-            ${statusIcon} ${statusText}
-          </div>
-          <div style="font-size: 12px; color: #95a5a6; margin-top: 4px;">
-            Reward: +${collection.prestigeReward} Prestige
-          </div>
-        `;
+
+        const statusLine = document.createElement('div');
+        statusLine.style.cssText = `font-size: 16px; font-weight: bold; color: ${collection.isClaimed ? '#2ecc71' : collection.isComplete ? '#f39c12' : '#64b5f6'};`;
+        statusLine.textContent = `${statusIcon} ${statusText}`;
+        rightSide.appendChild(statusLine);
+
+        const rewardLine = document.createElement('div');
+        rewardLine.style.cssText = 'font-size: 12px; color: #95a5a6; margin-top: 4px;';
+        rewardLine.textContent = `Reward: +${collection.prestigeReward} Prestige`;
+        rightSide.appendChild(rewardLine);
 
         collectionCard.appendChild(leftSide);
         collectionCard.appendChild(rightSide);

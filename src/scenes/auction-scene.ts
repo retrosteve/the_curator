@@ -998,6 +998,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (!this.encounterStarted) return;
     if (this.locationId) {
       this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+      // Prevent accidental double-consumption across multiple resolution paths.
+      this.locationId = undefined;
     }
   }
 

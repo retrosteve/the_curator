@@ -14,6 +14,7 @@ export interface SpecialEvent {
   x: number;
   y: number;
   color: number;
+  /** Action Point (AP) cost to attend this special event. */
   timeCost: number;
   reward: {
     carValueMultiplier?: number;
@@ -94,7 +95,14 @@ export class SpecialEventsSystem {
    * Get all currently active special events.
    */
   public getActiveEvents(): SpecialEvent[] {
-    return [...this.activeEvents];
+    // Defensive copy: callers should not be able to mutate internal system state.
+    return this.activeEvents.map((event) => ({
+      ...event,
+      reward: {
+        ...event.reward,
+        guaranteedTags: event.reward.guaranteedTags ? [...event.reward.guaranteedTags] : undefined,
+      },
+    }));
   }
 
   /**
@@ -159,7 +167,7 @@ export class SpecialEventsSystem {
           x: 200 + Math.random() * 400, // Random position
           y: 150 + Math.random() * 200,
           color: 0x000080, // Dark blue
-          timeCost: 3, // 3 hours
+          timeCost: 3,
           reward: {
             carValueMultiplier: 0.7, // Cars are cheaper but may have issues
             prestigeBonus: 2,

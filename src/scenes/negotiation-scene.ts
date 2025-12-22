@@ -360,6 +360,9 @@ export class NegotiationScene extends BaseGameScene {
 
     if (this.locationId) {
       this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+      // Prevent accidental double-consumption when handleLeave() runs after buying.
+      this.locationId = undefined;
+      this.encounterStarted = false;
     }
 
     // Apply special event rewards

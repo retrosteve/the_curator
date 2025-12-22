@@ -6,7 +6,6 @@ import { Economy } from '@/systems/economy';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car, getCarById } from '@/data/car-database';
-import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { getAllCharacterProfiles } from '@/data/character-database';
 import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
@@ -14,6 +13,9 @@ import { formatCurrency, formatNumber } from '@/utils/format';
 import type { VictoryResult } from '@/core/game-manager';
 import type { DeepReadonly } from '@/utils/types';
 import { isPixelUIEnabled } from '@/ui/internal/ui-style';
+import { showRestorationChallenges, showRestorationOptions } from './internal/garage-restoration';
+import { sellCar as sellCarInternal, sellCarAsIs as sellCarAsIsInternal } from './internal/garage-inventory';
+import { createCarCard as createCarCardInternal } from './internal/garage-ui';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -535,147 +537,15 @@ export class GarageScene extends BaseGameScene {
     context: 'inventory' | 'collection',
     refreshCallback: () => void
   ): HTMLDivElement {
-    const compactButtonStyle: Partial<CSSStyleDeclaration> = {
-      padding: '8px 12px',
-      fontSize: '12px',
-      borderRadius: '8px',
-    };
-
-    const carPanel = this.uiManager.createPanel({
-      margin: '0',
-      padding: '14px',
-      backgroundColor: context === 'inventory' 
-        ? 'rgba(52, 73, 94, 0.6)' 
-        : 'rgba(243, 156, 18, 0.1)',
-      border: context === 'collection' ? '2px solid #f39c12' : undefined,
+    return createCarCardInternal(car, context, {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onRestore: (carId) => this.restoreCar(carId),
+      onSell: (carId) => this.sellCar(carId),
+      onSellAsIs: (carId) => this.sellCarAsIs(carId),
+      onRefresh: refreshCallback,
+      getCarById,
     });
-
-    carPanel.classList.add('garage-car-card');
-
-    const carName = this.uiManager.createHeading(car.name, 3, {
-      color: context === 'collection' ? '#f39c12' : undefined,
-      margin: '0 0 6px 0',
-      fontSize: '18px',
-    });
-
-    const salePrice = Economy.getSalePrice(car, this.gameManager);
-
-    const metaText = this.uiManager.createText(
-      `Tier ${car.tier} · Cond ${car.condition}/100 · Value ${formatCurrency(salePrice)}`,
-      { margin: '0', fontSize: '13px', lineHeight: '1.35', opacity: '0.95' }
-    );
-
-    const templateId = car.templateId ?? (getCarById(car.id) ? car.id : undefined);
-    const imageUrl = getCarImageUrlOrPlaceholder(templateId);
-
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.alt = car.name;
-    img.loading = 'lazy';
-    img.style.width = '100%';
-    img.style.height = '120px';
-    img.style.objectFit = 'cover';
-        img.style.borderRadius = isPixelUIEnabled() ? '0px' : '10px';
-        img.style.border = '2px solid rgba(255,255,255,0.2)';
-        img.style.backgroundColor = 'rgba(0,0,0,0.2)';
-        img.style.imageRendering = isPixelUIEnabled() ? 'pixelated' : 'auto';
-    img.style.margin = '0 0 10px 0';
-    carPanel.appendChild(img);
-
-    carPanel.appendChild(carName);
-    carPanel.appendChild(metaText);
-
-    if (context === 'collection') {
-      const carTags = this.uiManager.createText(
-        `Tags: ${car.tags.join(', ')}`,
-        { fontSize: '12px', color: '#bdc3c7', margin: '6px 0 0 0', lineHeight: '1.35' }
-      );
-      carPanel.appendChild(carTags);
-    }
-
-    if (context === 'inventory') {
-      const buttonContainer = this.uiManager.createButtonContainer({
-        marginTop: '10px',
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: '8px',
-      });
-      buttonContainer.classList.add('garage-card-actions');
-
-      const restoreBtn = this.uiManager.createButton(
-        'Restore',
-        () => this.restoreCar(car.id)
-        ,
-        { style: compactButtonStyle }
-      );
-      restoreBtn.dataset.tutorialTarget = 'garage.restore';
-      buttonContainer.appendChild(restoreBtn);
-
-      const isCollectionEligible = this.gameManager.isCollectionEligible(car);
-      const isInCollection = car.inCollection === true;
-
-      if (isCollectionEligible) {
-        const collectionBtn = this.uiManager.createButton(
-          isInCollection ? '✓ In Collection' : 'Add to Collection',
-          () => {
-            const result = this.gameManager.toggleCollectionStatus(car.id);
-            if (result.success) {
-              refreshCallback();
-            } else {
-              this.uiManager.showModal('Cannot Add', result.message, [
-                { text: 'OK', onClick: () => {} },
-              ]);
-            }
-          },
-          {
-            variant: isInCollection ? 'special' : undefined,
-            style: compactButtonStyle,
-          }
-        );
-        buttonContainer.appendChild(collectionBtn);
-      }
-
-      const sellBtn = this.uiManager.createButton(
-        'Sell',
-        () => this.sellCar(car.id),
-        { variant: 'success', style: compactButtonStyle }
-      );
-      const sellAsIsBtn = this.uiManager.createButton(
-        'Sell As-Is',
-        () => this.sellCarAsIs(car.id),
-        { variant: 'warning', style: compactButtonStyle }
-      );
-      buttonContainer.appendChild(sellBtn);
-      buttonContainer.appendChild(sellAsIsBtn);
-
-      carPanel.appendChild(buttonContainer);
-
-      // Show eligibility message if not collection-eligible
-      if (!isCollectionEligible) {
-        const notEligibleText = this.uiManager.createText(
-          `Requires 80%+ condition to add to collection (currently ${car.condition}%)`,
-          { fontSize: '12px', color: '#95a5a6', fontStyle: 'italic', margin: '6px 0 0 0', lineHeight: '1.35' }
-        );
-        carPanel.appendChild(notEligibleText);
-      }
-    } else {
-      // Collection context - only remove button
-      const removeBtn = this.uiManager.createButton(
-        'Remove from Collection',
-        () => {
-          const result = this.gameManager.toggleCollectionStatus(car.id);
-          if (result.success) {
-            refreshCallback();
-          } else {
-            this.uiManager.showModal('Cannot Remove', result.message, [{ text: 'OK', onClick: () => {} }]);
-          }
-        },
-        { variant: 'danger', style: { ...compactButtonStyle, marginTop: '10px' } }
-      );
-      carPanel.appendChild(removeBtn);
-    }
-
-    return carPanel;
   }
 
   private initializeTutorial(): void {
@@ -781,203 +651,36 @@ export class GarageScene extends BaseGameScene {
    * Show restoration challenges that must be completed before standard restoration.
    */
   private showRestorationChallenges(car: Car, challenges: ReturnType<typeof Economy.getRestorationChallenges>): void {
-    // Build plain text message with proper formatting
-    let message = '⚠️ RESTORATION BLOCKED\n\n';
-    message += 'This car requires special treatment before standard restoration can begin.\n\n';
-    message += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
-    
-    challenges.forEach((challenge, index) => {
-      message += `${challenge.name}\n`;
-      message += `${challenge.description}\n\n`;
-      message += `💰 Cost: ${formatCurrency(challenge.cost)} | ⏰ Time: ${challenge.apCost} AP\n`;
-      
-      if (index < challenges.length - 1) {
-        message += '\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
-      }
+    showRestorationChallenges(car, challenges, {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      timeSystem: this.timeSystem,
+      onShowInventory: () => this.showInventory(),
+      onRestoreCar: (carId) => this.restoreCar(carId),
     });
-    
-    const buttons = challenges.map(challenge => ({
-      text: `Fix: ${challenge.name}`,
-      onClick: () => {
-        const block = this.timeSystem.getAPBlockModal(challenge.apCost, `fixing ${car.name}`);
-        if (block) {
-          this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
-          return;
-        }
-        
-        if (this.gameManager.spendMoney(challenge.cost)) {
-          this.timeSystem.spendAP(challenge.apCost);
-          const fixedCar = Economy.completeRestorationChallenge(car, challenge);
-          this.gameManager.updateCar(fixedCar);
-          
-          this.uiManager.showModal(
-            '✅ Challenge Complete!',
-            `${challenge.name} completed successfully!\n\nThe car is now ready for standard restoration.`,
-            [{ text: 'Continue', onClick: () => this.restoreCar(car.id) }]
-          );
-        } else {
-          this.uiManager.showInsufficientFundsModal();
-        }
-      },
-    }));
-    
-    buttons.push({
-      text: 'Cancel',
-      onClick: () => this.showInventory(),
-    });
-    
-    this.uiManager.showModal('🔧 Restoration Challenges', message, buttons);
   }
   
   /**
    * Show standard restoration options.
    */
   private showRestorationOptions(car: Car): void {
-
-    const options = Economy.getRestorationOptions(car);
-    
-    // Calculate profit preview for each option
-    const currentValue = Economy.getSalePrice(car, this.gameManager);
-    
-    const modalOptions = options.map(opt => {
-      // Simulate restoration result
-      const simulatedCar = { ...car, condition: Math.min(100, car.condition + opt.conditionGain) };
-      const futureValue = Economy.getSalePrice(simulatedCar, this.gameManager);
-      const valueIncrease = futureValue - currentValue;
-      const netProfit = valueIncrease - opt.cost;
-      
-      return {
-        name: opt.name,
-        cost: opt.cost,
-        apCost: opt.apCost,
-        description: opt.description,
-        conditionGain: opt.conditionGain,
-        valueIncrease,
-        netProfit,
-        risk: opt.risk,
-        portraitUrl: getCharacterPortraitUrlOrPlaceholder(
-          opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan'
-        ),
-        portraitAlt: opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan',
-        onClick: () => {
-          const block = this.timeSystem.getAPBlockModal(opt.apCost, `restoring ${car.name}`);
-          if (block) {
-            this.uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
-            return;
-          }
-          if (this.gameManager.spendMoney(opt.cost)) {
-            this.timeSystem.spendAP(opt.apCost);
-            
-            // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
-            const isTutorialFirstRestore = this.tutorialManager.shouldForceFirstRestorationSuccess();
-            const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
-            this.gameManager.updateCar(result.car);
-
-            const specialistName = opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan';
-            const backgroundColor = result.success
-              ? (opt.specialist === 'Charlie' ? 'rgba(96, 125, 139, 0.95)' : 'rgba(39, 174, 96, 0.95)')
-              : 'rgba(230, 126, 34, 0.95)';
-            this.uiManager.showCharacterToast(specialistName, result.message, { backgroundColor });
-            
-            // Show discovery message if found
-            if (result.discovery) {
-              const discoveryIcon = result.discovery.type === 'positive' ? '💎' : '⚠️';
-              const discoveryName = result.discovery.name;
-              const valueChange = result.discovery.valueChange;
-              
-              setTimeout(() => {
-                this.uiManager.showCharacterModal(
-                  specialistName,
-                  `${discoveryIcon} Hidden Discovery!`,
-                  result.message + `\n\n${discoveryName}\nValue change: ${formatCurrency(Math.abs(valueChange))}`,
-                  [{ text: 'Continue', onClick: () => {
-                    this.showInventory();
-                  }}]
-                );
-              }, 300);
-            } else {
-              // Normal restoration result
-              this.showInventory();
-            }
-            
-            // Tutorial trigger: advance to first_restore immediately after restoration
-            this.tutorialManager.onFirstTutorialRestorationCompleted();
-            
-            // Tutorial: Auto-sell the first car after restoration
-            if (this.tutorialManager.shouldAutoSellAfterFirstRestoration()) {
-              this.showInventory();
-              // Auto-trigger the sale
-              setTimeout(() => {
-                const restoredCar = this.gameManager.getCar(car.id);
-                if (restoredCar) {
-                  const salePrice = Economy.getSalePrice(restoredCar, this.gameManager);
-                  this.uiManager.showModal(
-                    'Tutorial: Your First Sale',
-                    `An NPC buyer saw your ${restoredCar.name} and wants to buy it immediately for ${formatCurrency(salePrice)}!\n\nThis is how you flip cars for profit: Buy low, restore, sell high.`,
-                    [{
-                      text: 'Sell to Buyer',
-                      onClick: () => {
-                        this.gameManager.addMoney(salePrice);
-                        this.gameManager.removeCar(car.id);
-                        this.tutorialManager.onFirstTutorialCarSold();
-                        
-                        // Show next tutorial guidance
-                        setTimeout(() => {
-                          this.tutorialManager.showDialogueWithCallback(
-                            'Uncle Ray',
-                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map", then visit the Weekend Auction House. You'll face competition from other collectors there.`,
-                            () => this.setupUI()
-                          );
-                        }, 300);
-                      }
-                    }]
-                  );
-                }
-              }, 500);
-            } else {
-              this.showInventory();
-            }
-          } else {
-            this.uiManager.showInsufficientFundsModal();
-          }
-        },
-      };
+    showRestorationOptions(car, {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      timeSystem: this.timeSystem,
+      tutorialManager: this.tutorialManager,
+      onShowInventory: () => this.showInventory(),
     });
-
-    this.uiManager.showRestorationModal(
-      car.name,
-      car.condition,
-      modalOptions,
-      () => this.showInventory()
-    );
   }
 
   private sellCar(carId: string): void {
-    if (!this.tutorialManager.isSideActionAllowed('sell-car')) {
-      this.showTutorialBlockedActionModal(this.tutorialManager.getSideActionBlockedMessage('sell-car'));
-      return;
-    }
-
-    const car = this.gameManager.getCar(carId);
-    if (!car) return;
-
-    const salePrice = Economy.getSalePrice(car, this.gameManager);
-
-    this.uiManager.confirmAction(
-      'Sell Car',
-      `Sell ${car.name} for ${formatCurrency(salePrice)}?`,
-      () => {
-        this.gameManager.addMoney(salePrice);
-        this.gameManager.removeCar(carId);
-        this.uiManager.showFloatingMoney(salePrice, true);
-
-        this.tutorialManager.onFirstTutorialCarSold();
-        
-        this.showInventory();
-      },
-      () => this.showInventory(),
-      { confirmText: 'Sell', confirmVariant: 'success' }
-    );
+    sellCarInternal(carId, {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      tutorialManager: this.tutorialManager,
+      onShowInventory: () => this.showInventory(),
+      onShowTutorialBlockedModal: (message) => this.showTutorialBlockedActionModal(message),
+    });
   }
 
   private showVictoryProgress(): void {
@@ -1162,28 +865,13 @@ export class GarageScene extends BaseGameScene {
   }
 
   private sellCarAsIs(carId: string): void {
-    if (!this.tutorialManager.isSideActionAllowed('sell-car')) {
-      this.showTutorialBlockedActionModal(this.tutorialManager.getSideActionBlockedMessage('sell-car'));
-      return;
-    }
-
-    const car = this.gameManager.getCar(carId);
-    if (!car) return;
-
-    const salePrice = Math.floor(Economy.getSalePrice(car, this.gameManager) * GAME_CONFIG.economy.sellAsIsMultiplier);
-
-    this.uiManager.confirmAction(
-      'Sell As-Is',
-      `Quick sell ${car.name} for ${formatCurrency(salePrice)}? (70% Value)`,
-      () => {
-        this.gameManager.addMoney(salePrice);
-        this.gameManager.removeCar(carId);
-        this.uiManager.showFloatingMoney(salePrice, true);
-        this.showInventory();
-      },
-      () => this.showInventory(),
-      { confirmText: 'Sell', confirmVariant: 'warning' }
-    );
+    sellCarAsIsInternal(carId, {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      tutorialManager: this.tutorialManager,
+      onShowInventory: () => this.showInventory(),
+      onShowTutorialBlockedModal: (message) => this.showTutorialBlockedActionModal(message),
+    });
   }
 
   private showMorningBriefing(): void {

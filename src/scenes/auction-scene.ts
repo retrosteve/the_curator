@@ -1,7 +1,7 @@
 import { debugLog, errorLog } from '@/utils/log';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
-import { Rival, getRivalById, calculateRivalInterest, getRivalBark, BarkTrigger } from '@/data/rival-database';
+import { Rival, getRivalById, calculateRivalInterest, BarkTrigger } from '@/data/rival-database';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
@@ -18,6 +18,22 @@ import {
   ensureEncounterLayoutStyles,
 } from '@/ui/internal/ui-encounter';
 import { isPixelUIEnabled } from '@/ui/internal/ui-style';
+import {
+  type DialogueState,
+  clearActiveRivalBubble,
+  clearActiveAuctioneerBubble,
+  renderRivalBarkText as renderRivalBarkTextInternal,
+  renderAuctioneerBarkText as renderAuctioneerBarkTextInternal,
+  showRivalBark as showRivalBarkInternal,
+} from './internal/auction-dialogue';
+import {
+  type BiddingContext,
+  type BiddingCallbacks,
+  playerBid as playerBidInternal,
+  playerKickTires as playerKickTiresInternal,
+  playerStall as playerStallInternal,
+  rivalTurnImmediate as rivalTurnImmediateInternal,
+} from './internal/auction-bidding';
 
 type AuctionLogKind = 'system' | 'player' | 'rival' | 'auctioneer' | 'market' | 'warning' | 'error';
 
@@ -55,20 +71,8 @@ export class AuctionScene extends BaseGameScene {
   private powerBidStreak: number = 0;
   private auctionMarketEstimateValue: number = 0;
 
-  private activeRivalBubble?: HTMLDivElement;
-  private activeRivalBubbleText?: HTMLSpanElement;
-  private activeRivalBubbleHideTimeoutId?: number;
-  private activeRivalBubbleRemoveTimeoutId?: number;
-  private lastRivalBarkText?: string;
-
-  private activeAuctioneerBubble?: HTMLDivElement;
-  private activeAuctioneerBubbleText?: HTMLSpanElement;
-  private activeAuctioneerBubbleHideTimeoutId?: number;
-  private activeAuctioneerBubbleRemoveTimeoutId?: number;
-  private lastAuctioneerBarkText?: string;
-
-  private rivalPortraitAnchor?: HTMLDivElement;
-  private auctioneerPortraitAnchor?: HTMLDivElement;
+  // Dialogue state (speech bubbles, barks, portrait anchors)
+  private dialogueState: DialogueState = {};
 
   private pendingUIRefreshTimeoutId?: number;
   private pendingRivalBarkTimeoutId?: number;
@@ -93,8 +97,6 @@ export class AuctionScene extends BaseGameScene {
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
   private static readonly BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
   private static readonly POWER_BID_INCREMENT = GAME_CONFIG.auction.powerBidIncrement;
-  private static readonly POWER_BID_PATIENCE_PENALTY = GAME_CONFIG.auction.powerBidPatiencePenalty;
-  private static readonly STALL_PATIENCE_PENALTY = GAME_CONFIG.auction.stallPatiencePenalty;
 
   private static readonly KICK_TIRES_BUDGET_REDUCTION = GAME_CONFIG.auction.kickTires.rivalBudgetReduction;
   private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = GAME_CONFIG.auction.kickTires.requiredEyeLevel;
@@ -120,20 +122,7 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0;
     this.auctionMarketEstimateValue = 0;
 
-    this.activeRivalBubble = undefined;
-    this.activeRivalBubbleText = undefined;
-    this.activeRivalBubbleHideTimeoutId = undefined;
-    this.activeRivalBubbleRemoveTimeoutId = undefined;
-    this.lastRivalBarkText = undefined;
-
-    this.activeAuctioneerBubble = undefined;
-    this.activeAuctioneerBubbleText = undefined;
-    this.activeAuctioneerBubbleHideTimeoutId = undefined;
-    this.activeAuctioneerBubbleRemoveTimeoutId = undefined;
-    this.lastAuctioneerBarkText = undefined;
-
-    this.rivalPortraitAnchor = undefined;
-    this.auctioneerPortraitAnchor = undefined;
+    this.dialogueState = {};
     this.pendingUIRefreshTimeoutId = undefined;
     this.pendingRivalBarkTimeoutId = undefined;
     this.pendingRivalTurnTimeoutId = undefined;
@@ -228,8 +217,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.clearPendingLogRender();
       this.clearPendingPlayerTurnEnable();
       this.clearPendingEndAuction();
-      this.clearActiveRivalBubble();
-      this.clearActiveAuctioneerBubble();
+      clearActiveRivalBubble(this.dialogueState);
+      clearActiveAuctioneerBubble(this.dialogueState);
     });
   }
 
@@ -421,46 +410,12 @@ Tip: Visit the Garage to sell something, then come back.`,
     }, delayMs);
   }
 
-  private clearActiveRivalBubble(): void {
-    if (this.activeRivalBubbleHideTimeoutId !== undefined) {
-      clearTimeout(this.activeRivalBubbleHideTimeoutId);
-      this.activeRivalBubbleHideTimeoutId = undefined;
-    }
-    if (this.activeRivalBubbleRemoveTimeoutId !== undefined) {
-      clearTimeout(this.activeRivalBubbleRemoveTimeoutId);
-      this.activeRivalBubbleRemoveTimeoutId = undefined;
-    }
-
-    if (this.activeRivalBubble && this.activeRivalBubble.parentNode) {
-      this.activeRivalBubble.parentNode.removeChild(this.activeRivalBubble);
-    }
-    this.activeRivalBubble = undefined;
-    this.activeRivalBubbleText = undefined;
-  }
-
-  private clearActiveAuctioneerBubble(): void {
-    if (this.activeAuctioneerBubbleHideTimeoutId !== undefined) {
-      clearTimeout(this.activeAuctioneerBubbleHideTimeoutId);
-      this.activeAuctioneerBubbleHideTimeoutId = undefined;
-    }
-    if (this.activeAuctioneerBubbleRemoveTimeoutId !== undefined) {
-      clearTimeout(this.activeAuctioneerBubbleRemoveTimeoutId);
-      this.activeAuctioneerBubbleRemoveTimeoutId = undefined;
-    }
-
-    if (this.activeAuctioneerBubble && this.activeAuctioneerBubble.parentNode) {
-      this.activeAuctioneerBubble.parentNode.removeChild(this.activeAuctioneerBubble);
-    }
-    this.activeAuctioneerBubble = undefined;
-    this.activeAuctioneerBubbleText = undefined;
-  }
-
   private restorePersistentBarks(): void {
-    if (this.lastAuctioneerBarkText) {
-      this.renderAuctioneerBarkText(this.lastAuctioneerBarkText, { suppressLog: true, animate: false });
+    if (this.dialogueState.lastAuctioneerBarkText) {
+      this.renderAuctioneerBarkText(this.dialogueState.lastAuctioneerBarkText, { suppressLog: true, animate: false });
     }
-    if (this.lastRivalBarkText) {
-      this.renderRivalBarkText(this.lastRivalBarkText, { suppressLog: true, animate: false });
+    if (this.dialogueState.lastRivalBarkText) {
+      this.renderRivalBarkText(this.dialogueState.lastRivalBarkText, { suppressLog: true, animate: false });
     }
   }
 
@@ -488,10 +443,10 @@ Tip: Visit the Garage to sell something, then come back.`,
   private setupUI(): void {
     // resetUIWithHUD() clears the entire overlay, so ensure any transient overlay-owned
     // elements (like the rival speech bubble) are cleared + references reset first.
-    this.clearActiveRivalBubble();
-    this.clearActiveAuctioneerBubble();
-    this.rivalPortraitAnchor = undefined;
-    this.auctioneerPortraitAnchor = undefined;
+    clearActiveRivalBubble(this.dialogueState);
+    clearActiveAuctioneerBubble(this.dialogueState);
+    this.dialogueState.rivalPortraitAnchor = undefined;
+    this.dialogueState.auctioneerPortraitAnchor = undefined;
     this.logPanelApi = undefined;
 
     this.resetUIWithHUD();
@@ -616,7 +571,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
       `${this.auctioneerName} portrait`
     );
-    this.auctioneerPortraitAnchor = auctioneerAnchor;
+    this.dialogueState.auctioneerPortraitAnchor = auctioneerAnchor;
     participantStrip.appendChild(makeParticipantColumn(auctioneerAnchor, this.auctioneerName));
 
     const playerPortrait = makePortraitAnchor(PLAYER_PORTRAIT_PLACEHOLDER_URL, 'You');
@@ -626,7 +581,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       getCharacterPortraitUrlOrPlaceholder(this.rival.name),
       `${this.rival.name} portrait`
     );
-    this.rivalPortraitAnchor = rivalAnchor;
+    this.dialogueState.rivalPortraitAnchor = rivalAnchor;
     participantStrip.appendChild(makeParticipantColumn(rivalAnchor, this.rival.name));
 
     const rightPanel = createEncounterLogPanel(this.uiManager, {
@@ -665,7 +620,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     buttonGrid.appendChild(bidBtn);
 
     const powerBidBtn = this.uiManager.createButton(
-      `Power Bid\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} · Patience -${AuctionScene.POWER_BID_PATIENCE_PENALTY}`,
+      `Power Bid\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} · Patience -${GAME_CONFIG.auction.powerBidPatiencePenalty}`,
       () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
       { variant: 'warning', style: buttonTextStyle }
     );
@@ -815,309 +770,44 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private renderRivalBarkText(trimmed: string, options?: { suppressLog?: boolean; animate?: boolean }): void {
-    const text = trimmed.trim();
-    if (!text) return;
-
-    this.lastRivalBarkText = text;
-
-    if (!options?.suppressLog) {
-      // Mirror bubble dialogue into the auction log so players don't miss it.
-      this.appendAuctionLog(`${this.rival.name}: “${text}”`, 'rival');
-    }
-
-    // Keep only one rival speech bubble visible at a time.
-    // Note: the auction UI is periodically rebuilt via resetUIWithHUD(), which clears
-    // the overlay and can orphan DOM nodes; if that happens, recreate the bubble.
-    if (this.activeRivalBubble && !this.activeRivalBubble.isConnected) {
-      this.clearActiveRivalBubble();
-    }
-
-    if (!this.activeRivalBubble) {
-      const bubble = document.createElement('div');
-
-      const anchoredToPortrait = this.rivalPortraitAnchor !== undefined;
-      if (anchoredToPortrait) {
-        bubble.style.cssText = `
-          position: absolute;
-          left: calc(100% + 16px);
-          top: 50%;
-          transform: translateX(12px) translateY(-50%);
-          background: #fff;
-          color: #000;
-          padding: 10px 15px;
-          border-radius: 15px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-          font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-          font-size: 14px;
-          font-weight: bold;
-          z-index: 100;
-          opacity: 0;
-          transition: opacity 0.3s ease, transform 0.3s ease;
-          max-width: 260px;
-          text-align: center;
-          pointer-events: none;
-          white-space: normal;
-        `;
-      } else {
-        // Fallback (should be rare): use the old overlay positioning.
-        bubble.style.cssText = `
-          position: absolute;
-          top: 30%;
-          right: 25%;
-          transform: translateX(50%);
-          background: #fff;
-          color: #000;
-          padding: 10px 15px;
-          border-radius: 15px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-          font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-          font-size: 14px;
-          font-weight: bold;
-          z-index: 100;
-          opacity: 0;
-          transition: opacity 0.3s ease, top 0.3s ease;
-          max-width: 260px;
-          text-align: center;
-          pointer-events: none;
-        `;
-      }
-
-      const messageSpan = document.createElement('span');
-      bubble.appendChild(messageSpan);
-
-      const tail = document.createElement('div');
-      if (anchoredToPortrait) {
-        tail.style.cssText = `
-          position: absolute;
-          left: -10px;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 0;
-          height: 0;
-          border-top: 10px solid transparent;
-          border-bottom: 10px solid transparent;
-          border-right: 10px solid #fff;
-        `;
-      } else {
-        tail.style.cssText = `
-          position: absolute;
-          bottom: -8px;
-          left: 0;
-          width: 0;
-          height: 0;
-          border-left: 10px solid #fff;
-          border-bottom: 10px solid transparent;
-        `;
-      }
-      bubble.appendChild(tail);
-
-      this.activeRivalBubble = bubble;
-      this.activeRivalBubbleText = messageSpan;
-
-      if (this.rivalPortraitAnchor) {
-        this.rivalPortraitAnchor.appendChild(bubble);
-      } else {
-        this.uiManager.appendToOverlay(bubble);
-      }
-    }
-
-    if (this.activeRivalBubbleText) {
-      this.activeRivalBubbleText.textContent = text;
-    }
-
-    if (this.activeRivalBubbleHideTimeoutId !== undefined) {
-      clearTimeout(this.activeRivalBubbleHideTimeoutId);
-      this.activeRivalBubbleHideTimeoutId = undefined;
-    }
-    if (this.activeRivalBubbleRemoveTimeoutId !== undefined) {
-      clearTimeout(this.activeRivalBubbleRemoveTimeoutId);
-      this.activeRivalBubbleRemoveTimeoutId = undefined;
-    }
-
-    const bubble = this.activeRivalBubble;
-    if (!bubble) return;
-
-    const shouldAnimate = options?.animate ?? true;
-    if (shouldAnimate) {
-      bubble.style.opacity = '0';
-      if (this.rivalPortraitAnchor) {
-        bubble.style.transform = 'translateX(12px) translateY(-50%)';
-        requestAnimationFrame(() => {
-          bubble.style.opacity = '1';
-          bubble.style.transform = 'translateX(0px) translateY(-50%)';
-        });
-      } else {
-        bubble.style.top = '30%';
-        requestAnimationFrame(() => {
-          bubble.style.opacity = '1';
-          bubble.style.top = '28%';
-        });
-      }
-    } else {
-      bubble.style.opacity = '1';
-      if (this.rivalPortraitAnchor) {
-        bubble.style.transform = 'translateX(0px) translateY(-50%)';
-      } else {
-        bubble.style.top = '28%';
-      }
-    }
+    renderRivalBarkTextInternal(
+      trimmed,
+      this.dialogueState,
+      {
+        rival: this.rival,
+        uiManager: this.uiManager,
+        onAppendLog: (text: string, kind: string) => this.appendAuctionLog(text, kind as AuctionLogKind)
+      },
+      options
+    );
   }
 
-  private showRivalBark(trigger: BarkTrigger): void {
-    const mood = this.rival.mood || 'Normal';
-    const bark = getRivalBark(mood, trigger);
-    const trimmed = bark.trim();
-    if (!trimmed) return;
 
-    this.renderRivalBarkText(trimmed);
+  private showRivalBark(trigger: BarkTrigger): void {
+    showRivalBarkInternal(
+      trigger,
+      this.dialogueState,
+      {
+        rival: this.rival,
+        uiManager: this.uiManager,
+        onAppendLog: (text: string, kind: string) => this.appendAuctionLog(text, kind as AuctionLogKind)
+      }
+    );
   }
 
   private renderAuctioneerBarkText(trimmed: string, options?: { suppressLog?: boolean; animate?: boolean }): void {
-    const text = trimmed.trim();
-    if (!text) return;
-
-    this.lastAuctioneerBarkText = text;
-
-    if (!options?.suppressLog) {
-      // Mirror bubble dialogue into the auction log so players don't miss it.
-      this.appendAuctionLog(`${this.auctioneerName}: “${text}”`, 'auctioneer');
-    }
-
-    // Note: the auction UI is periodically rebuilt via resetUIWithHUD(), which clears
-    // the overlay and can orphan DOM nodes; if that happens, recreate the bubble.
-    if (this.activeAuctioneerBubble && !this.activeAuctioneerBubble.isConnected) {
-      this.clearActiveAuctioneerBubble();
-    }
-
-    if (!this.activeAuctioneerBubble) {
-      const bubble = document.createElement('div');
-
-      const anchoredToPortrait = this.auctioneerPortraitAnchor !== undefined;
-      if (anchoredToPortrait) {
-        bubble.style.cssText = `
-          position: absolute;
-          left: calc(100% + 16px);
-          top: 50%;
-          transform: translateX(12px) translateY(-50%);
-          background: #fff;
-          color: #000;
-          padding: 10px 15px;
-          border-radius: 15px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-          font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-          font-size: 14px;
-          font-weight: bold;
-          z-index: 100;
-          opacity: 0;
-          transition: opacity 0.3s ease, transform 0.3s ease;
-          max-width: 260px;
-          text-align: center;
-          pointer-events: none;
-          white-space: normal;
-        `;
-      } else {
-        bubble.style.cssText = `
-          position: absolute;
-          top: 24%;
-          left: 25%;
-          transform: translateX(-50%);
-          background: #fff;
-          color: #000;
-          padding: 10px 15px;
-          border-radius: 15px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-          font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
-          font-size: 14px;
-          font-weight: bold;
-          z-index: 100;
-          opacity: 0;
-          transition: opacity 0.3s ease, top 0.3s ease;
-          max-width: 260px;
-          text-align: center;
-          pointer-events: none;
-        `;
-      }
-
-      const messageSpan = document.createElement('span');
-      bubble.appendChild(messageSpan);
-
-      const tail = document.createElement('div');
-      if (anchoredToPortrait) {
-        tail.style.cssText = `
-          position: absolute;
-          left: -10px;
-          top: 50%;
-          transform: translateY(-50%);
-          width: 0;
-          height: 0;
-          border-top: 10px solid transparent;
-          border-bottom: 10px solid transparent;
-          border-right: 10px solid #fff;
-        `;
-      } else {
-        tail.style.cssText = `
-          position: absolute;
-          bottom: -8px;
-          right: 0;
-          width: 0;
-          height: 0;
-          border-right: 10px solid #fff;
-          border-bottom: 10px solid transparent;
-        `;
-      }
-      bubble.appendChild(tail);
-
-      this.activeAuctioneerBubble = bubble;
-      this.activeAuctioneerBubbleText = messageSpan;
-
-      if (this.auctioneerPortraitAnchor) {
-        this.auctioneerPortraitAnchor.appendChild(bubble);
-      } else {
-        this.uiManager.appendToOverlay(bubble);
-      }
-    }
-
-    if (this.activeAuctioneerBubbleText) {
-      this.activeAuctioneerBubbleText.textContent = text;
-    }
-
-    if (this.activeAuctioneerBubbleHideTimeoutId !== undefined) {
-      clearTimeout(this.activeAuctioneerBubbleHideTimeoutId);
-      this.activeAuctioneerBubbleHideTimeoutId = undefined;
-    }
-    if (this.activeAuctioneerBubbleRemoveTimeoutId !== undefined) {
-      clearTimeout(this.activeAuctioneerBubbleRemoveTimeoutId);
-      this.activeAuctioneerBubbleRemoveTimeoutId = undefined;
-    }
-
-    const bubble = this.activeAuctioneerBubble;
-    if (!bubble) return;
-
-    const shouldAnimate = options?.animate ?? true;
-    if (shouldAnimate) {
-      bubble.style.opacity = '0';
-      if (this.auctioneerPortraitAnchor) {
-        bubble.style.transform = 'translateX(12px) translateY(-50%)';
-        requestAnimationFrame(() => {
-          bubble.style.opacity = '1';
-          bubble.style.transform = 'translateX(0px) translateY(-50%)';
-        });
-      } else {
-        bubble.style.top = '26%';
-        requestAnimationFrame(() => {
-          bubble.style.opacity = '1';
-          bubble.style.top = '24%';
-        });
-      }
-    } else {
-      bubble.style.opacity = '1';
-      if (this.auctioneerPortraitAnchor) {
-        bubble.style.transform = 'translateX(0px) translateY(-50%)';
-      } else {
-        bubble.style.top = '24%';
-      }
-    }
+    renderAuctioneerBarkTextInternal(
+      trimmed,
+      this.dialogueState,
+      {
+        auctioneerName: this.auctioneerName,
+        uiManager: this.uiManager,
+        onAppendLog: (text: string, kind: string) => this.appendAuctionLog(text, kind as AuctionLogKind)
+      },
+      options
+    );
   }
+
 
   private showAuctioneerBark(trigger: 'start' | 'opening_prompt' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)] ?? '';
@@ -1182,202 +872,127 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private playerBid(amount: number, options?: { power?: boolean }): void {
-    if (!this.isPlayerTurn) return;
+    const context: BiddingContext = {
+      car: this.car,
+      rival: this.rival,
+      rivalAI: this.rivalAI,
+      auctioneerName: this.auctioneerName,
+      currentBid: this.currentBid,
+      hasAnyBids: this.hasAnyBids,
+      lastBidder: this.lastBidder,
+      stallUsesThisAuction: this.stallUsesThisAuction,
+      powerBidStreak: this.powerBidStreak,
+      isPlayerTurn: this.isPlayerTurn,
+      locationId: this.locationId
+    };
 
-    const isFirstBid = !this.hasAnyBids;
-    const openingBid = this.currentBid;
-    const nextBid = this.currentBid + amount;
+    const callbacks: BiddingCallbacks = {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
+        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
+      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onSetupUI: () => this.setupUI(),
+      onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
+      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+    };
 
-    const player = this.gameManager.getPlayerState();
+    const updatedContext = playerBidInternal(amount, context, callbacks, options);
 
-    // Opening bid: first bid amount equals the opening price.
-    if (isFirstBid) {
-      if (player.money < openingBid) {
-        this.showToastAndLog(
-          'Not enough money to place the opening bid.',
-          { backgroundColor: '#f44336' },
-          `Not enough money to bid ${formatCurrency(openingBid)} (you have ${formatCurrency(player.money)}).`,
-          'error'
-        );
-        return;
-      }
-
-      this.hasAnyBids = true;
-      this.lastBidder = 'player';
-      this.appendAuctionLog(`You: Opening bid → ${formatCurrency(openingBid)}.`, 'player');
-
-      // If the player clicked Power Bid as their first action, treat it as:
-      // opening bid (logged) + immediate power raise.
-      if (options?.power) {
-        if (player.money < nextBid) {
-          this.showToastAndLog(
-            'Not enough money to power bid that high.',
-            { backgroundColor: '#f44336' },
-            `Not enough money to bid ${formatCurrency(nextBid)} (you have ${formatCurrency(player.money)}).`,
-            'error'
-          );
-          return;
-        }
-
-        this.currentBid = nextBid;
-        this.lastBidder = 'player';
-        this.appendAuctionLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
-        this.showAuctioneerBark('player_power_bid');
-
-        this.powerBidStreak++;
-        this.rivalAI.onPlayerPowerBid();
-
-        // Check for patience reaction
-        if (this.rivalAI.getPatience() < 30 && this.rivalAI.getPatience() > 0) {
-          this.showRivalBarkAfterAuctioneer('patience_low');
-        }
-
-        if (this.rivalAI.getPatience() <= 0) {
-          this.endAuction(true, `${this.rival.name} lost patience and quit!`);
-          return;
-        }
-      } else {
-        // Normal opening bid.
-        this.powerBidStreak = 0;
-        this.showAuctioneerBark('player_bid');
-      }
-
-      // Rival's turn
-      this.isPlayerTurn = false;
-      this.setupUI();
-      this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
-      return;
-    }
-
-    if (player.money < nextBid) {
-      this.showToastAndLog(
-        'Not enough money to bid that high.',
-        { backgroundColor: '#f44336' },
-        `Not enough money to bid ${formatCurrency(nextBid)} (you have ${formatCurrency(player.money)}).`,
-        'error'
-      );
-      return;
-    }
-
-    this.currentBid = nextBid;
-
-    this.lastBidder = 'player';
-
-    if (options?.power) {
-      this.appendAuctionLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
-    } else {
-      this.appendAuctionLog(`You: Bid +${formatCurrency(amount)} → ${formatCurrency(this.currentBid)}.`, 'player');
-    }
-
-    this.showAuctioneerBark(options?.power ? 'player_power_bid' : 'player_bid');
-
-    // Trigger rival reaction to being outbid
-    if (!options?.power) {
-      this.showRivalBarkAfterAuctioneer('outbid');
-    }
-
-    if (options?.power) {
-      this.powerBidStreak++;
-      this.rivalAI.onPlayerPowerBid();
-
-      
-      // Check for patience reaction
-      if (this.rivalAI.getPatience() < 30 && this.rivalAI.getPatience() > 0) {
-        this.showRivalBarkAfterAuctioneer('patience_low');
-      }
-
-      if (this.rivalAI.getPatience() <= 0) {
-        this.endAuction(true, `${this.rival.name} lost patience and quit!`);
-        return;
-      }
-    } else {
-      this.powerBidStreak = 0; // Reset streak on normal bid
-    }
-
-    // Rival's turn
-    this.isPlayerTurn = false;
-    this.setupUI();
-    this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
+    // Sync updated state back
+    this.currentBid = updatedContext.currentBid;
+    this.hasAnyBids = updatedContext.hasAnyBids;
+    this.lastBidder = updatedContext.lastBidder;
+    this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
+    this.powerBidStreak = updatedContext.powerBidStreak;
+    this.isPlayerTurn = updatedContext.isPlayerTurn;
   }
+
 
   private playerKickTires(): void {
-    if (!this.isPlayerTurn) return;
+    const context: BiddingContext = {
+      car: this.car,
+      rival: this.rival,
+      rivalAI: this.rivalAI,
+      auctioneerName: this.auctioneerName,
+      currentBid: this.currentBid,
+      hasAnyBids: this.hasAnyBids,
+      lastBidder: this.lastBidder,
+      stallUsesThisAuction: this.stallUsesThisAuction,
+      powerBidStreak: this.powerBidStreak,
+      isPlayerTurn: this.isPlayerTurn,
+      locationId: this.locationId
+    };
 
-    const player = this.gameManager.getPlayerState();
-    if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
-      this.showToastAndLog(
-        `Requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ to Kick Tires.`,
-        { backgroundColor: '#f44336' },
-        `Kick Tires blocked: requires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ (you have Eye ${player.skills.eye}).`,
-        'error'
-      );
-      return;
-    }
+    const callbacks: BiddingCallbacks = {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
+        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
+      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onSetupUI: () => this.setupUI(),
+      onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
+      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+    };
 
-    this.powerBidStreak = 0; // Reset streak
-    this.rivalAI.onPlayerKickTires(AuctionScene.KICK_TIRES_BUDGET_REDUCTION);
+    const updatedContext = playerKickTiresInternal(context, callbacks);
 
-    this.showAuctioneerBark('kick_tires');
-
-    this.appendAuctionLog(`You: Kick tires (pressure applied; they look less willing to spend).`, 'player');
-
-    if (this.currentBid > this.rivalAI.getBudget()) {
-      this.endAuction(true, `${this.rival.name} is out of budget and quits!`);
-      return;
-    }
-
-    // Rival's turn
-    this.isPlayerTurn = false;
-    this.setupUI();
-    this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
+    // Sync updated state back
+    this.currentBid = updatedContext.currentBid;
+    this.hasAnyBids = updatedContext.hasAnyBids;
+    this.lastBidder = updatedContext.lastBidder;
+    this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
+    this.powerBidStreak = updatedContext.powerBidStreak;
+    this.isPlayerTurn = updatedContext.isPlayerTurn;
   }
+
 
   private playerStall(): void {
-    if (!this.isPlayerTurn) return;
+    const context: BiddingContext = {
+      car: this.car,
+      rival: this.rival,
+      rivalAI: this.rivalAI,
+      auctioneerName: this.auctioneerName,
+      currentBid: this.currentBid,
+      hasAnyBids: this.hasAnyBids,
+      lastBidder: this.lastBidder,
+      stallUsesThisAuction: this.stallUsesThisAuction,
+      powerBidStreak: this.powerBidStreak,
+      isPlayerTurn: this.isPlayerTurn,
+      locationId: this.locationId
+    };
 
-    const player = this.gameManager.getPlayerState();
-    const tongue = player.skills.tongue;
-    if (tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
-      this.showToastAndLog(
-        `Requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ to Stall.`,
-        { backgroundColor: '#f44336' },
-        `Stall blocked: requires Tongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ (you have Tongue ${tongue}).`,
-        'error'
-      );
-      return;
-    }
+    const callbacks: BiddingCallbacks = {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
+        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
+      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onSetupUI: () => this.setupUI(),
+      onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
+      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+    };
 
-    if (this.stallUsesThisAuction >= tongue) {
-      this.showToastAndLog(
-        'No Stall uses left this auction.',
-        { backgroundColor: '#ff9800' },
-        `No Stall uses left (${this.stallUsesThisAuction}/${tongue}).`,
-        'warning'
-      );
-      return;
-    }
+    const updatedContext = playerStallInternal(context, callbacks);
 
-    this.stallUsesThisAuction += 1;
-    this.powerBidStreak = 0; // Reset streak
-    this.rivalAI.onPlayerStall();
-
-    this.showAuctioneerBark('stall');
-
-    this.appendAuctionLog(`You: Stall (-${AuctionScene.STALL_PATIENCE_PENALTY} rival patience).`, 'player');
-    // Check for patience reaction
-    if (this.rivalAI.getPatience() < 30 && this.rivalAI.getPatience() > 0) {
-      this.showRivalBarkAfterAuctioneer('patience_low');
-    }
-    
-    if (this.rivalAI.getPatience() <= 0) {
-      this.endAuction(true, `${this.rival.name} lost patience and quit!`);
-    } else {
-      // Stalling pressures the rival but hands them the turn.
-      this.isPlayerTurn = false;
-      this.setupUI();
-      this.scheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
-    }
+    // Sync updated state back
+    this.currentBid = updatedContext.currentBid;
+    this.hasAnyBids = updatedContext.hasAnyBids;
+    this.lastBidder = updatedContext.lastBidder;
+    this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
+    this.powerBidStreak = updatedContext.powerBidStreak;
+    this.isPlayerTurn = updatedContext.isPlayerTurn;
   }
+
 
   private consumeOfferIfNeeded(): void {
     if (!this.encounterStarted) return;
@@ -1387,62 +1002,45 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private rivalTurnImmediate(): void {
-    const decision = this.rivalAI.decideBid(this.currentBid);
+    const context: BiddingContext = {
+      car: this.car,
+      rival: this.rival,
+      rivalAI: this.rivalAI,
+      auctioneerName: this.auctioneerName,
+      currentBid: this.currentBid,
+      hasAnyBids: this.hasAnyBids,
+      lastBidder: this.lastBidder,
+      stallUsesThisAuction: this.stallUsesThisAuction,
+      powerBidStreak: this.powerBidStreak,
+      isPlayerTurn: this.isPlayerTurn,
+      locationId: this.locationId
+    };
 
-    if (!decision.shouldBid) {
-      this.appendAuctionLog(`${this.rival.name}: ${decision.reason}.`, 'rival');
-      this.endAuction(true, `${this.rival.name} ${decision.reason}!`);
-    } else {
-      const isFirstBid = !this.hasAnyBids;
-      if (isFirstBid) {
-        this.hasAnyBids = true;
-        this.lastBidder = 'rival';
-      } else {
-        this.currentBid += decision.bidAmount;
-        this.lastBidder = 'rival';
-      }
+    const callbacks: BiddingCallbacks = {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
+        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
+      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onSetupUI: () => this.setupUI(),
+      onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
+      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+    };
 
-      // Add flavor text based on rival's patience level
-      const patience = this.rivalAI.getPatience();
-      let flavorText = '';
-      
-      if (patience < 20) {
-        flavorText = '\n\nFinal offer!';
-      } else if (patience < 30) {
-        flavorText = '\n\nGetting tired of this...';
-      } else if (patience < 50) {
-        flavorText = '\n\nYou\'re really pushing it.';
-      }
+    const updatedContext = rivalTurnImmediateInternal(context, callbacks);
 
-      const flavorInline = flavorText.replace(/\n+/g, ' ').trim();
-      if (isFirstBid) {
-        this.appendAuctionLog(
-          `${this.rival.name}: Opening bid → ${formatCurrency(this.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
-          'rival'
-        );
-      } else {
-        this.appendAuctionLog(
-          `${this.rival.name}: Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
-          'rival'
-        );
-      }
-
-      // Auctioneer commentary should come AFTER the bid is logged so the log timeline reads correctly.
-      this.showAuctioneerBark('rival_bid');
-
-      // Show rival bark for bidding (after auctioneer).
-      this.showRivalBarkAfterAuctioneer('bid');
-
-      // Non-blocking update: refresh UI and keep momentum.
-      // The turn itself is delayed via scheduleRivalTurn(), so update immediately here.
-      if (this.scene.isActive()) {
-        this.setupUI();
-      }
-
-      // Auctioneer responded; now hand the turn back to the player.
-      this.scheduleEnablePlayerTurn();
-    }
+    // Sync updated state back
+    this.currentBid = updatedContext.currentBid;
+    this.hasAnyBids = updatedContext.hasAnyBids;
+    this.lastBidder = updatedContext.lastBidder;
+    this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
+    this.powerBidStreak = updatedContext.powerBidStreak;
+    this.isPlayerTurn = updatedContext.isPlayerTurn;
   }
+
 
   private endAuction(playerWon: boolean, message: string): void {
     // Prevent any scheduled UI refresh from wiping the final result modal.

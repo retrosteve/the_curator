@@ -5,69 +5,66 @@ import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { TutorialManager } from '@/systems/tutorial-manager';
 import { GAME_CONFIG } from '@/config/game-config';
 import type { SpecialEvent } from '@/systems/special-events-system';
-import { buildSaveData, hydrateLoadedState, readSaveData, writeSaveData, type SavedGameData } from '@/core/game-persistence';
 import type { SkillKey } from '@/config/game-config';
 import type { DeepReadonly } from '@/utils/types';
 import { debugLog, errorLog, warnLog } from '@/utils/log';
+import { DebouncedSaver } from '@/core/internal/debounced-saver';
+import { readAndHydrateCurrentGameSave, writeCurrentGameSave } from '@/core/internal/save-load';
+import {
+  calculateCollectionPrestigeBonus as calculateCollectionPrestigeBonusInternal,
+  getCollectionCarsFromInventory,
+  getCollectionPrestigeInfo as getCollectionPrestigeInfoInternal,
+  getCollectionQualityTier as getCollectionQualityTierInternal,
+  getGarageCarsFromInventory,
+  getNewlyCompletedSetIds,
+  getSetProgress as getSetProgressInternal,
+} from '@/core/internal/collection-sets';
+import {
+  consumeDailyCarOfferForLocation as consumeDailyCarOfferForLocationInternal,
+  ensureDailyCarOffersForLocations as ensureDailyCarOffersForLocationsInternal,
+  ensureRivalPresenceForLocations as ensureRivalPresenceForLocationsInternal,
+  hasRivalAtLocation as hasRivalAtLocationInternal,
+  resetDailyCarOffers as resetDailyCarOffersInternal,
+  resetDailyRivalPresence as resetDailyRivalPresenceInternal,
+  sanitizeDailyOfferMap as sanitizeDailyOfferMapInternal,
+  sanitizeDailyRivalPresenceMap as sanitizeDailyRivalPresenceMapInternal,
+} from '@/core/internal/daily-rolls';
+import {
+  calculatePrestonLoanTerms,
+  calculateTotalDue,
+  canRepayLoan,
+  canTakeBankLoan as canTakeBankLoanInternal,
+  canTakePrestonLoan as canTakePrestonLoanInternal,
+} from '@/core/internal/finance-loans';
+import {
+  computeXPAward,
+  getRequiredXPForNextLevel,
+  isMaxLevel,
+  isValidXPGain,
+} from '@/core/internal/skill-progression';
+import { decideToggleCollectionStatus } from '@/core/internal/inventory-collection';
+import { removeCarById, replaceCarById } from '@/core/internal/inventory-mutations';
+import { cloneCar, cloneInventory, clonePlayerState, cloneWorldState } from '@/core/internal/state-clone';
+import type {
+  AutosavePolicy,
+  EndDayResult,
+  FinanceLoan,
+  PlayerState,
+  SetConfig,
+  VictoryResult,
+  WorldState,
+} from '@/core/game-types';
 
-/**
- * Player State - Represents all player-owned resources and progression.
- * Treat returned objects as immutable to prevent untracked state mutations.
- */
-export interface PlayerState {
-  money: number;
-  inventory: Car[];
-  garageSlots: number;
-  prestige: number;
-  bankLoanTaken: boolean;
-  activeLoan: FinanceLoan | null;
-  skills: {
-    eye: number; // 1-5
-    tongue: number; // 1-5
-    network: number; // 1-5
-  };
-  skillXP: {
-    eye: number;
-    tongue: number;
-    network: number;
-  };
-  visitedLocations: Set<string>; // Track locations for Network XP (first visit only)
-  claimedSets: Set<string>; // Track completed sets to avoid duplicate rewards
-}
+export type {
+  AutosavePolicy,
+  EndDayResult,
+  FinanceLoan,
+  PlayerState,
+  SetConfig,
+  VictoryResult,
+  WorldState,
+} from '@/core/game-types';
 
-/**
- * World State - Represents game day and action points.
- * Days advance via end-of-day transitions. AP refreshes each new day.
- */
-export interface WorldState {
-  day: number;
-  currentAP: number;
-  currentLocation: string;
-  /**
-   * Per-day car offer for each location id.
-   * - Missing key: not yet rolled for the day.
-   * - null: rolled and consumed/cleared for the day.
-   */
-  carOfferByLocation: Record<string, Car | null>;
-  /**
-   * Rival presence roll for the current day, keyed by location id.
-   * Stored in world state so it remains stable across scene transitions and reloads.
-   */
-  rivalPresenceByLocation: Record<string, boolean>;
-  dayStats: {
-    carsAcquired: number;
-    moneyEarned: number;
-    moneySpent: number;
-    prestigeGained: number;
-  };
-}
-
-export interface FinanceLoan {
-  lenderName: 'Preston Banks';
-  principal: number;
-  fee: number;
-  takenDay: number;
-}
 
 const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
@@ -77,31 +74,7 @@ const MAX_AP = GAME_CONFIG.day.maxAP;
 
 const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for on-change autosave)
 
-type AutosavePolicy = 'on-change' | 'end-of-day';
-
-type SetConfig = {
-  name: string;
-  description: string;
-  requiredTags: readonly string[];
-  requiredCount: number;
-  prestigeReward: number;
-  icon: string;
-};
-
-export type EndDayResult =
-  | { bankrupt: true; requiredRent: number }
-  | { bankrupt: false; rentPaid: number };
-
-/**
- * Victory check result.
- */
-export interface VictoryResult {
-  hasWon: boolean;
-  prestige: { current: number; required: number; met: boolean };
-  unicorns: { current: number; required: number; met: boolean };
-  collectionCars: { current: number; required: number; met: boolean };
-  skillLevel: { current: number; required: number; met: boolean };
-}
+// (types moved to `src/core/game-types.ts`)
 
 /**
  * GameManager - Central singleton for managing game state.
@@ -116,18 +89,25 @@ export class GameManager {
   private world!: WorldState;
   private marketSystem: MarketFluctuationSystem;
   private specialEventsSystem: SpecialEventsSystem;
-  private saveDebounceTimer: number | null = null;
   private readonly autosavePolicy: AutosavePolicy = GAME_CONFIG.save.autosavePolicy;
+  private readonly saver: DebouncedSaver;
 
   private constructor() {
     this.marketSystem = MarketFluctuationSystem.getInstance();
     this.specialEventsSystem = SpecialEventsSystem.getInstance();
+    this.saver = new DebouncedSaver(() => this.save(), this.autosavePolicy, SAVE_DEBOUNCE_MS);
 
     // Try to load saved game first
     if (!this.load()) {
       // Initialize default state if no save or load failed
       this.initializeDefaultState();
     }
+  }
+
+  private ensureSaveCompatPlayerState(): void {
+    // Backwards compatibility: old saves may be missing these Set fields.
+    this.player.visitedLocations ??= new Set(['garage']);
+    this.player.claimedSets ??= new Set<string>();
   }
 
   private emitMoneyChanged(): void {
@@ -139,7 +119,7 @@ export class GameManager {
   }
 
   private emitInventoryChanged(): void {
-    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
+    eventBus.emit('inventory-changed', cloneInventory(this.player.inventory));
   }
 
   private emitAPChanged(): void {
@@ -152,44 +132,6 @@ export class GameManager {
 
   private emitLocationChanged(location: string): void {
     eventBus.emit('location-changed', location);
-  }
-
-  private static cloneCar(car: Car): Car {
-    return {
-      ...car,
-      tags: Array.isArray(car.tags) ? [...car.tags] : [],
-      history: Array.isArray(car.history) ? [...car.history] : [],
-    };
-  }
-
-  private static cloneInventory(inventory: Car[]): Car[] {
-    return inventory.map((car) => GameManager.cloneCar(car));
-  }
-
-  private static clonePlayerState(player: PlayerState): PlayerState {
-    return {
-      ...player,
-      inventory: GameManager.cloneInventory(player.inventory),
-      activeLoan: player.activeLoan ? { ...player.activeLoan } : null,
-      skills: { ...player.skills },
-      skillXP: { ...player.skillXP },
-      visitedLocations: new Set(player.visitedLocations),
-      claimedSets: new Set(player.claimedSets),
-    };
-  }
-
-  private static cloneWorldState(world: WorldState): WorldState {
-    const carOfferByLocation: Record<string, Car | null> = {};
-    for (const [locationId, offer] of Object.entries(world.carOfferByLocation ?? {})) {
-      carOfferByLocation[locationId] = offer ? GameManager.cloneCar(offer) : null;
-    }
-
-    return {
-      ...world,
-      carOfferByLocation,
-      rivalPresenceByLocation: { ...(world.rivalPresenceByLocation ?? {}) },
-      dayStats: { ...world.dayStats },
-    };
   }
 
   /**
@@ -225,65 +167,19 @@ export class GameManager {
   }
 
   private resetDailyCarOffers(): void {
-    this.world.carOfferByLocation = {};
+    this.world.carOfferByLocation = resetDailyCarOffersInternal();
   }
 
   private sanitizeDailyOfferMap(): void {
-    const offerMap = this.world.carOfferByLocation;
-    if (!offerMap || typeof offerMap !== 'object') {
-      this.world.carOfferByLocation = {};
-      return;
-    }
-
-    // Remove invalid entries and any garage key.
-    for (const [locationId, offer] of Object.entries(offerMap)) {
-      if (!locationId || locationId === 'garage') {
-        delete offerMap[locationId];
-        continue;
-      }
-
-      if (offer === null) continue;
-
-      // Validate minimal Car shape; if invalid, delete key so it will reroll when accessed.
-      const maybeCar = offer as Partial<Car> | undefined;
-      const isValidCar =
-        Boolean(maybeCar) &&
-        typeof maybeCar === 'object' &&
-        typeof maybeCar.id === 'string' &&
-        typeof maybeCar.name === 'string' &&
-        typeof maybeCar.baseValue === 'number' &&
-        typeof maybeCar.condition === 'number' &&
-        Array.isArray(maybeCar.tags) &&
-        Array.isArray(maybeCar.history) &&
-        typeof maybeCar.tier === 'string';
-
-      if (!isValidCar) {
-        delete offerMap[locationId];
-      }
-    }
+    this.world.carOfferByLocation = sanitizeDailyOfferMapInternal(this.world.carOfferByLocation);
   }
 
   private sanitizeDailyRivalPresenceMap(): void {
-    const presenceMap = this.world.rivalPresenceByLocation;
-    if (!presenceMap || typeof presenceMap !== 'object') {
-      this.world.rivalPresenceByLocation = {};
-      return;
-    }
-
-    for (const [locationId, present] of Object.entries(presenceMap)) {
-      if (!locationId || locationId === 'garage') {
-        delete presenceMap[locationId];
-        continue;
-      }
-
-      if (typeof present !== 'boolean') {
-        delete presenceMap[locationId];
-      }
-    }
+    this.world.rivalPresenceByLocation = sanitizeDailyRivalPresenceMapInternal(this.world.rivalPresenceByLocation);
   }
 
   private resetDailyRivalPresence(): void {
-    this.world.rivalPresenceByLocation = {};
+    this.world.rivalPresenceByLocation = resetDailyRivalPresenceInternal();
   }
 
   /**
@@ -291,15 +187,11 @@ export class GameManager {
    * Garage and special nodes should not be passed.
    */
   public ensureDailyCarOffersForLocations(locationIds: string[]): void {
-    for (const locationId of locationIds) {
-      if (!locationId || locationId === 'garage') continue;
-
-      if (Object.prototype.hasOwnProperty.call(this.world.carOfferByLocation, locationId)) {
-        continue;
-      }
-
-      this.world.carOfferByLocation[locationId] = getRandomCar();
-    }
+    ensureDailyCarOffersForLocationsInternal({
+      offerMap: this.world.carOfferByLocation,
+      locationIds,
+      rollCar: () => getRandomCar(),
+    });
   }
 
   /**
@@ -314,7 +206,7 @@ export class GameManager {
     }
 
     const offer = this.world.carOfferByLocation[locationId] ?? null;
-    return offer ? GameManager.cloneCar(offer) : null;
+    return offer ? cloneCar(offer) : null;
   }
 
   /**
@@ -322,11 +214,11 @@ export class GameManager {
    */
   public consumeDailyCarOfferForLocation(locationId: string): void {
     if (!locationId || locationId === 'garage') return;
-    if (!this.world.carOfferByLocation) {
-      this.world.carOfferByLocation = {};
-    }
 
-    this.world.carOfferByLocation[locationId] = null;
+    consumeDailyCarOfferForLocationInternal({
+      offerMap: this.world.carOfferByLocation,
+      locationId,
+    });
     this.debouncedSave();
   }
 
@@ -335,14 +227,11 @@ export class GameManager {
    * Garage and special nodes should not be passed.
    */
   public ensureRivalPresenceForLocations(locationIds: string[]): void {
-    for (const locationId of locationIds) {
-      if (!locationId) continue;
-      if (Object.prototype.hasOwnProperty.call(this.world.rivalPresenceByLocation, locationId)) {
-        continue;
-      }
-      this.world.rivalPresenceByLocation[locationId] =
-        Math.random() < GAME_CONFIG.encounters.rivalPresenceChance;
-    }
+    ensureRivalPresenceForLocationsInternal({
+      presenceMap: this.world.rivalPresenceByLocation,
+      locationIds,
+      rollIsPresent: () => Math.random() < GAME_CONFIG.encounters.rivalPresenceChance,
+    });
   }
 
   /**
@@ -350,13 +239,11 @@ export class GameManager {
    * If not yet rolled, it will roll and store a value.
    */
   public hasRivalAtLocation(locationId: string): boolean {
-    if (!locationId || locationId === 'garage') return false;
-
-    if (!Object.prototype.hasOwnProperty.call(this.world.rivalPresenceByLocation, locationId)) {
-      this.ensureRivalPresenceForLocations([locationId]);
-    }
-
-    return Boolean(this.world.rivalPresenceByLocation[locationId]);
+    return hasRivalAtLocationInternal({
+      presenceMap: this.world.rivalPresenceByLocation,
+      locationId,
+      rollIsPresent: () => Math.random() < GAME_CONFIG.encounters.rivalPresenceChance,
+    });
   }
 
   /**
@@ -374,7 +261,7 @@ export class GameManager {
    * Treat returned objects as immutable.
    */
   public getPlayerState(): DeepReadonly<PlayerState> {
-    return GameManager.clonePlayerState(this.player);
+    return clonePlayerState(this.player);
   }
 
   /**
@@ -382,7 +269,7 @@ export class GameManager {
    * Treat returned objects as immutable.
    */
   public getWorldState(): DeepReadonly<WorldState> {
-    return GameManager.cloneWorldState(this.world);
+    return cloneWorldState(this.world);
   }
 
   /**
@@ -419,7 +306,7 @@ export class GameManager {
   }
 
   public canTakeBankLoan(): boolean {
-    return !this.player.bankLoanTaken;
+    return canTakeBankLoanInternal(this.player);
   }
 
   /**
@@ -432,7 +319,7 @@ export class GameManager {
     this.player.bankLoanTaken = true;
     this.player.money += BANK_LOAN_AMOUNT;
     this.emitMoneyChanged();
-    this.debouncedSave();
+    this.debouncedSave({ critical: true });
     return true;
   }
 
@@ -441,15 +328,11 @@ export class GameManager {
   }
 
   public canTakePrestonLoan(): boolean {
-    return this.player.activeLoan === null;
+    return canTakePrestonLoanInternal(this.player);
   }
 
   public getPrestonLoanTerms(): { principal: number; fee: number; totalDue: number } {
-    const principal = PRESTON_LOAN_AMOUNT;
-    const feeRaw = principal * PRESTON_LOAN_FEE_RATE;
-    // Keep fees tidy for UI (round to nearest 100).
-    const fee = Math.max(0, Math.round(feeRaw / 100) * 100);
-    return { principal, fee, totalDue: principal + fee };
+    return calculatePrestonLoanTerms({ principal: PRESTON_LOAN_AMOUNT, feeRate: PRESTON_LOAN_FEE_RATE });
   }
 
   public takePrestonLoan(): { ok: true; loan: FinanceLoan } | { ok: false; reason: string } {
@@ -469,7 +352,7 @@ export class GameManager {
     // Do not count as “money earned” in day stats.
     this.player.money += terms.principal;
     this.emitMoneyChanged();
-    this.debouncedSave();
+    this.debouncedSave({ critical: true });
 
     return { ok: true, loan };
   }
@@ -482,8 +365,8 @@ export class GameManager {
       return { ok: false, reason: 'No active loan to repay.', totalDue: 0 };
     }
 
-    const totalDue = loan.principal + loan.fee;
-    if (this.player.money < totalDue) {
+    const totalDue = calculateTotalDue(loan);
+    if (!canRepayLoan(this.player, loan)) {
       return { ok: false, reason: 'Not enough money to repay the loan.', totalDue };
     }
 
@@ -491,7 +374,7 @@ export class GameManager {
     this.player.money -= totalDue;
     this.player.activeLoan = null;
     this.emitMoneyChanged();
-    this.debouncedSave();
+    this.debouncedSave({ critical: true });
 
     return { ok: true, totalPaid: totalDue };
   }
@@ -564,7 +447,7 @@ export class GameManager {
     this.player.prestige -= cost;
     this.player.garageSlots += 1;
     this.emitPrestigeChanged();
-    this.debouncedSave(); // Auto-save on upgrade
+    this.debouncedSave({ critical: true });
     return true;
   }
 
@@ -574,22 +457,9 @@ export class GameManager {
    * @returns Number of prestige points earned from the collection
    */
   private calculateCollectionPrestigeBonus(): number {
-    // Only count cars currently in the private collection
-    const collectionCars = this.getCollectionCars();
-
-    // Calculate prestige based on quality tiers
-    let totalPrestige = 0;
-    for (const car of collectionCars) {
-      if (car.condition >= 100) {
-        totalPrestige += 3; // Perfect condition
-      } else if (car.condition >= 90) {
-        totalPrestige += 2; // Excellent condition
-      } else {
-        totalPrestige += 1; // Good condition (80-89%)
-      }
-    }
-
-    return totalPrestige;
+    // Only count cars currently in the private collection.
+    // Note: getCollectionCars() returns cloned cars; compute prestige off clones to keep behavior unchanged.
+    return calculateCollectionPrestigeBonusInternal(this.getCollectionCars());
   }
 
   /**
@@ -607,7 +477,7 @@ export class GameManager {
     // New cars always enter the garage first (not in the collection).
     // Clone at the boundary to avoid external references mutating internal state.
     const storedCar: Car = {
-      ...GameManager.cloneCar(car),
+      ...cloneCar(car),
       inCollection: false,
     };
     this.player.inventory.push(storedCar);
@@ -617,7 +487,7 @@ export class GameManager {
     // Check for set completions
     this.checkNewSetCompletions();
     
-    this.debouncedSave();
+    this.debouncedSave({ critical: true });
     return true;
   }
 
@@ -626,16 +496,14 @@ export class GameManager {
    * Cars in the collection are still owned but do not consume garage slots.
    */
   public getGarageCars(): Car[] {
-    return this.player.inventory
-      .filter((car) => car.inCollection !== true)
-      .map((car) => GameManager.cloneCar(car));
+    return getGarageCarsFromInventory(this.player.inventory).map((car) => cloneCar(car));
   }
 
   /**
    * Get the number of garage cars (not in the collection) currently occupying slots.
    */
   public getGarageCarCount(): number {
-    return this.getGarageCars().length;
+    return getGarageCarsFromInventory(this.player.inventory).length;
   }
 
   /**
@@ -661,21 +529,28 @@ export class GameManager {
    * @private
    */
   private checkNewSetCompletions(): void {
-    const sets: Record<string, SetConfig> = GAME_CONFIG.sets;
-    
-    for (const [setId, set] of Object.entries(sets)) {
-      // Check against full inventory (not just the collection)
-      const matchingCars = this.player.inventory.filter((car) =>
-        set.requiredTags.some((tag) => car.tags.includes(tag))
-      );
-      
-      const isComplete = matchingCars.length >= set.requiredCount;
-      
-      // Check if collection just completed
-      if (isComplete && !this.hasSetBeenClaimed(setId)) {
-        this.claimSetReward(setId, set);
-      }
+    const sets = GAME_CONFIG.sets as Record<string, SetConfig>;
+    const newlyCompleted = getNewlyCompletedSetIds({
+      sets,
+      inventory: this.player.inventory,
+      claimedSets: this.getClaimedSets(),
+    });
+
+    for (const setId of newlyCompleted) {
+      const set = sets[setId];
+      if (!set) continue;
+      this.claimSetReward(setId, set);
     }
+  }
+
+  private getClaimedSets(): Set<string> {
+    this.player.claimedSets ??= new Set<string>();
+    return this.player.claimedSets;
+  }
+
+  private getVisitedLocations(): Set<string> {
+    this.player.visitedLocations ??= new Set(['garage']);
+    return this.player.visitedLocations;
   }
 
   /**
@@ -683,11 +558,7 @@ export class GameManager {
    * Uses a Set stored in player state (added on-the-fly if missing).
    */
   private hasSetBeenClaimed(setId: string): boolean {
-    // Initialize claimed sets if it doesn't exist (for old saves)
-    if (!this.player.claimedSets) {
-      this.player.claimedSets = new Set<string>();
-    }
-    return this.player.claimedSets.has(setId);
+    return this.getClaimedSets().has(setId);
   }
 
   /**
@@ -695,10 +566,7 @@ export class GameManager {
    */
   private claimSetReward(setId: string, set: SetConfig): void {
     // Mark as claimed
-    if (!this.player.claimedSets) {
-      this.player.claimedSets = new Set<string>();
-    }
-    this.player.claimedSets.add(setId);
+    this.getClaimedSets().add(setId);
     
     // Award prestige
     this.addPrestige(set.prestigeReward);
@@ -726,24 +594,18 @@ export class GameManager {
     isClaimed: boolean;
     matchingCars: Car[];
   } {
-    const sets: Record<string, SetConfig> = GAME_CONFIG.sets;
+    const sets = GAME_CONFIG.sets as Record<string, SetConfig>;
     const set = sets[setId];
     
     if (!set) {
       return { current: 0, required: 0, isComplete: false, isClaimed: false, matchingCars: [] };
     }
-    
-    // Find all inventory cars that match the collection's required tags
-    const matchingCars = this.player.inventory.filter((car) =>
-      set.requiredTags.some((tag) => car.tags.includes(tag))
-    );
-    
-    const current = matchingCars.length;
-    const required = set.requiredCount;
-    const isComplete = current >= required;
-    const isClaimed = this.hasSetBeenClaimed(setId);
-    
-    return { current, required, isComplete, isClaimed, matchingCars };
+
+    return getSetProgressInternal({
+      set,
+      inventory: this.player.inventory,
+      isClaimed: this.hasSetBeenClaimed(setId),
+    });
   }
 
   /**
@@ -761,8 +623,8 @@ export class GameManager {
     isClaimed: boolean;
     prestigeReward: number;
   }> {
-    const sets: Record<string, SetConfig> = GAME_CONFIG.sets;
-    
+    const sets = GAME_CONFIG.sets as Record<string, SetConfig>;
+
     return Object.entries(sets).map(([id, set]) => {
       const progress = this.getSetProgress(id);
       return {
@@ -779,18 +641,20 @@ export class GameManager {
     });
   }
 
-    /**
-     * Replace an existing car in inventory (matched by id).
-     * @param updatedCar - The car with updated properties
-     * @returns True if car was found and updated, false otherwise
-     */
+  /**
+   * Replace an existing car in inventory (matched by id).
+   * @param updatedCar - The car with updated properties
+   * @returns True if car was found and updated, false otherwise
+   */
   public updateCar(updatedCar: Car): boolean {
-    const index = this.player.inventory.findIndex((car) => car.id === updatedCar.id);
-    if (index === -1) return false;
+    const updated = replaceCarById({
+      inventory: this.player.inventory,
+      updatedCar,
+    });
+    if (!updated) return false;
 
-    this.player.inventory[index] = GameManager.cloneCar(updatedCar);
     this.emitInventoryChanged();
-    this.debouncedSave(); // Auto-save on car update
+    this.debouncedSave({ critical: true });
     return true;
   }
 
@@ -808,33 +672,28 @@ export class GameManager {
 
     const currentlyInCollection = car.inCollection === true;
 
-    if (!currentlyInCollection && car.condition < 80) {
-      return { success: false, message: 'Car must be in excellent condition (80%+) to add to your collection' };
+    const collectionCount = getCollectionCarsFromInventory(this.player.inventory).length;
+    const garageCarCount = getGarageCarsFromInventory(this.player.inventory).length;
+    const collectionSlots = this.getCollectionSlots();
+    const garageSlots = this.player.garageSlots;
+
+    const decision = decideToggleCollectionStatus({
+      car,
+      currentlyInCollection,
+      collectionCount,
+      collectionSlots,
+      garageCarCount,
+      garageSlots,
+    });
+
+    if (!decision.ok) {
+      return { success: false, message: decision.message };
     }
 
-    if (!currentlyInCollection) {
-      // Moving Garage -> Collection: enforce collection capacity.
-      const collectionCount = this.getCollectionCars().length;
-      if (collectionCount >= this.getCollectionSlots()) {
-        return {
-          success: false,
-          message: `Collection is full (${collectionCount}/${this.getCollectionSlots()} items). Remove a car from the collection to make space.`,
-        };
-      }
-      car.inCollection = true;
-    } else {
-      // Moving Collection -> Garage: enforce garage capacity.
-      if (!this.hasGarageSpace()) {
-        return {
-          success: false,
-          message: `Garage is full (${this.getGarageCarCount()}/${this.player.garageSlots} slots used). Sell a car or add another car to your collection before removing this one.`,
-        };
-      }
-      car.inCollection = false;
-    }
+    car.inCollection = decision.nextInCollection;
 
     this.emitInventoryChanged();
-    this.debouncedSave(); // Auto-save on collection status change
+    this.debouncedSave({ critical: true });
 
     const action = car.inCollection ? 'added to' : 'removed from';
     return { success: true, message: `${car.name} ${action} collection` };
@@ -854,9 +713,7 @@ export class GameManager {
    * @returns Array of cars with inCollection flag set
    */
   public getCollectionCars(): Car[] {
-    return this.player.inventory
-      .filter((car) => car.inCollection === true)
-      .map((car) => GameManager.cloneCar(car));
+    return getCollectionCarsFromInventory(this.player.inventory).map((car) => cloneCar(car));
   }
 
   /**
@@ -865,13 +722,8 @@ export class GameManager {
    * @returns Object with tier name and prestige per day
    */
   public getCollectionQualityTier(condition: number): { tier: string; prestigePerDay: number; color: string } {
-    if (condition >= 100) {
-      return { tier: 'Perfect', prestigePerDay: 3, color: '#f39c12' };
-    } else if (condition >= 90) {
-      return { tier: 'Excellent', prestigePerDay: 2, color: '#3498db' };
-    } else {
-      return { tier: 'Good', prestigePerDay: 1, color: '#95a5a6' };
-    }
+    const tier = getCollectionQualityTierInternal(condition);
+    return { tier: tier.tier, prestigePerDay: tier.prestigePerDay, color: tier.color };
   }
 
   /**
@@ -883,28 +735,7 @@ export class GameManager {
     carCount: number;
     breakdown: { good: number; excellent: number; perfect: number };
   } {
-    const collectionCars = this.getCollectionCars();
-    const breakdown = { good: 0, excellent: 0, perfect: 0 };
-    let totalPerDay = 0;
-
-    for (const car of collectionCars) {
-      if (car.condition >= 100) {
-        breakdown.perfect += 1;
-        totalPerDay += 3;
-      } else if (car.condition >= 90) {
-        breakdown.excellent += 1;
-        totalPerDay += 2;
-      } else {
-        breakdown.good += 1;
-        totalPerDay += 1;
-      }
-    }
-
-    return {
-      totalPerDay,
-      carCount: collectionCars.length,
-      breakdown,
-    };
+    return getCollectionPrestigeInfoInternal(this.getCollectionCars());
   }
 
   /**
@@ -913,14 +744,12 @@ export class GameManager {
    * @returns True if car was found and removed, false otherwise
    */
   public removeCar(carId: string): boolean {
-    const index = this.player.inventory.findIndex((car) => car.id === carId);
-    if (index !== -1) {
-      this.player.inventory.splice(index, 1);
-      this.emitInventoryChanged();
-      this.debouncedSave(); // Auto-save on inventory change
-      return true;
-    }
-    return false;
+    const removed = removeCarById(this.player.inventory, carId);
+    if (!removed) return false;
+
+    this.emitInventoryChanged();
+    this.debouncedSave({ critical: true });
+    return true;
   }
 
   /**
@@ -1039,15 +868,20 @@ export class GameManager {
    * @returns True if player leveled up
    */
   public addSkillXP(skill: SkillKey, amount: number): boolean {
-    if (!Number.isFinite(amount) || amount <= 0) return false;
     const config = GAME_CONFIG.player.skillProgression;
     const currentLevel = this.player.skills[skill];
     
     // Max level reached
-    if (currentLevel >= config.maxLevel) return false;
+    if (!isValidXPGain(amount) || isMaxLevel(config, currentLevel)) return false;
 
-    this.player.skillXP[skill] += amount;
-    const requiredXP = config.xpPerLevel[currentLevel]; // XP needed for NEXT level
+    const requiredXP = getRequiredXPForNextLevel(config, currentLevel); // XP needed for NEXT level
+    const { newXP, shouldLevelUp } = computeXPAward({
+      currentXP: this.player.skillXP[skill],
+      amount,
+      requiredXP,
+    });
+
+    this.player.skillXP[skill] = newXP;
     
     // Emit XP gain event with progress details for UI notification
     eventBus.emit('xp-gained', {
@@ -1059,7 +893,7 @@ export class GameManager {
     });
 
     // Check if leveled up
-    if (this.player.skillXP[skill] >= requiredXP) {
+    if (shouldLevelUp) {
       this.player.skills[skill] += 1;
       this.player.skillXP[skill] = 0; // Reset XP for next level
       eventBus.emit('skill-levelup', { skill, level: this.player.skills[skill] });
@@ -1079,7 +913,7 @@ export class GameManager {
     const config = GAME_CONFIG.player.skillProgression;
     const level = this.player.skills[skill];
     const currentXP = this.player.skillXP[skill];
-    const requiredXP = level >= config.maxLevel ? 0 : config.xpPerLevel[level];
+    const requiredXP = getRequiredXPForNextLevel(config, level);
 
     return {
       current: currentXP,
@@ -1094,11 +928,13 @@ export class GameManager {
    * @returns True if this was a first visit (Network XP awarded)
    */
   public visitLocation(locationId: string): boolean {
-    if (this.player.visitedLocations.has(locationId)) {
+    const visitedLocations = this.getVisitedLocations();
+
+    if (visitedLocations.has(locationId)) {
       return false; // Already visited
     }
 
-    this.player.visitedLocations.add(locationId);
+    visitedLocations.add(locationId);
     
     // Award Network XP for discovering new location (addSkillXP emits xp-gained event)
     const networkXPGain = GAME_CONFIG.player.skillProgression.xpGains.travelNewLocation;
@@ -1195,7 +1031,7 @@ export class GameManager {
    */
   public getCar(carId: string): Car | undefined {
     const car = this.player.inventory.find((c) => c.id === carId);
-    return car ? GameManager.cloneCar(car) : undefined;
+    return car ? cloneCar(car) : undefined;
   }
 
   /**
@@ -1216,21 +1052,8 @@ export class GameManager {
    * Schedule a debounced save.
    * Multiple calls within the debounce window will result in a single save.
    */
-  private debouncedSave(): void {
-    if (this.autosavePolicy !== 'on-change') {
-      if (this.saveDebounceTimer !== null) {
-        clearTimeout(this.saveDebounceTimer);
-        this.saveDebounceTimer = null;
-      }
-      return;
-    }
-    if (this.saveDebounceTimer !== null) {
-      clearTimeout(this.saveDebounceTimer);
-    }
-    this.saveDebounceTimer = window.setTimeout(() => {
-      this.save();
-      this.saveDebounceTimer = null;
-    }, SAVE_DEBOUNCE_MS);
+  private debouncedSave(options?: { critical?: boolean }): void {
+    this.saver.requestSave(options);
   }
 
   /**
@@ -1240,14 +1063,13 @@ export class GameManager {
   public save(): boolean {
     try {
       const tutorialManager = TutorialManager.getInstance();
-      const saveData = buildSaveData({
+      writeCurrentGameSave({
         player: this.player,
         world: this.world,
         market: this.marketSystem.getState(),
         specialEvents: this.specialEventsSystem.getState(),
         tutorial: tutorialManager.getState(),
       });
-      writeSaveData(saveData);
       debugLog('Game saved successfully');
       return true;
     } catch (error) {
@@ -1262,34 +1084,35 @@ export class GameManager {
    */
   public load(): boolean {
     try {
-      const saveData: SavedGameData | null = readSaveData();
-      if (!saveData) {
+      const loaded = readAndHydrateCurrentGameSave();
+      if (!loaded) {
         // Could be no save, parse failure, or version mismatch.
         return false;
       }
 
-      const hydrated = hydrateLoadedState(saveData);
-      this.player = hydrated.player;
-      this.world = hydrated.world;
+      this.player = loaded.player;
+      this.world = loaded.world;
+
+      this.ensureSaveCompatPlayerState();
 
       // Save hygiene: strip invalid or corrupted entries so the day can safely reroll them.
       this.sanitizeDailyRivalPresenceMap();
       this.sanitizeDailyOfferMap();
 
       // Load market state if available (backwards compatibility)
-      if (hydrated.market) {
-        this.marketSystem.loadState(hydrated.market);
+      if (loaded.market) {
+        this.marketSystem.loadState(loaded.market);
       }
 
       // Load special events state if available (backwards compatibility)
-      if (hydrated.specialEvents) {
-        this.specialEventsSystem.loadState(hydrated.specialEvents);
+      if (loaded.specialEvents) {
+        this.specialEventsSystem.loadState(loaded.specialEvents);
       }
 
       // Load tutorial state if available (backwards compatibility)
-      if (hydrated.tutorial) {
+      if (loaded.tutorial) {
         const tutorialManager = TutorialManager.getInstance();
-        tutorialManager.loadState(hydrated.tutorial);
+        tutorialManager.loadState(loaded.tutorial);
 
         // Save-load reconciliation: if the tutorial is stuck on redemption but the player already
         // owns the Boxy Wagon, silently complete the tutorial so the map doesn't force re-entry.

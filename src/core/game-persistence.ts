@@ -2,6 +2,7 @@ import type { PlayerState, WorldState } from '@/core/game-manager';
 import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
 import type { SpecialEventsState } from '@/systems/special-events-system';
 import type { TutorialStep } from '@/systems/tutorial-manager';
+import { GAME_CONFIG } from '@/config/game-config';
 import { isRecord } from '@/utils/types';
 import { warnLog } from '@/utils/log';
 
@@ -100,8 +101,8 @@ export function buildSaveData(params: {
   return {
     player: {
       ...player,
-      visitedLocations: Array.from(player.visitedLocations),
-      claimedSets: Array.from(player.claimedSets),
+      visitedLocations: Array.from(player.visitedLocations ?? new Set(['garage'])),
+      claimedSets: Array.from(player.claimedSets ?? new Set<string>()),
     },
     world,
     market,
@@ -243,9 +244,12 @@ export function hydrateLoadedState(saveData: SavedGameData): {
   };
 
   const rawWorld = saveData.world as Partial<WorldState>;
+  const maxAP = GAME_CONFIG.day.maxAP;
+  const hydratedAPRaw = rawWorld.currentAP ?? maxAP;
+  const hydratedAP = Math.max(0, Math.min(maxAP, hydratedAPRaw));
   const world: WorldState = {
     day: rawWorld.day ?? 1,
-    currentAP: rawWorld.currentAP ?? 0,
+    currentAP: hydratedAP,
     currentLocation: rawWorld.currentLocation ?? 'garage',
     carOfferByLocation: rawWorld.carOfferByLocation ?? {},
     rivalPresenceByLocation: rawWorld.rivalPresenceByLocation ?? {},

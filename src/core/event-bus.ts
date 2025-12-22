@@ -1,6 +1,7 @@
 import type { Car } from '@/data/car-database';
 import type { VictoryResult } from '@/core/game-manager';
 import type { SkillKey } from '@/config/game-config';
+import { errorLog } from '@/utils/log';
 
 /**
  * Central event contract for the game.
@@ -96,7 +97,11 @@ export class EventBus<Events extends EventMap> {
     if (!handlers) return;
 
     handlers.forEach((callback) => {
-      (callback as EventHandler<Events[K]>)(payload);
+      try {
+        (callback as EventHandler<Events[K]>)(payload);
+      } catch (error) {
+        errorLog('EventBus handler error:', String(event), error);
+      }
     });
   }
 

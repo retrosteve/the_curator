@@ -1,6 +1,7 @@
 import { formatCurrency } from '@/utils/format';
 import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import { ensureStyleElement, isPixelUIEnabled } from './ui-style';
+import { createDiv, createImg } from './ui-elements';
 
 /**
  * Manages transient toast UI (money floating text, XP toasts).
@@ -25,7 +26,7 @@ export class ToastManager {
     const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
     const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
 
-    const toast = document.createElement('div');
+    const toast = createDiv('');
 
     toast.style.cssText = `
       position: fixed;
@@ -50,9 +51,10 @@ export class ToastManager {
       toast.style.alignItems = 'flex-start';
       toast.style.gap = '10px';
 
-      const portrait = document.createElement('img');
-      portrait.src = options.portraitUrl;
-      portrait.alt = options.portraitAlt ?? '';
+      const portrait = createImg({
+        src: options.portraitUrl,
+        alt: options.portraitAlt ?? '',
+      });
       portrait.style.width = `${options.portraitSizePx ?? 32}px`;
       portrait.style.height = `${options.portraitSizePx ?? 32}px`;
       portrait.style.objectFit = 'cover';
@@ -62,7 +64,7 @@ export class ToastManager {
       portrait.style.border = '2px solid rgba(255,255,255,0.18)';
       portrait.style.backgroundColor = 'rgba(0,0,0,0.18)';
 
-      const text = document.createElement('div');
+      const text = createDiv('');
       text.textContent = options.text;
       text.style.whiteSpace = 'pre-wrap';
       text.style.lineHeight = '1.2';
@@ -106,7 +108,7 @@ export class ToastManager {
   public showFloatingMoney(amount: number, isPositive: boolean = true): void {
     const pixelUI = isPixelUIEnabled();
 
-    const floatingText = document.createElement('div');
+    const floatingText = createDiv('');
     const symbol = isPositive ? '+' : '-';
     const color = isPositive ? '#2ecc71' : '#e74c3c';
 

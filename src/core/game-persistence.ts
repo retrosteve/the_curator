@@ -3,6 +3,7 @@ import type { MarketFluctuationState } from '@/systems/market-fluctuation-system
 import type { SpecialEventsState } from '@/systems/special-events-system';
 import type { TutorialStep } from '@/systems/tutorial-manager';
 import { isRecord } from '@/utils/types';
+import { warnLog } from '@/utils/log';
 
 /** LocalStorage key used for the game's save slot. */
 export const SAVE_KEY = 'theCuratorSave';
@@ -132,18 +133,18 @@ export function readSaveData(): SavedGameData | null {
           ? parsedJson.version
           : undefined;
       const versionLabel = typeof maybeVersion === 'string' ? maybeVersion : 'missing/invalid';
-      console.warn(`Save rejected: unsupported or invalid version (${versionLabel}).`);
+      warnLog(`Save rejected: unsupported or invalid version (${versionLabel}).`);
       return null;
     }
 
     if (!migrated.player || !migrated.world) {
-      console.warn('Save rejected: missing required fields (player/world).');
+      warnLog('Save rejected: missing required fields (player/world).');
       return null;
     }
 
     return migrated;
   } catch (error) {
-    console.warn('Save rejected: invalid JSON.', error);
+    warnLog('Save rejected: invalid JSON.', error);
     return null;
   }
 }

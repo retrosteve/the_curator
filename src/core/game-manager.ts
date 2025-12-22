@@ -8,7 +8,7 @@ import type { SpecialEvent } from '@/systems/special-events-system';
 import { buildSaveData, hydrateLoadedState, readSaveData, writeSaveData, type SavedGameData } from '@/core/game-persistence';
 import type { SkillKey } from '@/config/game-config';
 import type { DeepReadonly } from '@/utils/types';
-import { debugLog } from '@/utils/log';
+import { debugLog, errorLog, warnLog } from '@/utils/log';
 
 /**
  * Player State - Represents all player-owned resources and progression.
@@ -139,7 +139,7 @@ export class GameManager {
   }
 
   private emitInventoryChanged(): void {
-    this.emitInventoryChanged();
+    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
   }
 
   private emitAPChanged(): void {
@@ -393,7 +393,7 @@ export class GameManager {
     if (!Number.isFinite(amount) || amount === 0) return;
     if (amount < 0) {
       // Prefer spendMoney() for deductions; ignore here to prevent accidental exploits.
-      console.warn('addMoney called with negative amount; ignoring.', amount);
+      warnLog('addMoney called with negative amount; ignoring.', amount);
       return;
     }
     this.player.money += amount;
@@ -833,7 +833,7 @@ export class GameManager {
       car.inCollection = false;
     }
 
-    eventBus.emit('inventory-changed', GameManager.cloneInventory(this.player.inventory));
+    this.emitInventoryChanged();
     this.debouncedSave(); // Auto-save on collection status change
 
     const action = car.inCollection ? 'added to' : 'removed from';
@@ -955,7 +955,7 @@ export class GameManager {
   public spendAP(cost: number): void {
     if (!Number.isFinite(cost) || cost <= 0) {
       if (cost !== 0) {
-        console.warn('spendAP called with non-positive/invalid cost; ignoring.', cost);
+        warnLog('spendAP called with non-positive/invalid cost; ignoring.', cost);
       }
       return;
     }
@@ -1251,7 +1251,7 @@ export class GameManager {
       debugLog('Game saved successfully');
       return true;
     } catch (error) {
-      console.error('Failed to save game:', error);
+      errorLog('Failed to save game:', error);
       return false;
     }
   }
@@ -1304,7 +1304,7 @@ export class GameManager {
       debugLog('Game loaded successfully');
       return true;
     } catch (error) {
-      console.error('Failed to load game:', error);
+      errorLog('Failed to load game:', error);
       return false;
     }
   }

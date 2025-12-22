@@ -44,7 +44,7 @@ export class Economy {
    */
   public static getRestorationChallenges(car: Car): RestorationChallenge[] {
     const challenges: RestorationChallenge[] = [];
-    
+
     // Check for Rust damage
     if (car.history.includes('Rust')) {
       challenges.push({
@@ -56,7 +56,7 @@ export class Economy {
         requiredFor: ['Rust'],
       });
     }
-    
+
     // Check for Flood damage
     if (car.history.includes('Flooded')) {
       challenges.push({
@@ -68,10 +68,10 @@ export class Economy {
         requiredFor: ['Flooded'],
       });
     }
-    
+
     return challenges;
   }
-  
+
   /**
    * Complete a restoration challenge, removing the problematic history tag.
    * @param car - The car to fix
@@ -79,13 +79,13 @@ export class Economy {
    * @returns Updated car with history tag removed
    */
   public static completeRestorationChallenge(car: Car, challenge: RestorationChallenge): Car {
-    const updatedHistory = car.history.filter(tag => !challenge.requiredFor.includes(tag));
+    const updatedHistory = car.history.filter((tag) => !challenge.requiredFor.includes(tag));
     return {
       ...car,
       history: updatedHistory,
     };
   }
-  
+
   /**
    * Get available restoration options for a car based on its current condition.
    * Charlie (Minor) available if condition < 100
@@ -127,7 +127,7 @@ export class Economy {
         cost: Math.floor(baseValue * artisan.costRateOfBaseValue),
         apCost: artisan.apCost,
         conditionGain: artisan.conditionGain,
-        description: "Perfection takes time. Increases value significantly.",
+        description: 'Perfection takes time. Increases value significantly.',
       });
     }
 
@@ -146,12 +146,12 @@ export class Economy {
    * @returns Object with updated car, success flag, message, and discovery info
    */
   public static performRestoration(
-    car: Car, 
-    option: RestorationOption, 
+    car: Car,
+    option: RestorationOption,
     tutorialOverride: boolean = false
-  ): { 
-    car: Car; 
-    success: boolean; 
+  ): {
+    car: Car;
+    success: boolean;
     message: string;
     discovery?: {
       found: boolean;
@@ -168,7 +168,7 @@ export class Economy {
     };
 
     let newCondition = car.condition;
-    let message = "Restoration complete.";
+    let message = 'Restoration complete.';
     let success = true;
     let discovery: RestorationDiscovery | undefined;
 
@@ -186,7 +186,7 @@ export class Economy {
           name: 'Original Engine Block',
           valueChange: 5000,
         };
-        message = "💎 DISCOVERY! Found original engine block! +$5,000 value.";
+        message = '💎 DISCOVERY! Found original engine block! +$5,000 value.';
       } else if (discoveryRoll < 0.15) {
         // Negative discovery (5% chance: 0.10 to 0.15)
         discovery = {
@@ -195,7 +195,7 @@ export class Economy {
           name: 'Hidden Flood Damage',
           valueChange: -3000,
         };
-        message = "⚠️ PROBLEM! Found hidden flood damage. -$3,000 value.";
+        message = '⚠️ PROBLEM! Found hidden flood damage. -$3,000 value.';
       }
     }
 
@@ -203,19 +203,19 @@ export class Economy {
       // Charlie has a risk factor (skip in tutorial override)
       if (!tutorialOverride && Math.random() < charlie.failChance) {
         newCondition -= charlie.failConditionPenalty;
-        message = discovery ? `${message} AND Charlie botched the job!` : "Charlie botched the job! Condition worsened.";
+        message = discovery ? `${message} AND Charlie botched the job!` : 'Charlie botched the job! Condition worsened.';
         success = false;
       } else {
         newCondition += option.conditionGain;
         if (!discovery) {
-          message = tutorialOverride ? "Charlie managed to fix it up perfectly!" : "Charlie managed to fix it up.";
+          message = tutorialOverride ? 'Charlie managed to fix it up perfectly!' : 'Charlie managed to fix it up.';
         }
       }
     } else {
       // Artisan always succeeds
       newCondition += option.conditionGain;
       if (!discovery) {
-        message = "The Artisan did a magnificent job.";
+        message = 'The Artisan did a magnificent job.';
       }
     }
 
@@ -223,7 +223,7 @@ export class Economy {
       ...car,
       condition: Math.min(newCondition, conditionMax),
     };
-    
+
     // Apply discovery value change if found
     if (discovery) {
       updatedCar = {
@@ -257,11 +257,7 @@ export class Economy {
    * @param salePrice - Final sale price
    * @returns Net profit (can be negative)
    */
-  public static calculateProfit(
-    purchasePrice: number,
-    restorationCost: number,
-    salePrice: number
-  ): number {
+  public static calculateProfit(purchasePrice: number, restorationCost: number, salePrice: number): number {
     return salePrice - purchasePrice - restorationCost;
   }
 }

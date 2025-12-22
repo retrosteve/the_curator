@@ -5,6 +5,7 @@
  * Collector: Overpays for wishlist items, passive otherwise
  */
 import { GAME_CONFIG } from '@/config/game-config';
+import { warnLog } from '@/utils/log';
 
 export type RivalStrategy = 'Aggressive' | 'Passive' | 'Collector';
 
@@ -308,7 +309,7 @@ export function getRivalById(id: string, day: number = 1): Rival {
 
   const rival = RivalDatabase.find((r) => r.id === normalizedId);
   if (!rival) {
-    console.warn(`Rival with ID "${id}" not found, returning random rival`);
+    warnLog(`Rival with ID "${id}" not found, returning random rival`);
     return getRandomRival(day);
   }
   const rivalWithMood = { ...rival };
@@ -374,7 +375,7 @@ export function getRivalByTierProgression(
       return rival;
     }
 
-    console.warn(
+    warnLog(
       `No rivals found for tier ${selectedTier} (or all excluded), falling back to random rival`
     );
     return getRandomRival(day);

@@ -2,7 +2,7 @@ import { debugLog, errorLog, warnLog } from '@/utils/log';
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
-import { Economy } from '@/systems/Economy';
+import { Economy } from '@/systems/economy';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car, getCarById } from '@/data/car-database';

@@ -6,6 +6,7 @@
  */
 
 import { isPixelUIEnabled } from './ui-style';
+import { createDiv, createImg, createSpan } from './ui-elements';
 
 export type EncounterLogStyle = {
   color: string;
@@ -77,8 +78,7 @@ export function ensureEncounterLayoutStyles(params: {
 }
 
 export function createEncounterCenteredLayoutRoot(rootClass: string): HTMLDivElement {
-  const layoutRoot = document.createElement('div');
-  layoutRoot.className = rootClass;
+  const layoutRoot = createDiv(rootClass);
   Object.assign(layoutRoot.style, {
     position: 'absolute',
     top: '50%',
@@ -95,8 +95,7 @@ export function createEncounterCenteredLayoutRoot(rootClass: string): HTMLDivEle
 }
 
 export function createEncounterTwoColGrid(className: string): HTMLDivElement {
-  const grid = document.createElement('div');
-  grid.className = className;
+  const grid = createDiv(className);
   Object.assign(grid.style, {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -170,7 +169,7 @@ export function createEncounterLogPanel<K extends string>(
   }
 
   if (hasHeader) {
-    const stickyHeader = document.createElement('div');
+    const stickyHeader = createDiv('');
 
     const headerPaddingTop = topContent ? '12px' : '0px';
 
@@ -214,7 +213,7 @@ export function createEncounterLogPanel<K extends string>(
     logPanel.appendChild(stickyHeader);
   }
 
-  const logScrollArea = document.createElement('div');
+  const logScrollArea = createDiv('');
   logScrollArea.classList.add('encounter-log-scroll');
   Object.assign(logScrollArea.style, {
     flex: '1 1 auto',
@@ -233,7 +232,7 @@ export function createEncounterLogPanel<K extends string>(
     const kindStyle = getStyle(entry.kind);
     const pixelUI = isPixelUIEnabled();
 
-    const line = document.createElement('div');
+    const line = createDiv('');
     Object.assign(line.style, {
       display: 'flex',
       alignItems: 'flex-start',
@@ -246,9 +245,10 @@ export function createEncounterLogPanel<K extends string>(
     } satisfies Partial<CSSStyleDeclaration>);
 
     if (entry.portraitUrl) {
-      const portrait = document.createElement('img');
-      portrait.src = entry.portraitUrl;
-      portrait.alt = entry.portraitAlt ?? '';
+      const portrait = createImg({
+        src: entry.portraitUrl,
+        alt: entry.portraitAlt ?? '',
+      });
       const sizePx = entry.portraitSizePx ?? 20;
       portrait.style.width = `${sizePx}px`;
       portrait.style.height = `${sizePx}px`;
@@ -262,7 +262,7 @@ export function createEncounterLogPanel<K extends string>(
       line.appendChild(portrait);
     }
 
-    const message = document.createElement('div');
+    const message = createDiv('');
     Object.assign(message.style, {
       flex: '1 1 auto',
       minWidth: '0',
@@ -270,25 +270,18 @@ export function createEncounterLogPanel<K extends string>(
       wordBreak: 'break-word',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    const bullet = document.createElement('span');
-    bullet.textContent = '• ';
-    message.appendChild(bullet);
+    message.appendChild(createSpan('• '));
 
     const colonIndex = entry.text.indexOf(':');
     if (colonIndex > 0) {
-      const prefix = document.createElement('span');
-      prefix.textContent = entry.text.slice(0, colonIndex + 1);
+      const prefix = createSpan(entry.text.slice(0, colonIndex + 1));
       prefix.style.color = kindStyle.color;
       if (kindStyle.fontWeight) prefix.style.fontWeight = kindStyle.fontWeight;
       message.appendChild(prefix);
 
-      const rest = document.createElement('span');
-      rest.textContent = entry.text.slice(colonIndex + 1);
-      message.appendChild(rest);
+      message.appendChild(createSpan(entry.text.slice(colonIndex + 1)));
     } else {
-      const whole = document.createElement('span');
-      whole.textContent = entry.text;
-      message.appendChild(whole);
+      message.appendChild(createSpan(entry.text));
     }
 
     line.appendChild(message);

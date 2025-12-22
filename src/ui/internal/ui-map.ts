@@ -2,6 +2,8 @@
  * Creates a DOM card element representing a map location.
  * @internal Factory used by UIManager.
  */
+import { createDiv, createGameButton } from './ui-elements';
+
 export function createMapLocationCard(options: {
   locationId: string;
   name: string;
@@ -35,8 +37,7 @@ export function createMapLocationCard(options: {
     onShowLockedModal,
   } = options;
 
-  const card = document.createElement('div');
-  card.className = 'map-location-card';
+  const card = createDiv('map-location-card');
   card.dataset.locationId = locationId;
   // Keep the clickable button as the canonical tutorial target.
   // The card can be targeted explicitly if needed.
@@ -55,35 +56,30 @@ export function createMapLocationCard(options: {
     card.classList.add('is-locked');
   }
 
-  const accent = document.createElement('div');
-  accent.className = 'map-location-card__accent';
+  const accent = createDiv('map-location-card__accent');
   card.appendChild(accent);
 
-  const header = document.createElement('div');
-  header.className = 'map-location-card__header';
+  const header = createDiv('map-location-card__header');
 
   const iconSpan = document.createElement('span');
   iconSpan.textContent = isLocked ? '🔒' : icon;
   iconSpan.className = 'map-location-card__icon';
 
-  const nameEl = document.createElement('div');
+  const nameEl = createDiv('map-location-card__name');
   nameEl.textContent = name;
-  nameEl.className = 'map-location-card__name';
 
   header.appendChild(iconSpan);
   header.appendChild(nameEl);
   card.appendChild(header);
 
-  const desc = document.createElement('div');
+  const desc = createDiv('map-location-card__description');
   const isTutorialLock = Boolean(lockReason) && (lockReason ?? '').toLowerCase().startsWith('tutorial');
   desc.textContent = isLocked
     ? (isTutorialLock ? (lockReason as string) : 'Increase your Prestige to gain access to this location.')
     : description;
-  desc.className = 'map-location-card__description';
   card.appendChild(desc);
 
-  const statusBar = document.createElement('div');
-  statusBar.className = 'map-location-card__status';
+  const statusBar = createDiv('map-location-card__status');
 
   if (isLocked) {
     const lockBadge = document.createElement('span');
@@ -128,12 +124,6 @@ export function createMapLocationCard(options: {
 
   card.appendChild(statusBar);
 
-  const button = document.createElement('button');
-  button.textContent = isLocked ? 'Locked' : (isGarage ? 'Return Home' : 'Visit Location');
-  button.disabled = isLocked;
-  button.dataset.tutorialTarget = `map.location.${locationId}`;
-  button.className = 'map-location-card__button';
-
   const handleActivate = (): void => {
     if (isLocked) {
       onShowLockedModal(
@@ -146,10 +136,14 @@ export function createMapLocationCard(options: {
     onVisit();
   };
 
-  button.addEventListener('click', (e) => {
-    e.stopPropagation();
-    handleActivate();
-  });
+  const button = createGameButton(
+    isLocked ? 'Locked' : (isGarage ? 'Return Home' : 'Visit Location'),
+    handleActivate
+  );
+  button.disabled = isLocked;
+  button.dataset.tutorialTarget = `map.location.${locationId}`;
+  // Preserve existing styling hook.
+  button.className = 'map-location-card__button';
 
   card.appendChild(button);
 
@@ -163,7 +157,6 @@ export function createMapLocationCard(options: {
  * @internal Factory used by UIManager.
  */
 export function createMapDashboardContainer(): HTMLDivElement {
-  const container = document.createElement('div');
-  container.className = 'map-dashboard';
+  const container = createDiv('map-dashboard');
   return container;
 }

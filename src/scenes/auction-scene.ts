@@ -10,6 +10,7 @@ import {
   createEncounterCenteredLayoutRoot,
   createEncounterActionsPanel,
   createEncounterLogPanel,
+  type EncounterLogEntry,
   type EncounterLogPanelApi,
   createEncounterTwoColGrid,
   disableEncounterActionButton,
@@ -20,13 +21,7 @@ import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 
 type AuctionLogKind = 'system' | 'player' | 'rival' | 'auctioneer' | 'market' | 'warning' | 'error';
 
-type AuctionLogEntry = {
-  text: string;
-  kind: AuctionLogKind;
-  portraitUrl?: string;
-  portraitAlt?: string;
-  portraitSizePx?: number;
-};
+type AuctionLogEntry = EncounterLogEntry<AuctionLogKind>;
 
 const AUCTIONEER_NAMES = [
   '"Fast Talkin\'" Fred Harvey',

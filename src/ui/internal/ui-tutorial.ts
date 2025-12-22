@@ -1,18 +1,8 @@
-import type { ButtonVariant } from './ui-types';
 import { isPixelUIEnabled } from './ui-style';
+import type { CreateButton } from './ui-factories';
+import { createGameHeading, createGameText, createImg } from './ui-elements';
 
-/**
- * Factory signature for creating a styled DOM button.
- * @internal Provided by UIManager.
- */
-export type CreateButton = (
-  text: string,
-  onClick: () => void,
-  options?: {
-    variant?: ButtonVariant;
-    style?: Partial<CSSStyleDeclaration>;
-  }
-) => HTMLButtonElement;
+export type { CreateButton };
 
 /**
  * Manages tutorial dialogue UI in the DOM overlay.
@@ -61,9 +51,10 @@ export class TutorialUI {
     header.style.gap = '12px';
 
     if (options?.portraitUrl) {
-      const portrait = document.createElement('img');
-      portrait.src = options.portraitUrl;
-      portrait.alt = options.portraitAlt ?? '';
+      const portrait = createImg({
+        src: options.portraitUrl,
+        alt: options.portraitAlt ?? '',
+      });
       portrait.style.width = `${options.portraitSizePx ?? 56}px`;
       portrait.style.height = `${options.portraitSizePx ?? 56}px`;
       portrait.style.objectFit = 'cover';
@@ -75,8 +66,7 @@ export class TutorialUI {
       header.appendChild(portrait);
     }
 
-    const speakerName = document.createElement('h3');
-    speakerName.textContent = speaker;
+    const speakerName = createGameHeading(speaker, 3);
     speakerName.style.margin = '0';
     speakerName.style.fontSize = '20px';
     speakerName.style.color = '#f39c12';
@@ -85,8 +75,7 @@ export class TutorialUI {
     header.appendChild(speakerName);
     dialogue.appendChild(header);
 
-    const content = document.createElement('p');
-    content.textContent = text;
+    const content = createGameText(text);
     content.style.margin = '12px 0 0 0';
     content.style.fontSize = '16px';
     content.style.lineHeight = '1.6';

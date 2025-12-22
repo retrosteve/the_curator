@@ -1,26 +1,8 @@
 import { formatCurrency } from '@/utils/format';
 import { SKILL_METADATA, type SkillKey } from '@/config/game-config';
+import type { CreateButton, CreateDiv, CreateHeading, CreateText } from './ui-factories';
 import type { ButtonVariant } from './ui-types';
-
-type CreateHeading = (
-  text: string,
-  level: 1 | 2 | 3,
-  style?: Partial<CSSStyleDeclaration>
-) => HTMLHeadingElement;
-
-type CreateText = (
-  text: string,
-  style?: Partial<CSSStyleDeclaration>
-) => HTMLParagraphElement;
-
-type CreateButton = (
-  text: string,
-  onClick: () => void,
-  options?: {
-    variant?: ButtonVariant;
-    style?: Partial<CSSStyleDeclaration>;
-  }
-) => HTMLButtonElement;
+import { createImg } from './ui-elements';
 
 /**
  * Creates and manages modal UI in the DOM overlay.
@@ -31,6 +13,7 @@ export class ModalManager {
     private readonly deps: {
       append: (element: HTMLElement) => void;
       remove: (element: HTMLElement) => void;
+      createDiv: CreateDiv;
       createHeading: CreateHeading;
       createText: CreateText;
       createButton: CreateButton;
@@ -160,8 +143,7 @@ export class ModalManager {
       event.stopPropagation();
     };
 
-    const backdrop = document.createElement('div');
-    backdrop.className = 'game-modal-backdrop';
+    const backdrop = this.deps.createDiv('game-modal-backdrop');
 
     [
       'pointerdown',
@@ -179,8 +161,7 @@ export class ModalManager {
       backdrop.addEventListener(eventName, stop, { capture: true });
     });
 
-    const modal = document.createElement('div');
-    modal.className = 'game-modal restoration-modal';
+    const modal = this.deps.createDiv('game-modal restoration-modal');
 
     const heading = this.deps.createHeading('Select Restoration Service', 2, {
       textAlign: 'center',
@@ -200,20 +181,18 @@ export class ModalManager {
     modal.appendChild(subtitle);
 
     options.forEach((opt) => {
-      const card = document.createElement('div');
-      card.className = 'restoration-option-card';
+      const card = this.deps.createDiv('restoration-option-card');
 
-      const cardHeader = document.createElement('div');
-      cardHeader.className = 'restoration-option-card__header';
+      const cardHeader = this.deps.createDiv('restoration-option-card__header');
 
-      const leftHeader = document.createElement('div');
-      leftHeader.className = 'restoration-option-card__header-left';
+      const leftHeader = this.deps.createDiv('restoration-option-card__header-left');
 
       if (opt.portraitUrl) {
-        const portrait = document.createElement('img');
-        portrait.src = opt.portraitUrl;
-        portrait.alt = opt.portraitAlt ?? '';
-        portrait.className = 'game-portrait game-portrait--sm';
+        const portrait = createImg({
+          src: opt.portraitUrl,
+          alt: opt.portraitAlt ?? '',
+          className: 'game-portrait game-portrait--sm',
+        });
         leftHeader.appendChild(portrait);
       }
 
@@ -221,49 +200,46 @@ export class ModalManager {
       optionName.textContent = opt.name;
       optionName.className = 'restoration-option-card__title';
 
-      const costInfo = document.createElement('div');
+      const costInfo = this.deps.createDiv('restoration-option-card__cost');
       costInfo.textContent = `${formatCurrency(opt.cost)} • ${opt.apCost} AP`;
-      costInfo.className = 'restoration-option-card__cost';
 
       leftHeader.appendChild(optionName);
       cardHeader.appendChild(leftHeader);
       cardHeader.appendChild(costInfo);
       card.appendChild(cardHeader);
 
-      const description = document.createElement('div');
+      const description = this.deps.createDiv('restoration-option-card__description');
       description.textContent = opt.description;
-      description.className = 'restoration-option-card__description';
       card.appendChild(description);
 
-      const statsRow = document.createElement('div');
-      statsRow.className = 'restoration-option-card__stats';
+      const statsRow = this.deps.createDiv('restoration-option-card__stats');
 
-      const conditionGain = document.createElement('div');
+      const conditionGain = this.deps.createDiv(
+        'restoration-option-card__stat restoration-option-card__stat--condition'
+      );
       conditionGain.textContent = `📈 +${opt.conditionGain} condition`;
-      conditionGain.className = 'restoration-option-card__stat restoration-option-card__stat--condition';
       statsRow.appendChild(conditionGain);
 
-      const valueInfo = document.createElement('div');
+      const valueInfo = this.deps.createDiv('restoration-option-card__stat restoration-option-card__stat--value');
       valueInfo.textContent = `💰 Value: +${formatCurrency(opt.valueIncrease)}`;
-      valueInfo.className = 'restoration-option-card__stat restoration-option-card__stat--value';
       statsRow.appendChild(valueInfo);
 
       const profitColor = opt.netProfit >= 0 ? '#2ecc71' : '#e74c3c';
       const profitIcon = opt.netProfit >= 0 ? '🟢' : '🔴';
       const profitStr = opt.netProfit >= 0 ? `+${formatCurrency(opt.netProfit)}` : formatCurrency(opt.netProfit);
 
-      const profitInfo = document.createElement('div');
+      const profitInfo = this.deps.createDiv(
+        'restoration-option-card__stat restoration-option-card__stat--profit'
+      );
       profitInfo.textContent = `${profitIcon} Net: ${profitStr}`;
-      profitInfo.className = 'restoration-option-card__stat restoration-option-card__stat--profit';
       profitInfo.style.color = profitColor;
       statsRow.appendChild(profitInfo);
 
       card.appendChild(statsRow);
 
       if (opt.risk) {
-        const riskWarning = document.createElement('div');
+        const riskWarning = this.deps.createDiv('restoration-option-card__risk');
         riskWarning.textContent = `⚠️ ${opt.risk}`;
-        riskWarning.className = 'restoration-option-card__risk';
         card.appendChild(riskWarning);
       }
 
@@ -299,8 +275,7 @@ export class ModalManager {
       event.stopPropagation();
     };
 
-    const backdrop = document.createElement('div');
-    backdrop.className = 'game-modal-backdrop';
+    const backdrop = this.deps.createDiv('game-modal-backdrop');
 
     [
       'pointerdown',
@@ -318,8 +293,7 @@ export class ModalManager {
       backdrop.addEventListener(eventName, stop, { capture: true });
     });
 
-    const modal = document.createElement('div');
-    modal.className = 'game-modal';
+    const modal = this.deps.createDiv('game-modal');
 
     const heading = this.deps.createHeading(title, 2, {
       textAlign: 'center',
@@ -327,8 +301,7 @@ export class ModalManager {
       flexShrink: '0',
     });
 
-    const contentContainer = document.createElement('div');
-    contentContainer.className = 'game-modal__content';
+    const contentContainer = this.deps.createDiv('game-modal__content');
 
     // Security: always treat `message` as plain text (no HTML parsing).
     // Newlines are preserved via UIManager's `createText()` style.
@@ -337,8 +310,7 @@ export class ModalManager {
     });
     contentContainer.appendChild(text);
 
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'game-modal__buttons';
+    const buttonContainer = this.deps.createDiv('game-modal__buttons');
 
     buttons.forEach((btn) => {
       const button = this.deps.createButton(btn.text, () => {
@@ -370,8 +342,7 @@ export class ModalManager {
       event.stopPropagation();
     };
 
-    const backdrop = document.createElement('div');
-    backdrop.className = 'game-modal-backdrop';
+    const backdrop = this.deps.createDiv('game-modal-backdrop');
 
     [
       'pointerdown',
@@ -389,17 +360,16 @@ export class ModalManager {
       backdrop.addEventListener(eventName, stop, { capture: true });
     });
 
-    const modal = document.createElement('div');
-    modal.className = 'game-modal';
+    const modal = this.deps.createDiv('game-modal');
 
-    const headingRow = document.createElement('div');
-    headingRow.className = 'game-modal__heading-row';
+    const headingRow = this.deps.createDiv('game-modal__heading-row');
 
-    const portrait = document.createElement('img');
-    portrait.src = options.portraitUrl;
-    portrait.alt = options.portraitAlt ?? '';
+    const portrait = createImg({
+      src: options.portraitUrl,
+      alt: options.portraitAlt ?? '',
+      className: 'game-portrait',
+    });
     const sizePx = options.portraitSizePx ?? 56;
-    portrait.className = 'game-portrait';
     portrait.style.width = `${sizePx}px`;
     portrait.style.height = `${sizePx}px`;
     headingRow.appendChild(portrait);
@@ -411,8 +381,7 @@ export class ModalManager {
     });
     headingRow.appendChild(heading);
 
-    const contentContainer = document.createElement('div');
-    contentContainer.className = 'game-modal__content';
+    const contentContainer = this.deps.createDiv('game-modal__content');
 
     // Security: always treat `message` as plain text (no HTML parsing).
     const text = this.deps.createText(message, {
@@ -420,8 +389,7 @@ export class ModalManager {
     });
     contentContainer.appendChild(text);
 
-    const buttonContainer = document.createElement('div');
-    buttonContainer.className = 'game-modal__buttons';
+    const buttonContainer = this.deps.createDiv('game-modal__buttons');
 
     buttons.forEach((btn) => {
       const button = this.deps.createButton(

@@ -7,6 +7,7 @@ import {
   createEncounterCenteredLayoutRoot,
   createEncounterActionsPanel,
   createEncounterLogPanel,
+  type EncounterLogEntry,
   createEncounterTwoColGrid,
   disableEncounterActionButton,
   formatEncounterNeedLabel,
@@ -16,10 +17,7 @@ import { debugLog } from '@/utils/log';
 
 type NegotiationLogKind = 'system' | 'player' | 'seller' | 'warning' | 'error';
 
-type NegotiationLogEntry = {
-  text: string;
-  kind: NegotiationLogKind;
-};
+type NegotiationLogEntry = EncounterLogEntry<NegotiationLogKind>;
 
 /**
  * Negotiation Scene - PvE encounter with a seller.

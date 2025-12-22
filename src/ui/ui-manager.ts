@@ -1,13 +1,24 @@
-import { formatCurrency } from '@/utils/format';
 import { Car } from '@/data/car-database';
 import { type SkillKey } from '@/config/game-config';
 import { createMapDashboardContainer, createMapLocationCard } from '@/ui/internal/ui-map';
 import { ModalManager } from '@/ui/internal/ui-modals';
 import { ToastManager } from '@/ui/internal/ui-toasts';
 import { TutorialUI } from '@/ui/internal/ui-tutorial';
+import { TutorialHighlighter } from '@/ui/internal/ui-tutorial-highlight';
+import { createCarInfoPanel as createCarInfoPanelInternal } from '@/ui/internal/ui-car-panels';
+import { clearOverlayPreserving } from '@/ui/internal/ui-overlay';
+import {
+  createDiv,
+  createGameButton,
+  createGameButtonContainer,
+  createGameHeading,
+  createGamePanel,
+  createGameText,
+} from '@/ui/internal/ui-elements';
+import { createHUD as createHUDInternal, updateHUD as updateHUDInternal } from '@/ui/internal/ui-hud';
 import { eventBus } from '@/core/event-bus';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
-import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
+import type { ButtonVariant, HUDData, HUDUpdate } from '@/ui/internal/ui-types';
 
 /**
  * UIManager - Manages HTML/CSS UI overlay on top of Phaser canvas.
@@ -22,9 +33,7 @@ export class UIManager {
   private readonly toastManager: ToastManager;
   private readonly modalManager: ModalManager;
   private readonly tutorialUI: TutorialUI;
-
-  private tutorialHighlightTargets: string[] = [];
-  private tutorialHighlightedElement: HTMLElement | null = null;
+  private readonly tutorialHighlighter: TutorialHighlighter;
 
   /**
    * Append an element to the UI overlay root (#ui-overlay).
@@ -98,6 +107,7 @@ export class UIManager {
     this.modalManager = new ModalManager({
       append: (el) => this.append(el),
       remove: (el) => this.remove(el),
+      createDiv: (className, style) => createDiv(className, style),
       createHeading: (text, level, style) => this.createHeading(text, level, style),
       createText: (text, style) => this.createText(text, style),
       createButton: (text, onClick, options) => this.createButton(text, onClick, options),
@@ -105,29 +115,16 @@ export class UIManager {
     this.tutorialUI = new TutorialUI(this.container, (text, onClick, options) =>
       this.createButton(text, onClick, options)
     );
+    this.tutorialHighlighter = new TutorialHighlighter(this.container);
 
     eventBus.on('tutorial-highlight-changed', (payload) => {
-      this.tutorialHighlightTargets = payload.targets;
-      this.refreshTutorialHighlight();
+      this.tutorialHighlighter.setTargets(payload.targets);
+      this.tutorialHighlighter.refresh();
     });
   }
 
   public refreshTutorialHighlight(): void {
-    if (this.tutorialHighlightedElement) {
-      this.tutorialHighlightedElement.classList.remove('tutorial-highlight');
-      this.tutorialHighlightedElement = null;
-    }
-
-    if (this.tutorialHighlightTargets.length === 0) return;
-
-    for (const target of this.tutorialHighlightTargets) {
-      const el = this.container.querySelector(`[data-tutorial-target="${target}"]`);
-      if (el instanceof HTMLElement) {
-        el.classList.add('tutorial-highlight');
-        this.tutorialHighlightedElement = el;
-        return;
-      }
-    }
+    this.tutorialHighlighter.refresh();
   }
 
   public static getInstance(): UIManager {
@@ -225,17 +222,8 @@ export class UIManager {
   public clear(): void {
     const { backdrop: tutorialBackdrop, dialogue: tutorialDialogue } =
       this.tutorialUI.getElements();
-    
-    // Clear everything
-    this.container.innerHTML = '';
-    
-    // Restore tutorial elements if they existed
-    if (tutorialBackdrop) {
-      this.container.appendChild(tutorialBackdrop);
-    }
-    if (tutorialDialogue) {
-      this.container.appendChild(tutorialDialogue);
-    }
+
+    clearOverlayPreserving(this.container, [tutorialBackdrop, tutorialDialogue]);
 
     this.refreshTutorialHighlight();
   }
@@ -253,39 +241,11 @@ export class UIManager {
     text: string,
     onClick: () => void,
     options?: {
-      variant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'special';
+      variant?: ButtonVariant;
       style?: Partial<CSSStyleDeclaration>;
     }
   ): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.textContent = text;
-    button.className = 'game-button';
-    
-    // Add variant class if specified
-    if (options?.variant) {
-      button.classList.add(`btn-${options.variant}`);
-    }
-    
-    // Apply custom style overrides if provided
-    if (options?.style) {
-      Object.assign(button.style, options.style);
-    }
-
-    // Prevent Phaser's global input listeners from also receiving clicks that
-    // are meant for DOM UI elements (can make modals feel like they "don't work").
-    const stop = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
-    button.addEventListener('pointerdown', stop);
-    button.addEventListener('pointerup', stop);
-    button.addEventListener('click', (event) => {
-      stop(event);
-      onClick();
-    });
-
-    return button;
+    return createGameButton(text, onClick, options);
   }
 
   /**
@@ -295,16 +255,7 @@ export class UIManager {
    * @returns Configured div element
    */
   public createPanel(style?: Partial<CSSStyleDeclaration>): HTMLDivElement {
-    const panel = document.createElement('div');
-    // Base visuals are defined in CSS via .game-panel.
-    panel.className = 'game-panel';
-
-    // Callers can still override layout/positioning via inline styles.
-    if (style) {
-      Object.assign(panel.style, style);
-    }
-
-    return panel;
+    return createGamePanel(style);
   }
 
   /**
@@ -317,16 +268,7 @@ export class UIManager {
     text: string,
     style?: Partial<CSSStyleDeclaration>
   ): HTMLParagraphElement {
-    const p = document.createElement('p');
-    p.textContent = text;
-    // Keep newlines from game strings ("\n") visible.
-    p.className = 'game-text';
-
-    if (style) {
-      Object.assign(p.style, style);
-    }
-
-    return p;
+    return createGameText(text, style);
   }
 
   /**
@@ -341,15 +283,7 @@ export class UIManager {
     level: 1 | 2 | 3 = 2,
     style?: Partial<CSSStyleDeclaration>
   ): HTMLHeadingElement {
-    const heading = document.createElement(`h${level}`) as HTMLHeadingElement;
-    heading.textContent = text;
-    heading.classList.add('game-heading');
-
-    if (style) {
-      Object.assign(heading.style, style);
-    }
-
-    return heading;
+    return createGameHeading(text, level, style);
   }
 
   /**
@@ -359,13 +293,7 @@ export class UIManager {
    * @returns Configured div element for buttons
    */
   public createButtonContainer(style?: Partial<CSSStyleDeclaration>): HTMLDivElement {
-    const container = document.createElement('div');
-    container.className = 'game-button-container';
-
-    if (style) {
-      Object.assign(container.style, style);
-    }
-    return container;
+    return createGameButtonContainer(style);
   }
 
   /**
@@ -517,55 +445,7 @@ export class UIManager {
     style?: Partial<CSSStyleDeclaration>;
     titleColor?: string;
   }): HTMLDivElement {
-    const panel = this.createPanel({
-      textAlign: 'center',
-      ...options?.style
-    });
-    panel.classList.add('car-info-panel');
-
-    const title = this.createHeading(car.name, 2, {
-      color: options?.titleColor || '#ecf0f1',
-      marginBottom: '10px'
-    });
-    panel.appendChild(title);
-
-    if (options?.showImage !== false) {
-      const templateId = car.templateId ?? car.id;
-      const imageUrl = getCarImageUrlOrPlaceholder(templateId);
-
-      const img = document.createElement('img');
-      img.src = imageUrl;
-      img.alt = car.name;
-      img.loading = 'lazy';
-      img.className = 'car-info-image';
-      img.style.height = `${options?.imageHeightPx ?? 140}px`;
-      panel.appendChild(img);
-    }
-
-    const details: string[] = [];
-    if (options?.showCondition !== false) {
-      details.push(`Condition: ${car.condition}/100`);
-    }
-    
-    if (options?.customValueText) {
-      details.push(options.customValueText);
-    } else if (options?.showValue) {
-       details.push(`Base Value: ${formatCurrency(car.baseValue)}`);
-    }
-
-    if (details.length > 0) {
-      const infoText = this.createText(details.join(' | '));
-      infoText.classList.add('car-info-details');
-      panel.appendChild(infoText);
-    }
-
-    if (options?.showTags !== false && car.tags && car.tags.length > 0) {
-       const tagsText = this.createText(`Tags: ${car.tags.join(', ')}`);
-       tagsText.classList.add('car-info-tags');
-       panel.appendChild(tagsText);
-    }
-
-    return panel;
+    return createCarInfoPanelInternal(car, options);
   }
 
   /**
@@ -574,163 +454,8 @@ export class UIManager {
    * @param data - HUD data object with money, prestige, day, and time
    * @returns Configured HUD element
    */
-  public createHUD(data: {
-    money: number;
-    prestige?: number;
-    day: number;
-    ap: string;
-    location?: string;
-    skills?: {
-      eye: number;
-      tongue: number;
-      network: number;
-    };
-    garage?: {
-      used: number;
-      total: number;
-    };
-    dailyRent?: number;
-    market?: string;
-    collectionPrestige?: {
-      totalPerDay: number;
-      carCount: number;
-    };
-    victoryProgress?: {
-      prestige: { current: number; required: number; met: boolean };
-      unicorns: { current: number; required: number; met: boolean };
-      collectionCars: { current: number; required: number; met: boolean };
-      skillLevel: { current: number; required: number; met: boolean };
-      onClickProgress?: () => void;
-    };
-  }): HTMLDivElement {
-    const hud = document.createElement('div');
-    hud.id = 'game-hud';
-
-    hud.className = 'game-panel game-hud';
-
-    const locationLabel = data.location !== undefined ? UIManager.formatLocationLabel(data.location) : undefined;
-    const skillsLabel = data.skills !== undefined
-      ? `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`
-      : undefined;
-
-    hud.innerHTML = `
-      <div class="hud-grid">
-        <div class="hud-item" data-hud="money">
-          <span class="hud-icon">💰</span>
-          <span class="hud-label">Money</span>
-          <span class="hud-value" data-hud-value="money">${formatCurrency(data.money)}</span>
-        </div>
-
-        ${data.prestige !== undefined ? `
-          <div class="hud-item" data-hud="prestige">
-            <span class="hud-icon">🏆</span>
-            <span class="hud-label">Prestige</span>
-            <span class="hud-value" data-hud-value="prestige">${data.prestige}</span>
-          </div>
-        ` : ''}
-
-        <div class="hud-item" data-hud="day">
-          <span class="hud-icon">📅</span>
-          <span class="hud-label">Day</span>
-          <span class="hud-value" data-hud-value="day">${data.day}</span>
-        </div>
-
-        <div class="hud-item" data-hud="ap">
-          <span class="hud-icon">⚡</span>
-          <span class="hud-label">AP</span>
-          <span class="hud-value" data-hud-value="ap">${data.ap}</span>
-        </div>
-
-        ${data.location !== undefined ? `
-          <div class="hud-item hud-item--wide" data-hud="location">
-            <span class="hud-icon">📍</span>
-            <span class="hud-label">Location</span>
-            <span class="hud-value" data-hud-value="location">${locationLabel}</span>
-          </div>
-        ` : ''}
-
-        ${data.market !== undefined ? `
-          <div class="hud-item" data-hud="market">
-            <span class="hud-icon">📈</span>
-            <span class="hud-label">Market</span>
-            <span class="hud-value" data-hud-value="market">${data.market}</span>
-          </div>
-        ` : ''}
-
-        ${data.garage !== undefined ? `
-          <div class="hud-item" data-hud="garage">
-            <span class="hud-icon">🏠</span>
-            <span class="hud-label">Garage</span>
-            <span class="hud-value" data-hud-value="garage">${data.garage.used}/${data.garage.total}</span>
-          </div>
-        ` : ''}
-
-        ${data.skills !== undefined ? `
-          <div class="hud-item hud-item--wide" data-hud="skills" title="Skills: Eye, Tongue, Network">
-            <span class="hud-icon">🧠</span>
-            <span class="hud-label">Skills</span>
-            <span class="hud-value" data-hud-value="skills">${skillsLabel}</span>
-          </div>
-        ` : ''}
-
-        ${data.dailyRent !== undefined ? `
-          <div class="hud-item hud-item--subtle hud-item--danger" data-hud="daily-rent" title="Rent increases as you upgrade your garage">
-            <span class="hud-icon">💸</span>
-            <span class="hud-label">Rent</span>
-            <span class="hud-value">${formatCurrency(data.dailyRent)}</span>
-          </div>
-        ` : ''}
-
-        ${data.collectionPrestige !== undefined && data.collectionPrestige.carCount > 0 ? `
-          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="collection-prestige" title="Cars in your collection generate prestige daily based on condition quality">
-            <span class="hud-icon">🏛️</span>
-            <span class="hud-label">Collection</span>
-            <span class="hud-value" data-hud-value="collection-prestige">+${data.collectionPrestige.totalPerDay} prestige/day (${data.collectionPrestige.carCount} cars)</span>
-          </div>
-        ` : ''}
-      </div>
-    `;
-
-    // Add victory progress tracker if provided
-    if (data.victoryProgress) {
-      const progressDiv = document.createElement('div');
-      progressDiv.className = 'hud-progress';
-      
-      const prestigeIcon = data.victoryProgress.prestige.met ? '✅' : '⬜';
-      const unicornIcon = data.victoryProgress.unicorns.met ? '✅' : '⬜';
-      const collectionIcon = data.victoryProgress.collectionCars.met ? '✅' : '⬜';
-      const skillIcon = data.victoryProgress.skillLevel.met ? '✅' : '⬜';
-      
-      progressDiv.innerHTML = `
-        <div class="hud-progress-title">🏆 Victory (click)</div>
-        <div class="hud-progress-items">
-          <div class="hud-progress-item">
-            <span data-hud-progress-icon="prestige">${prestigeIcon}</span>
-            Prestige <span data-hud-progress-value="prestige">${data.victoryProgress.prestige.current}/${data.victoryProgress.prestige.required}</span>
-          </div>
-          <div class="hud-progress-item">
-            <span data-hud-progress-icon="unicorns">${unicornIcon}</span>
-            Unicorns <span data-hud-progress-value="unicorns">${data.victoryProgress.unicorns.current}/${data.victoryProgress.unicorns.required}</span>
-          </div>
-          <div class="hud-progress-item">
-            <span data-hud-progress-icon="collection">${collectionIcon}</span>
-            Collection <span data-hud-progress-value="collection">${data.victoryProgress.collectionCars.current}/${data.victoryProgress.collectionCars.required}</span>
-          </div>
-          <div class="hud-progress-item">
-            <span data-hud-progress-icon="skill">${skillIcon}</span>
-            Max Skill <span data-hud-progress-value="skill">${data.victoryProgress.skillLevel.current}/${data.victoryProgress.skillLevel.required}</span>
-          </div>
-        </div>
-      `;
-      
-      if (data.victoryProgress.onClickProgress) {
-        progressDiv.addEventListener('click', data.victoryProgress.onClickProgress);
-      }
-      
-      hud.appendChild(progressDiv);
-    }
-
-    return hud;
+  public createHUD(data: HUDData): HTMLDivElement {
+    return createHUDInternal(data, { formatLocationLabel: UIManager.formatLocationLabel });
   }
 
   /**
@@ -738,122 +463,8 @@ export class UIManager {
    * Only updates fields that are provided in the data object.
    * @param data - Partial HUD data to update
    */
-  public updateHUD(data: {
-    money?: number;
-    prestige?: number;
-    skills?: {
-      eye: number;
-      tongue: number;
-      network: number;
-    };
-    day?: number;
-    ap?: string;
-    location?: string;
-    garage?: {
-      used: number;
-      total: number;
-    };
-    market?: string;
-    collectionPrestige?: { totalPerDay: number; carCount: number } | null;
-    victoryProgress?: {
-      prestige: { current: number; required: number; met: boolean };
-      unicorns: { current: number; required: number; met: boolean };
-      collectionCars: { current: number; required: number; met: boolean };
-      skillLevel: { current: number; required: number; met: boolean };
-    } | null;
-  }): void {
-    const hud = document.getElementById('game-hud');
-    if (!hud) return;
-
-    const moneyValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="money"]');
-    const prestigeValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="prestige"]');
-    const garageValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="garage"]');
-    const skillsValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="skills"]');
-    const dayValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="day"]');
-    const apValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="ap"]');
-    const locationValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="location"]');
-    const marketValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="market"]');
-    const hudGrid = hud.querySelector<HTMLDivElement>('.hud-grid');
-
-    if (data.money !== undefined && moneyValueEl) {
-      moneyValueEl.textContent = formatCurrency(data.money);
-    }
-    if (data.prestige !== undefined && prestigeValueEl) {
-      prestigeValueEl.textContent = `${data.prestige}`;
-    }
-    if (data.garage !== undefined && garageValueEl) {
-      garageValueEl.textContent = `${data.garage.used}/${data.garage.total}`;
-    }
-    if (data.skills !== undefined && skillsValueEl) {
-      skillsValueEl.textContent = `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`;
-    }
-    if (data.day !== undefined && dayValueEl) {
-      dayValueEl.textContent = `${data.day}`;
-    }
-    if (data.ap !== undefined && apValueEl) {
-      apValueEl.textContent = data.ap;
-    }
-    if (data.location !== undefined && locationValueEl) {
-      locationValueEl.textContent = UIManager.formatLocationLabel(data.location);
-    }
-    if (data.market !== undefined && marketValueEl) {
-      marketValueEl.textContent = data.market;
-    }
-
-    if (data.collectionPrestige !== undefined && hudGrid) {
-      const existing = hud.querySelector<HTMLDivElement>('[data-hud="collection-prestige"]');
-      const collectionPrestige = data.collectionPrestige;
-      const shouldShow = collectionPrestige !== null && collectionPrestige.carCount > 0;
-
-      if (!shouldShow) {
-        existing?.remove();
-      } else {
-        const ensure = existing ?? (() => {
-          const wrapper = document.createElement('div');
-          wrapper.className = 'hud-item hud-item--subtle hud-item--warning hud-item--wide';
-          wrapper.setAttribute('data-hud', 'collection-prestige');
-          wrapper.title = 'Cars in your collection generate prestige daily based on condition quality';
-          wrapper.innerHTML = `
-            <span class="hud-icon">🏛️</span>
-            <span class="hud-label">Collection</span>
-            <span class="hud-value" data-hud-value="collection-prestige"></span>
-          `;
-          hudGrid.appendChild(wrapper);
-          return wrapper;
-        })();
-
-        const valueEl = ensure.querySelector<HTMLSpanElement>('[data-hud-value="collection-prestige"]');
-        if (valueEl && collectionPrestige !== null) {
-          valueEl.textContent = `+${collectionPrestige.totalPerDay} prestige/day (${collectionPrestige.carCount} cars)`;
-        }
-      }
-    }
-
-    if (data.victoryProgress !== undefined) {
-      const progress = data.victoryProgress;
-      const prestigeIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="prestige"]');
-      const unicornIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="unicorns"]');
-      const collectionIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="collection"]');
-      const skillIconEl = hud.querySelector<HTMLSpanElement>('[data-hud-progress-icon="skill"]');
-      const prestigeValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="prestige"]');
-      const unicornValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="unicorns"]');
-      const collectionValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="collection"]');
-      const skillValueEl2 = hud.querySelector<HTMLSpanElement>('[data-hud-progress-value="skill"]');
-
-      if (progress === null) {
-        // No-op: we currently always render victory progress from scenes.
-      } else {
-        if (prestigeIconEl) prestigeIconEl.textContent = progress.prestige.met ? '✅' : '⬜';
-        if (unicornIconEl) unicornIconEl.textContent = progress.unicorns.met ? '✅' : '⬜';
-        if (collectionIconEl) collectionIconEl.textContent = progress.collectionCars.met ? '✅' : '⬜';
-        if (skillIconEl) skillIconEl.textContent = progress.skillLevel.met ? '✅' : '⬜';
-
-        if (prestigeValueEl2) prestigeValueEl2.textContent = `${progress.prestige.current}/${progress.prestige.required}`;
-        if (unicornValueEl2) unicornValueEl2.textContent = `${progress.unicorns.current}/${progress.unicorns.required}`;
-        if (collectionValueEl2) collectionValueEl2.textContent = `${progress.collectionCars.current}/${progress.collectionCars.required}`;
-        if (skillValueEl2) skillValueEl2.textContent = `${progress.skillLevel.current}/${progress.skillLevel.required}`;
-      }
-    }
+  public updateHUD(data: HUDUpdate): void {
+    updateHUDInternal(data, { formatLocationLabel: UIManager.formatLocationLabel });
   }
 
   /**
@@ -884,7 +495,7 @@ export class UIManager {
     onCancel?: () => void,
     options?: {
       confirmText?: string;
-      confirmVariant?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | 'special';
+      confirmVariant?: ButtonVariant;
       cancelText?: string;
     }
   ): void {

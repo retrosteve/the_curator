@@ -897,7 +897,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
-      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
     const updatedContext = playerBidInternal(amount, context, callbacks, options);
@@ -938,7 +938,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
-      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
     const updatedContext = playerKickTiresInternal(context, callbacks);
@@ -979,7 +979,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
-      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
     const updatedContext = playerStallInternal(context, callbacks);
@@ -1029,7 +1029,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
-      onEndAuction: (playerWon: boolean, message: string) => this.endAuction(playerWon, message)
+      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
     const updatedContext = rivalTurnImmediateInternal(context, callbacks);
@@ -1044,7 +1044,7 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
 
-  private endAuction(playerWon: boolean, message: string): void {
+  private endAuction(playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger): void {
     // Prevent any scheduled UI refresh from wiping the final result modal.
     this.clearPendingUIRefresh();
     this.clearPendingRivalTurn();
@@ -1062,10 +1062,10 @@ Tip: Visit the Garage to sell something, then come back.`,
     // Show final bark
     if (playerWon) {
       this.showAuctioneerBark('end_player_win');
-      this.showRivalBarkAfterAuctioneer('lose'); // Rival lost
+      this.showRivalBarkAfterAuctioneer(rivalFinalBarkTrigger ?? 'lose');
     } else {
       this.showAuctioneerBark('end_player_lose');
-      this.showRivalBarkAfterAuctioneer('win'); // Rival won
+      this.showRivalBarkAfterAuctioneer('win');
     }
 
     if (playerWon) {

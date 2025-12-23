@@ -385,6 +385,10 @@ export class GameManager {
    * @returns True if transaction succeeded, false if insufficient funds
    */
   public spendMoney(amount: number): boolean {
+    if (!Number.isFinite(amount)) {
+      warnLog('spendMoney called with invalid amount; rejecting.', amount);
+      return false;
+    }
     if (amount <= 0) return true;
     if (this.player.money < amount) return false;
 

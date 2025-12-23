@@ -1,5 +1,5 @@
 import type { Car } from '@/data/car-database';
-import { Economy } from '@/systems/economy';
+import { Economy } from '@/systems/Economy';
 import type { GameManager } from '@/core/game-manager';
 import type { UIManager } from '@/ui/ui-manager';
 import type { TimeSystem } from '@/systems/time-system';

@@ -1,6 +1,7 @@
 import { Car, calculateCarValue } from '@/data/car-database';
 import type { GameManager } from '@/core/game-manager';
 import { GAME_CONFIG } from '@/config/game-config';
+import { formatCurrency } from '@/utils/format';
 
 /**
  * Restoration challenge for damaged cars.
@@ -175,27 +176,33 @@ export class Economy {
     const charlie = GAME_CONFIG.economy.restoration.charlieMinor;
     const conditionMax = GAME_CONFIG.economy.restoration.conditionMax;
 
-    // Check for hidden discoveries (10% chance for positive, 5% chance for negative)
+    const discoveryPositiveRate = 0.10;
+    const discoveryNegativeRate = 0.05;
+    const positiveDelta = Math.max(250, Math.floor(car.baseValue * 0.10));
+    const negativeDelta = -Math.max(250, Math.floor(car.baseValue * 0.06));
+
+    // Check for hidden discoveries (10% chance for positive, 5% chance for negative).
+    // Value deltas scale with base value to avoid making cheap cars a grindable money printer.
     if (!tutorialOverride) {
       const discoveryRoll = Math.random();
-      if (discoveryRoll < 0.10) {
+      if (discoveryRoll < discoveryPositiveRate) {
         // Positive discovery
         discovery = {
           found: true,
           type: 'positive',
           name: 'Original Engine Block',
-          valueChange: 5000,
+          valueChange: positiveDelta,
         };
-        message = '💎 DISCOVERY! Found original engine block! +$5,000 value.';
-      } else if (discoveryRoll < 0.15) {
-        // Negative discovery (5% chance: 0.10 to 0.15)
+        message = `💎 DISCOVERY! Found original engine block! +${formatCurrency(positiveDelta)} base value.`;
+      } else if (discoveryRoll < discoveryPositiveRate + discoveryNegativeRate) {
+        // Negative discovery (5% chance)
         discovery = {
           found: true,
           type: 'negative',
           name: 'Hidden Flood Damage',
-          valueChange: -3000,
+          valueChange: negativeDelta,
         };
-        message = '⚠️ PROBLEM! Found hidden flood damage. -$3,000 value.';
+        message = `⚠️ PROBLEM! Found hidden flood damage. ${formatCurrency(negativeDelta)} base value.`;
       }
     }
 

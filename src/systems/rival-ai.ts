@@ -11,16 +11,20 @@ export class RivalAI {
   private carInterest: number;
   private currentPatience: number;
   private currentBudget: number;
+  private bidAggressiveness: number;
 
   constructor(rival: Rival, carInterest: number) {
     this.rival = { ...rival };
     this.carInterest = carInterest;
     
     // Apply mood modifiers to starting values
-    const moodModifiers = rival.mood ? getMoodModifiers(rival.mood) : { patienceMultiplier: 1, budgetMultiplier: 1 };
+    const moodModifiers = rival.mood
+      ? getMoodModifiers(rival.mood)
+      : { patienceMultiplier: 1, budgetMultiplier: 1, bidAggressiveness: 1, description: '' };
     
     this.currentPatience = Math.floor(rival.patience * moodModifiers.patienceMultiplier);
     this.currentBudget = Math.floor(rival.budget * moodModifiers.budgetMultiplier);
+    this.bidAggressiveness = moodModifiers.bidAggressiveness;
   }
 
   /**
@@ -36,7 +40,8 @@ export class RivalAI {
     const decision = getRivalBidDecision(
       { ...this.rival, patience: this.currentPatience, budget: this.currentBudget },
       currentBid,
-      this.carInterest
+      this.carInterest,
+      this.bidAggressiveness
     );
 
     return decision;

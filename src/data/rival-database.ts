@@ -30,31 +30,31 @@ export function getRivalBark(mood: RivalMood, trigger: BarkTrigger): string {
   const barks: Record<RivalMood, Record<BarkTrigger, string[]>> = {
     Desperate: {
       bid: ["I... I really need this win!", "Don't push me!", "I'm all in on this one!"],
-      outbid: ["No! That's too much!", "You're ruining me!", "Please, just let me have it!"],
+      outbid: ["No! That's too much!", "You're ruining me!", "Please, just let me have it!", "I'm tapped out!"],
       win: ["Finally! A win!", "Thank goodness...", "I needed that."],
       lose: ["Disaster... absolute disaster.", "What am I going to do now?", "You'll regret this!"],
-      patience_low: ["I can't take this anymore!", "My nerves are shot!", "Just end it already!"]
+      patience_low: ["I can't take this anymore!", "My nerves are shot!", "Just end it already!", "Stop dragging this out!", "Please—just call it!"]
     },
     Cautious: {
       bid: ["Let's be reasonable here.", "A calculated offer.", "I'm watching the margins."],
-      outbid: ["That's getting expensive.", "Is it really worth that much?", "I might have to fold."],
+      outbid: ["That's getting expensive.", "Is it really worth that much?", "I might have to fold.", "That's my limit."],
       win: ["A sensible acquisition.", "Good value for money.", "Glad we didn't overpay."],
       lose: ["Too rich for my blood.", "I'll find a better deal elsewhere.", "You overpaid."],
-      patience_low: ["This is taking too long.", "I'm losing interest.", "Time is money."]
+      patience_low: ["This is taking too long.", "I'm losing interest.", "Time is money.", "Let's wrap this up.", "I don't have all day."]
     },
     Confident: {
       bid: ["Is that all you've got?", "Top that!", "I'm just getting started."],
-      outbid: ["Cute. Watch this.", "You're playing with the big dogs now.", "Pocket change."],
+      outbid: ["Cute. Watch this.", "You're playing with the big dogs now.", "Pocket change.", "Not worth my time—or my money."],
       win: ["Too easy!", "Another trophy for the collection.", "Knew I'd win."],
       lose: ["Whatever, I didn't want it anyway.", "Keep your junk.", "I have better cars at home."],
-      patience_low: ["You're boring me.", "Are we done yet?", "Stop wasting my time."]
+      patience_low: ["You're boring me.", "Are we done yet?", "Stop wasting my time.", "Say the number or walk away.", "Last chance—make it count."]
     },
     Normal: {
       bid: ["Still in.", "Beat that.", "Let's keep it moving."],
-      outbid: ["Higher? Fine.", "I can match that.", "Okay, let's go."],
+      outbid: ["Higher? Fine.", "I can match that.", "Okay, let's go.", "Alright—I'm out."],
       win: ["Good auction.", "I'll take it.", "Nice doing business."],
       lose: ["Fair play.", "It's yours.", "I'm out."],
-      patience_low: ["Getting tired of this.", "Make up your mind.", "Last chance."]
+      patience_low: ["Getting tired of this.", "Make up your mind.", "Last chance.", "Call it already.", "Let's finish this."]
     }
   };
 
@@ -426,10 +426,26 @@ export interface BidDecision {
 export function getRivalBidDecision(
   rival: Rival,
   currentBid: number,
-  carInterest: number
+  carInterest: number,
+  bidAggressiveness: number = 1
 ): BidDecision {
+  const interest = Math.max(0, Math.min(100, carInterest));
+  const bidStep = GAME_CONFIG.auction.bidIncrement;
+  const aggressiveness = Number.isFinite(bidAggressiveness)
+    ? Math.max(0.25, Math.min(2, bidAggressiveness))
+    : 1;
+
   // Check budget constraint
   if (currentBid > rival.budget) {
+    return {
+      shouldBid: false,
+      bidAmount: 0,
+      reason: 'Out of budget',
+    };
+  }
+
+  // If they can't increase the bid at all, they can't meaningfully continue.
+  if (currentBid >= rival.budget) {
     return {
       shouldBid: false,
       bidAmount: 0,
@@ -443,6 +459,27 @@ export function getRivalBidDecision(
       shouldBid: false,
       bidAmount: 0,
       reason: 'Lost patience',
+    };
+  }
+
+  // Interest-based willingness to pay.
+  // This prevents every rival from always bidding until budget/patience are exhausted,
+  // and makes strategy/interest matter.
+  const baseWillingness = 0.35 + 0.65 * (interest / 100); // 35%..100% of budget
+  const strategyWillingnessMultiplier: Record<RivalStrategy, number> = {
+    Aggressive: 0.95,
+    Passive: 0.85,
+    Collector: interest > GAME_CONFIG.rivalAI.collectorHighInterestThreshold ? 1.10 : 0.90,
+  };
+
+  const maxWillingBid = Math.floor(rival.budget * baseWillingness * strategyWillingnessMultiplier[rival.strategy]);
+
+  // If the price is already beyond what they consider "worth it", fold.
+  if (currentBid > maxWillingBid) {
+    return {
+      shouldBid: false,
+      bidAmount: 0,
+      reason: 'Not worth it',
     };
   }
 
@@ -466,9 +503,35 @@ export function getRivalBidDecision(
       break;
   }
 
-  // Make sure we don't exceed budget
-  if (currentBid + bidAmount > rival.budget) {
-    bidAmount = rival.budget - currentBid;
+  // Scale increments by interest so low-interest bidding feels less sticky.
+  // Clamp keeps increments within a sane band.
+  const interestScale = 0.75 + 0.5 * (interest / 100); // 0.75..1.25
+  const rawIncrement = Math.floor(bidAmount * interestScale * aggressiveness);
+
+  // Compute the maximum raise they are willing/able to make.
+  const maxRaiseByBudget = rival.budget - currentBid;
+  const maxRaiseByWilling = maxWillingBid - currentBid;
+  const maxRaise = Math.min(maxRaiseByBudget, maxRaiseByWilling);
+
+  if (maxRaise < bidStep) {
+    return {
+      shouldBid: false,
+      bidAmount: 0,
+      reason: maxRaiseByBudget < bidStep ? 'Out of budget' : 'Not worth it',
+    };
+  }
+
+  bidAmount = Math.min(rawIncrement, maxRaise);
+
+  // Keep bids aligned to the configured auction increment to avoid oddball raises.
+  bidAmount = Math.floor(bidAmount / bidStep) * bidStep;
+
+  if (bidAmount < bidStep) {
+    return {
+      shouldBid: false,
+      bidAmount: 0,
+      reason: maxRaiseByBudget < bidStep ? 'Out of budget' : 'Not worth it',
+    };
   }
 
   return {

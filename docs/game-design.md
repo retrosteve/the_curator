@@ -223,6 +223,7 @@ As the player levels up, they improve three core tools:
 - **Rival AI:**
   - If `currentBid > budget`: quit.
   - If `patience <= 0`: quit.
+  - If `currentBid` exceeds their interest-based willingness-to-pay threshold: quit.
   - Else: bid.
 
 ### Auction Notes (Implementation-Friendly)

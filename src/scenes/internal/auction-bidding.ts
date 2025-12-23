@@ -1,5 +1,5 @@
 import type { Car } from '@/data/car-database';
-import type { Rival } from '@/data/rival-database';
+import type { BarkTrigger, Rival } from '@/data/rival-database';
 import type { RivalAI } from '@/systems/rival-ai';
 import type { GameManager } from '@/core/game-manager';
 import type { UIManager } from '@/ui/ui-manager';
@@ -36,7 +36,7 @@ export interface BiddingCallbacks {
   onSetupUI: () => void;
   onScheduleRivalTurn: (delayMs: number) => void;
   onScheduleEnablePlayerTurn: () => void;
-  onEndAuction: (playerWon: boolean, message: string) => void;
+  onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => void;
 }
 
 const BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
@@ -181,6 +181,16 @@ export function playerKickTires(
 ): BiddingContext {
   if (!context.isPlayerTurn) return context;
 
+  if (!context.hasAnyBids) {
+    callbacks.onShowToastAndLog(
+      'Place an opening bid before using tactics.',
+      { backgroundColor: '#ff9800' },
+      'Kick Tires blocked: place an opening bid first.',
+      'warning'
+    );
+    return context;
+  }
+
   const player = callbacks.gameManager.getPlayerState();
   if (player.skills.eye < REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
     callbacks.onShowToastAndLog(
@@ -199,7 +209,8 @@ export function playerKickTires(
   callbacks.onAppendLog(`You: Kick tires (pressure applied; they look less willing to spend).`, 'player');
 
   if (context.currentBid > context.rivalAI.getBudget()) {
-    callbacks.onEndAuction(true, `${context.rival.name} is out of budget and quits!`);
+    const playerWon = context.lastBidder === 'player';
+    callbacks.onEndAuction(playerWon, `${context.rival.name} is out of budget and quits!`);
     return context;
   }
 
@@ -218,6 +229,16 @@ export function playerStall(
   callbacks: BiddingCallbacks
 ): BiddingContext {
   if (!context.isPlayerTurn) return context;
+
+  if (!context.hasAnyBids) {
+    callbacks.onShowToastAndLog(
+      'Place an opening bid before using tactics.',
+      { backgroundColor: '#ff9800' },
+      'Stall blocked: place an opening bid first.',
+      'warning'
+    );
+    return context;
+  }
 
   const player = callbacks.gameManager.getPlayerState();
   const tongue = player.skills.tongue;
@@ -254,7 +275,8 @@ export function playerStall(
   }
 
   if (context.rivalAI.getPatience() <= 0) {
-    callbacks.onEndAuction(true, `${context.rival.name} lost patience and quit!`);
+    const playerWon = context.lastBidder === 'player';
+    callbacks.onEndAuction(playerWon, `${context.rival.name} lost patience and quit!`);
   } else {
     // Stalling pressures the rival but hands them the turn.
     context.isPlayerTurn = false;
@@ -275,8 +297,24 @@ export function rivalTurnImmediate(
   const decision = context.rivalAI.decideBid(context.currentBid);
 
   if (!decision.shouldBid) {
+    const rivalIsHighBidder = context.hasAnyBids && context.lastBidder === 'rival';
+
+    // If the rival is already the high bidder, they don't need to "bid again".
+    // Avoid ending the auction with confusing dialogue like "Not worth it!" while they win.
+    if (rivalIsHighBidder) {
+      callbacks.onAppendLog(`${context.rival.name}: Holding at ${formatCurrency(context.currentBid)}.`, 'rival');
+      callbacks.onEndAuction(false, `${context.rival.name} holds at ${formatCurrency(context.currentBid)}.`);
+      return context;
+    }
+
     callbacks.onAppendLog(`${context.rival.name}: ${decision.reason}.`, 'rival');
-    callbacks.onEndAuction(true, `${context.rival.name} ${decision.reason}!`);
+    const playerWon = context.lastBidder === 'player';
+
+    // Match the bark to the *reason* they fold.
+    const rivalFinalBarkTrigger: BarkTrigger =
+      decision.reason === 'Lost patience' ? 'patience_low' : 'outbid';
+
+    callbacks.onEndAuction(playerWon, `${context.rival.name} ${decision.reason}!`, rivalFinalBarkTrigger);
   } else {
     const isFirstBid = !context.hasAnyBids;
     if (isFirstBid) {

@@ -287,7 +287,6 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.lastBidder = 'rival';
       this.appendAuctionLog(`${this.rival.name}: Opening bid → ${formatCurrency(this.currentBid)}.`, 'rival');
       this.showAuctioneerBark('rival_bid');
-      this.showRivalBarkAfterAuctioneer('bid');
       this.endAuction(false, 'You ended the auction early.');
       return;
     }
@@ -304,7 +303,8 @@ Tip: Visit the Garage to sell something, then come back.`,
 
       if (!decision.shouldBid) {
         this.appendAuctionLog(`${this.rival.name}: ${decision.reason}.`, 'rival');
-        this.endAuction(true, `${this.rival.name} ${decision.reason}!`);
+        const finalBark: BarkTrigger = decision.reason === 'Lost patience' ? 'patience_low' : 'outbid';
+        this.endAuction(true, `${this.rival.name} ${decision.reason}!`, finalBark);
         return;
       }
 
@@ -315,7 +315,6 @@ Tip: Visit the Garage to sell something, then come back.`,
         'rival'
       );
       this.showAuctioneerBark('rival_bid');
-      this.showRivalBarkAfterAuctioneer('bid');
       this.endAuction(false, 'You ended the auction early.');
       return;
     }
@@ -893,7 +892,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
       onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
@@ -934,7 +933,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
       onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
@@ -975,7 +974,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
       onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
@@ -1025,7 +1024,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
       onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: string) => this.showRivalBarkAfterAuctioneer(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),

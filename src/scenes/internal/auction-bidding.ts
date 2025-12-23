@@ -35,7 +35,7 @@ export interface BiddingCallbacks {
   onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => void;
   onSetupUI: () => void;
   onScheduleRivalTurn: (delayMs: number) => void;
-  onScheduleEnablePlayerTurn: () => void;
+  onScheduleEnablePlayerTurn: (delayMs?: number) => void;
   onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => void;
 }
 
@@ -102,7 +102,8 @@ export function playerBid(
 
       // Check for patience reaction
       if (context.rivalAI.getPatience() < 30 && context.rivalAI.getPatience() > 0) {
-        callbacks.onShowRivalBarkAfterAuctioneer('patience_low');
+        const reactionDelayMs = Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45));
+        callbacks.onShowRivalBarkAfterAuctioneer('patience_low', reactionDelayMs);
       }
 
       if (context.rivalAI.getPatience() <= 0) {
@@ -363,7 +364,8 @@ export function rivalTurnImmediate(
     callbacks.onSetupUI();
 
     // Auctioneer responded; now hand the turn back to the player.
-    callbacks.onScheduleEnablePlayerTurn();
+    // Slightly delay enabling player input so the rival's post-bid bark lands first.
+    callbacks.onScheduleEnablePlayerTurn(GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer + 75);
   }
 
   return context;

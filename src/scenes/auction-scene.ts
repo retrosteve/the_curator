@@ -1,7 +1,7 @@
 import { debugLog, errorLog } from '@/utils/log';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
-import { Rival, getRivalById, calculateRivalInterest, BarkTrigger } from '@/data/rival-database';
+import { Rival, getRivalById, calculateRivalInterest, BarkTrigger, getRivalBark } from '@/data/rival-database';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
@@ -19,14 +19,6 @@ import {
 } from '@/ui/internal/ui-encounter';
 import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 import {
-  type DialogueState,
-  clearActiveRivalBubble,
-  clearActiveAuctioneerBubble,
-  renderRivalBarkText as renderRivalBarkTextInternal,
-  renderAuctioneerBarkText as renderAuctioneerBarkTextInternal,
-  showRivalBark as showRivalBarkInternal,
-} from './internal/auction-dialogue';
-import {
   type BiddingContext,
   type BiddingCallbacks,
   playerBid as playerBidInternal,
@@ -38,6 +30,13 @@ import {
 type AuctionLogKind = 'system' | 'player' | 'rival' | 'auctioneer' | 'market' | 'warning' | 'error';
 
 type AuctionLogEntry = EncounterLogEntry<AuctionLogKind>;
+
+type AuctionParticipant = 'auctioneer' | 'player' | 'rival';
+
+type ParticipantFlashState = {
+  anchors: Partial<Record<AuctionParticipant, HTMLDivElement>>;
+  clearTimeoutIds: Partial<Record<AuctionParticipant, number>>;
+};
 
 const AUCTIONEER_NAMES = [
   '"Fast Talkin\'" Fred Harvey',
@@ -71,8 +70,8 @@ export class AuctionScene extends BaseGameScene {
   private powerBidStreak: number = 0;
   private auctionMarketEstimateValue: number = 0;
 
-  // Dialogue state (speech bubbles, barks, portrait anchors)
-  private dialogueState: DialogueState = {};
+  // Participant portrait anchors + flash timers.
+  private participantFlash: ParticipantFlashState = { anchors: {}, clearTimeoutIds: {} };
 
   private pendingUIRefreshTimeoutId?: number;
   private pendingRivalBarkTimeoutId?: number;
@@ -122,7 +121,7 @@ export class AuctionScene extends BaseGameScene {
     this.powerBidStreak = 0;
     this.auctionMarketEstimateValue = 0;
 
-    this.dialogueState = {};
+    this.participantFlash = { anchors: {}, clearTimeoutIds: {} };
     this.pendingUIRefreshTimeoutId = undefined;
     this.pendingRivalBarkTimeoutId = undefined;
     this.pendingRivalTurnTimeoutId = undefined;
@@ -217,9 +216,40 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.clearPendingLogRender();
       this.clearPendingPlayerTurnEnable();
       this.clearPendingEndAuction();
-      clearActiveRivalBubble(this.dialogueState);
-      clearActiveAuctioneerBubble(this.dialogueState);
+      this.clearAllParticipantFlashTimeouts();
     });
+  }
+
+  private clearAllParticipantFlashTimeouts(): void {
+    for (const id of Object.values(this.participantFlash.clearTimeoutIds)) {
+      if (id !== undefined) window.clearTimeout(id);
+    }
+    this.participantFlash.clearTimeoutIds = {};
+  }
+
+  private flashParticipant(participant: AuctionParticipant): void {
+    const anchor = this.participantFlash.anchors[participant];
+    if (!anchor || !anchor.isConnected) return;
+
+    const img = anchor.querySelector('img');
+    if (!img) return;
+
+    const existingTimeout = this.participantFlash.clearTimeoutIds[participant];
+    if (existingTimeout !== undefined) {
+      window.clearTimeout(existingTimeout);
+      this.participantFlash.clearTimeoutIds[participant] = undefined;
+    }
+
+    // Restart animation reliably.
+    img.classList.remove('auction-participant-flash');
+    // Force reflow to reset animation.
+    void img.offsetWidth;
+    img.classList.add('auction-participant-flash');
+
+    this.participantFlash.clearTimeoutIds[participant] = window.setTimeout(() => {
+      img.classList.remove('auction-participant-flash');
+      this.participantFlash.clearTimeoutIds[participant] = undefined;
+    }, 520);
   }
 
   private clearPendingPlayerTurnEnable(): void {
@@ -362,6 +392,13 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.lastLogRenderAtMs = 0;
   }
 
+  private isQuotedDialogueLogEntry(entry: AuctionLogEntry): boolean {
+    if (entry.kind !== 'auctioneer' && entry.kind !== 'rival') return false;
+    // Dialogue lines are written as: Name: "..."
+    // Keep this heuristic narrow so non-dialogue rival lines (bids, reasons) still drip-feed.
+    return entry.text.includes(': "') && entry.text.endsWith('"');
+  }
+
   private renderAuctionLogEntryNow(entry: AuctionLogEntry): void {
     this.auctionLogRendered.push(entry);
     if (this.auctionLogRendered.length > 50) {
@@ -369,6 +406,11 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
     this.lastLogRenderAtMs = performance.now();
     this.logPanelApi?.appendEntry(entry);
+
+    // Flash the corresponding portrait when the entry is actually visible.
+    if (entry.kind === 'auctioneer') this.flashParticipant('auctioneer');
+    else if (entry.kind === 'rival') this.flashParticipant('rival');
+    else if (entry.kind === 'player') this.flashParticipant('player');
   }
 
   private scheduleNextLogRender(delayMs: number): void {
@@ -382,7 +424,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.renderAuctionLogEntryNow(next);
 
       if (this.pendingLogRenderQueue.length > 0) {
-        this.scheduleNextLogRender(GAME_CONFIG.ui.modalDelays.auctionLogLine);
+        const nextDelayMs = this.isQuotedDialogueLogEntry(this.pendingLogRenderQueue[0]!)
+          ? 0
+          : GAME_CONFIG.ui.modalDelays.auctionLogLine;
+        this.scheduleNextLogRender(nextDelayMs);
       }
     }, delayMs);
   }
@@ -392,7 +437,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (this.pendingLogRenderTimeoutId !== undefined) return;
 
     const now = performance.now();
-    const gapMs = GAME_CONFIG.ui.modalDelays.auctionLogLine;
+    const gapMs = this.isQuotedDialogueLogEntry(entry) ? 0 : GAME_CONFIG.ui.modalDelays.auctionLogLine;
     const delayMs = this.lastLogRenderAtMs <= 0 ? 0 : Math.max(0, gapMs - (now - this.lastLogRenderAtMs));
     this.scheduleNextLogRender(delayMs);
   }
@@ -407,15 +452,6 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (!this.scene.isActive()) return;
       this.showRivalBark(trigger);
     }, delayMs);
-  }
-
-  private restorePersistentBarks(): void {
-    if (this.dialogueState.lastAuctioneerBarkText) {
-      this.renderAuctioneerBarkText(this.dialogueState.lastAuctioneerBarkText, { suppressLog: true, animate: false });
-    }
-    if (this.dialogueState.lastRivalBarkText) {
-      this.renderRivalBarkText(this.dialogueState.lastRivalBarkText, { suppressLog: true, animate: false });
-    }
   }
 
   private getLogStyle(kind: AuctionLogKind): { color: string; fontWeight?: string } {
@@ -440,12 +476,9 @@ Tip: Visit the Garage to sell something, then come back.`,
 
 
   private setupUI(): void {
-    // resetUIWithHUD() clears the entire overlay, so ensure any transient overlay-owned
-    // elements (like the rival speech bubble) are cleared + references reset first.
-    clearActiveRivalBubble(this.dialogueState);
-    clearActiveAuctioneerBubble(this.dialogueState);
-    this.dialogueState.rivalPortraitAnchor = undefined;
-    this.dialogueState.auctioneerPortraitAnchor = undefined;
+    // resetUIWithHUD() clears the entire overlay. Clear anchor refs and pending flash cleanup timers.
+    this.clearAllParticipantFlashTimeouts();
+    this.participantFlash.anchors = {};
     this.logPanelApi = undefined;
 
     this.resetUIWithHUD();
@@ -570,17 +603,18 @@ Tip: Visit the Garage to sell something, then come back.`,
       getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
       `${this.auctioneerName} portrait`
     );
-    this.dialogueState.auctioneerPortraitAnchor = auctioneerAnchor;
+    this.participantFlash.anchors.auctioneer = auctioneerAnchor;
     participantStrip.appendChild(makeParticipantColumn(auctioneerAnchor, this.auctioneerName));
 
     const playerPortrait = makePortraitAnchor(PLAYER_PORTRAIT_PLACEHOLDER_URL, 'You');
+    this.participantFlash.anchors.player = playerPortrait;
     participantStrip.appendChild(makeParticipantColumn(playerPortrait, 'You'));
 
     const rivalAnchor = makePortraitAnchor(
       getCharacterPortraitUrlOrPlaceholder(this.rival.name),
       `${this.rival.name} portrait`
     );
-    this.dialogueState.rivalPortraitAnchor = rivalAnchor;
+    this.participantFlash.anchors.rival = rivalAnchor;
     participantStrip.appendChild(makeParticipantColumn(rivalAnchor, this.rival.name));
 
     const rightPanel = createEncounterLogPanel(this.uiManager, {
@@ -691,9 +725,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     layoutRoot.appendChild(bottomGrid);
 
     this.uiManager.append(layoutRoot);
-
-    // Re-apply the last barks after any UI rebuild.
-    this.restorePersistentBarks();
   }
 
   private appendAuctionLog(
@@ -768,46 +799,12 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.uiManager.showToast(toast, options);
   }
 
-  private renderRivalBarkText(trimmed: string, options?: { suppressLog?: boolean; animate?: boolean }): void {
-    renderRivalBarkTextInternal(
-      trimmed,
-      this.dialogueState,
-      {
-        rival: this.rival,
-        uiManager: this.uiManager,
-        onAppendLog: (text: string, kind: string) => this.appendAuctionLog(text, kind as AuctionLogKind)
-      },
-      options
-    );
-  }
-
-
   private showRivalBark(trigger: BarkTrigger): void {
-    showRivalBarkInternal(
-      trigger,
-      this.dialogueState,
-      {
-        rival: this.rival,
-        uiManager: this.uiManager,
-        onAppendLog: (text: string, kind: string) => this.appendAuctionLog(text, kind as AuctionLogKind)
-      }
-    );
+    const mood = this.rival.mood || 'Normal';
+    const bark = getRivalBark(mood, trigger).trim();
+    if (!bark) return;
+    this.appendAuctionLog(`${this.rival.name}: "${bark}"`, 'rival');
   }
-
-  private renderAuctioneerBarkText(trimmed: string, options?: { suppressLog?: boolean; animate?: boolean }): void {
-    renderAuctioneerBarkTextInternal(
-      trimmed,
-      this.dialogueState,
-      {
-        auctioneerName: this.auctioneerName,
-        uiManager: this.uiManager,
-        onAppendLog: (text: string, kind: string) => this.appendAuctionLog(text, kind as AuctionLogKind)
-      },
-      options
-    );
-  }
-
-
   private showAuctioneerBark(trigger: 'start' | 'opening_prompt' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)] ?? '';
 
@@ -867,7 +864,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    this.renderAuctioneerBarkText(trimmed);
+    // Log-only (no speech bubble). Portrait flash is driven by the rendered log entry.
+    this.appendAuctionLog(`${this.auctioneerName}: "${trimmed}"`, 'auctioneer');
   }
 
   private playerBid(amount: number, options?: { power?: boolean }): void {
@@ -895,7 +893,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
-      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
       onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
@@ -936,7 +934,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
-      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
       onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
@@ -977,7 +975,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
-      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
       onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 
@@ -1027,7 +1025,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
-      onScheduleEnablePlayerTurn: () => this.scheduleEnablePlayerTurn(),
+      onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
       onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
     };
 

@@ -876,6 +876,27 @@ p {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* Auction participant portrait flash (log-driven) */
+@keyframes auction-participant-flash {
+  0% {
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+  }
+  40% {
+    transform: scale(1.07);
+    filter: brightness(1.35) saturate(1.15);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1) saturate(1);
+  }
+}
+
+.auction-participant-flash {
+  animation: auction-participant-flash 0.45s ease-out;
+  will-change: transform, filter;
+}
+
 .tutorial-header {
   display: flex;
   align-items: center;

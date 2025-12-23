@@ -399,6 +399,12 @@ Tip: Visit the Garage to sell something, then come back.`,
     return entry.text.includes(': "') && entry.text.endsWith('"');
   }
 
+  private getLogGapMsForEntry(entry: AuctionLogEntry): number {
+    // A small gap keeps back-to-back flashes readable (e.g. player action -> auctioneer call).
+    if (this.isQuotedDialogueLogEntry(entry)) return 140;
+    return GAME_CONFIG.ui.modalDelays.auctionLogLine;
+  }
+
   private renderAuctionLogEntryNow(entry: AuctionLogEntry): void {
     this.auctionLogRendered.push(entry);
     if (this.auctionLogRendered.length > 50) {
@@ -424,9 +430,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.renderAuctionLogEntryNow(next);
 
       if (this.pendingLogRenderQueue.length > 0) {
-        const nextDelayMs = this.isQuotedDialogueLogEntry(this.pendingLogRenderQueue[0]!)
-          ? 0
-          : GAME_CONFIG.ui.modalDelays.auctionLogLine;
+        const nextDelayMs = this.getLogGapMsForEntry(this.pendingLogRenderQueue[0]!);
         this.scheduleNextLogRender(nextDelayMs);
       }
     }, delayMs);
@@ -437,7 +441,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (this.pendingLogRenderTimeoutId !== undefined) return;
 
     const now = performance.now();
-    const gapMs = this.isQuotedDialogueLogEntry(entry) ? 0 : GAME_CONFIG.ui.modalDelays.auctionLogLine;
+    const gapMs = this.getLogGapMsForEntry(entry);
     const delayMs = this.lastLogRenderAtMs <= 0 ? 0 : Math.max(0, gapMs - (now - this.lastLogRenderAtMs));
     this.scheduleNextLogRender(delayMs);
   }

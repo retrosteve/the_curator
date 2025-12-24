@@ -502,6 +502,18 @@ export const CarDatabase: Car[] = [
  * @returns A new car instance with randomized properties
  */
 export function getRandomCar(): Car {
+  return getRandomCarWithPreferences();
+}
+
+export function getRandomCarWithPreferences(params?: {
+  /** Tags that should be more likely to appear in the rolled car. */
+  preferredTags?: readonly string[];
+  /** Multiplier applied when a car matches any preferred tag. */
+  preferredTagBoost?: number;
+}): Car {
+  const preferredTags = (params?.preferredTags ?? []).filter(Boolean);
+  const preferredTagBoost = Math.max(1, params?.preferredTagBoost ?? 4);
+
   // Use weighted random selection based on tier
   const weights = GAME_CONFIG.cars.tierWeights;
   const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
@@ -517,12 +529,31 @@ export function getRandomCar(): Car {
   }
 
   // Filter cars by selected tier
-  const tierCars = CarDatabase.filter(car => car.tier === selectedTier);
-  
+  const tierCars = CarDatabase.filter((car) => car.tier === selectedTier);
+
   // Fallback to all cars if no cars in tier (shouldn't happen)
   const pool = tierCars.length > 0 ? tierCars : CarDatabase;
-  const randomIndex = Math.floor(Math.random() * pool.length);
-  const baseCar = pool[randomIndex];
+
+  // Optional tag preference bias within the selected tier pool.
+  const hasPreferences = preferredTags.length > 0;
+  const poolWeights = pool.map((car) => {
+    if (!hasPreferences) return 1;
+    const matchesAny = car.tags.some((t) => preferredTags.includes(t));
+    return matchesAny ? preferredTagBoost : 1;
+  });
+
+  const poolTotal = poolWeights.reduce((sum, w) => sum + w, 0);
+  let pick = Math.random() * poolTotal;
+  let selectedIndex = 0;
+  for (let i = 0; i < pool.length; i++) {
+    pick -= poolWeights[i];
+    if (pick <= 0) {
+      selectedIndex = i;
+      break;
+    }
+  }
+
+  const baseCar = pool[selectedIndex];
 
   const minCondition = GAME_CONFIG.cars.randomConditionMin;
   const maxCondition = GAME_CONFIG.cars.randomConditionMax;

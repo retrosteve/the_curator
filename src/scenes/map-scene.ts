@@ -4,7 +4,7 @@ import { BaseGameScene } from './base-game-scene';
 import { calculateCarValue, getCarById, getRandomCar, type Car } from '@/data/car-database';
 import { calculateRivalInterest, getRivalById, getRivalByTierProgression } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
-import { BASE_LOCATIONS, type LocationType } from '@/data/location-database';
+import { BASE_LOCATIONS, getBaseLocationDefinitionById, type LocationType } from '@/data/location-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
 import { buildSpecialEventCar, routeRegularEncounter } from '@/systems/map-encounter-router';
 import { formatCurrency } from '@/utils/format';
@@ -20,6 +20,8 @@ interface MapNode {
   y: number;
   type: LocationType | 'special';
   color: number;
+  description?: string;
+  unlockPrestige?: number;
   specialEvent?: SpecialEvent; // For special event nodes
   hasRival?: boolean; // Whether a rival is present at this location
 }
@@ -93,14 +95,19 @@ export class MapScene extends BaseGameScene {
 
   private createDashboard(): void {
     // Build location data
-    this.nodes = BASE_LOCATIONS.map((loc) => ({
-      id: loc.id,
-      name: loc.name,
-      x: 0,
-      y: 0,
-      type: loc.type,
-      color: loc.color,
-    }));
+    this.nodes = BASE_LOCATIONS.map((loc) => {
+      const definition = getBaseLocationDefinitionById(loc.id);
+      return {
+        id: loc.id,
+        name: loc.name,
+        x: 0,
+        y: 0,
+        type: loc.type,
+        color: loc.color,
+        description: definition?.description,
+        unlockPrestige: definition?.unlockPrestige,
+      };
+    });
 
     // Add special events
     const specialEvents = this.gameManager.getActiveSpecialEvents();
@@ -162,17 +169,10 @@ export class MapScene extends BaseGameScene {
       lockReason = 'Tutorial: Follow the current step to continue.';
     }
 
-    // The base Auction House is a core gameplay location and must never be gated.
-    // Prestige gating (if desired) should apply only to additional/premium auction nodes.
-    if (
-      node.type === 'auction' &&
-      node.id !== 'auction_1' &&
-      player.prestige < GAME_CONFIG.progression.unlocks.auction
-    ) {
-      if (!this.tutorialManager.shouldBypassAuctionPrestigeLock()) {
-        isLocked = true;
-        lockReason = `Requires ${GAME_CONFIG.progression.unlocks.auction} Prestige`;
-      }
+    const unlockPrestige = node.unlockPrestige ?? 0;
+    if (unlockPrestige > 0 && player.prestige < unlockPrestige) {
+      isLocked = true;
+      lockReason = `Requires ${unlockPrestige} Prestige`;
     }
 
     const world = this.gameManager.getWorldState();
@@ -222,6 +222,12 @@ export class MapScene extends BaseGameScene {
     if (node.specialEvent) {
       return node.specialEvent.description || 'A unique opportunity has appeared!';
     }
+
+    if (node.description) return node.description;
+
+    // Fall back to base location descriptions when available.
+    const baseLocation = getBaseLocationDefinitionById(node.id);
+    if (baseLocation?.description) return baseLocation.description;
 
     switch (node.type) {
       case 'auction':

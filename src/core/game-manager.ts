@@ -1,9 +1,10 @@
-import { Car, getRandomCar } from '@/data/car-database';
+import { Car, getRandomCar, getRandomCarWithPreferences } from '@/data/car-database';
 import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { TutorialManager } from '@/systems/tutorial-manager';
 import { GAME_CONFIG } from '@/config/game-config';
+import { getBaseLocationDefinitionById } from '@/data/location-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
 import type { SkillKey } from '@/config/game-config';
 import type { DeepReadonly } from '@/utils/types';
@@ -184,8 +185,18 @@ export class GameManager {
     ensureDailyCarOffersForLocationsInternal({
       offerMap: this.world.carOfferByLocation,
       locationIds,
-      rollCar: () => getRandomCar(),
+      rollCar: (locationId) => this.rollDailyOfferCarForLocation(locationId),
     });
+  }
+
+  private rollDailyOfferCarForLocation(locationId: string): Car {
+    const baseLocation = getBaseLocationDefinitionById(locationId);
+    const focusTags = baseLocation?.focusTags ?? null;
+    if (focusTags && focusTags.length > 0) {
+      return getRandomCarWithPreferences({ preferredTags: focusTags });
+    }
+
+    return getRandomCar();
   }
 
   /**

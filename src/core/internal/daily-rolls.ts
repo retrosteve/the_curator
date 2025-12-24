@@ -68,12 +68,12 @@ export function sanitizeDailyRivalPresenceMap(presenceMap: unknown): Record<stri
 export function ensureDailyCarOffersForLocations(params: {
   offerMap: Record<string, Car | null>;
   locationIds: readonly string[];
-  rollCar: () => Car;
+  rollCar: (locationId: string) => Car;
 }): void {
   for (const locationId of params.locationIds) {
     if (!locationId || locationId === 'garage') continue;
     if (Object.prototype.hasOwnProperty.call(params.offerMap, locationId)) continue;
-    params.offerMap[locationId] = params.rollCar();
+    params.offerMap[locationId] = params.rollCar(locationId);
   }
 }
 

@@ -5,13 +5,12 @@ import { MainMenuScene } from './scenes/main-menu-scene';
 import { GarageScene } from './scenes/garage-scene';
 import { MapScene } from './scenes/map-scene';
 import { AuctionScene } from './scenes/auction-scene';
-import { NegotiationScene } from './scenes/negotiation-scene';
 import { debugLog } from '@/utils/log';
 
 /**
  * Main entry point for The Curator.
  * Initializes Phaser game instance with all scenes.
- * Scene flow: Boot → MainMenu → Garage (hub) ⇄ Map → Auction/Negotiation → Map
+ * Scene flow: Boot → MainMenu → Garage (hub) ⇄ Map → Auction → Map
  * UI is rendered via DOM overlay (#ui-overlay), not Phaser Text objects.
  */
 
@@ -21,7 +20,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 720,
   parent: 'phaser-game',
   backgroundColor: '#1a1a1a',
-  scene: [BootScene, MainMenuScene, GarageScene, MapScene, AuctionScene, NegotiationScene],
+  scene: [BootScene, MainMenuScene, GarageScene, MapScene, AuctionScene],
   physics: {
     // No physics needed for this game
     default: undefined,

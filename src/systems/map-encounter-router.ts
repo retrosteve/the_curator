@@ -9,50 +9,27 @@ import type { SpecialEvent } from '@/systems/special-events-system';
 export type RoutedEncounter =
   | {
       kind: 'auction';
-      apCost: number;
       sceneKey: 'AuctionScene';
       sceneData: { car: Car; rival: Rival; interest: number; locationId: string };
-    }
-  | {
-      kind: 'negotiation';
-      apCost: number;
-      sceneKey: 'NegotiationScene';
-      sceneData: { car: Car; locationId: string };
     };
 
 /**
- * Routes a regular map exploration into either an auction (rival present) or negotiation.
+ * Routes a regular map exploration into an auction encounter.
  */
 export function routeRegularEncounter(params: {
   locationId: string;
   car: Car;
-  hasRival: boolean;
   playerPrestige: number;
-  auctionApCost: number;
-  inspectApCost: number;
 }): RoutedEncounter {
-  const { locationId, car, hasRival, playerPrestige, auctionApCost, inspectApCost } = params;
+  const { locationId, car, playerPrestige } = params;
 
-  if (hasRival) {
-    const rival =
-      locationId === 'scrapyard_1'
-        ? getRivalByTierProgression(playerPrestige, 1, { excludeIds: ['scrapyard_joe'] })
-        : getRivalByTierProgression(playerPrestige);
-    const interest = calculateRivalInterest(rival, car.tags);
-
-    return {
-      kind: 'auction',
-      apCost: auctionApCost,
-      sceneKey: 'AuctionScene',
-      sceneData: { car, rival, interest, locationId },
-    };
-  }
+  const rival = getRivalByTierProgression(playerPrestige);
+  const interest = calculateRivalInterest(rival, car.tags);
 
   return {
-    kind: 'negotiation',
-    apCost: inspectApCost,
-    sceneKey: 'NegotiationScene',
-    sceneData: { car, locationId },
+    kind: 'auction',
+    sceneKey: 'AuctionScene',
+    sceneData: { car, rival, interest, locationId },
   };
 }
 

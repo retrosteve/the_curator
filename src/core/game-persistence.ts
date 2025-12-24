@@ -2,7 +2,6 @@ import type { PlayerState, WorldState } from '@/core/game-manager';
 import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
 import type { SpecialEventsState } from '@/systems/special-events-system';
 import type { TutorialStep } from '@/systems/tutorial-manager';
-import { GAME_CONFIG } from '@/config/game-config';
 import { isRecord } from '@/utils/types';
 import { warnLog } from '@/utils/log';
 
@@ -81,7 +80,7 @@ export interface SavedGameData {
   world: WorldState;
   market?: MarketFluctuationState;
   specialEvents?: SpecialEventsState;
-  tutorial?: { currentStep: TutorialStep; isActive: boolean };
+  tutorial?: { currentStep: string; isActive: boolean };
   version: string;
 }
 
@@ -107,7 +106,7 @@ export function buildSaveData(params: {
     world,
     market,
     specialEvents,
-    tutorial,
+    tutorial: tutorial ? { currentStep: tutorial.currentStep, isActive: tutorial.isActive } : undefined,
     version: SAVE_VERSION,
   };
 }
@@ -220,7 +219,7 @@ export function hydrateLoadedState(saveData: SavedGameData): {
   world: WorldState;
   market?: MarketFluctuationState;
   specialEvents?: SpecialEventsState;
-  tutorial?: { currentStep: TutorialStep; isActive: boolean };
+  tutorial?: { currentStep: string; isActive: boolean };
 } {
   const migratedPlayer = migrateLegacyPlayerFields(saveData.player);
   const rawPlayer = (isRecord(migratedPlayer) ? migratedPlayer : {}) as Partial<PlayerState> & {
@@ -244,12 +243,8 @@ export function hydrateLoadedState(saveData: SavedGameData): {
   };
 
   const rawWorld = saveData.world as Partial<WorldState>;
-  const maxAP = GAME_CONFIG.day.maxAP;
-  const hydratedAPRaw = rawWorld.currentAP ?? maxAP;
-  const hydratedAP = Math.max(0, Math.min(maxAP, hydratedAPRaw));
   const world: WorldState = {
     day: rawWorld.day ?? 1,
-    currentAP: hydratedAP,
     currentLocation: rawWorld.currentLocation ?? 'garage',
     carOfferByLocation: rawWorld.carOfferByLocation ?? {},
     rivalPresenceByLocation: rawWorld.rivalPresenceByLocation ?? {},

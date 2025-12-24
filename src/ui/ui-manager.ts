@@ -57,7 +57,6 @@ export class UIManager {
     description: string;
     icon: string;
     color: number;
-    apCost: number;
     isGarage: boolean;
     isLocked: boolean;
     lockReason?: string;
@@ -352,7 +351,6 @@ export class UIManager {
     options: Array<{
       name: string;
       cost: number;
-      apCost: number;
       description: string;
       conditionGain: number;
       valueIncrease: number;
@@ -473,7 +471,7 @@ export class UIManager {
    * 
    * Use this for:
    * - Confirming destructive actions (sell car, quit auction)
-   * - Spending resources (money, AP, prestige)
+  * - Spending resources (money, prestige)
    * - Any binary choice where one option proceeds and one cancels
    * 
    * For informational messages or multiple distinct actions, use showModal() instead.

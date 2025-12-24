@@ -27,7 +27,7 @@ This document covers implementation constraints; gameplay rules and tuning live 
 ## Scenes & Transitions
 - Scenes live under `src/scenes/`.
 - Expected flow: `BootScene` → `GarageScene` (Hub) ⇄ `MapScene` (Day Loop).
-- Encounter flow: `MapScene` → `AuctionScene` (PvP) OR `NegotiationScene` (PvE) → back to `MapScene`.
+- Encounter flow: `MapScene` → `AuctionScene` (Auctions) → back to `MapScene`.
 - Use Phaser scene transitions: `this.scene.start('SceneName', data)`.
 
 ## State & Ownership
@@ -45,7 +45,6 @@ This document covers implementation constraints; gameplay rules and tuning live 
   - `'money-changed'` number
   - `'prestige-changed'` number
   - `'inventory-changed'` `Car[]`
-  - 'ap-changed' number
   - `'day-changed'` number
   - `'location-changed'` string
 
@@ -62,7 +61,7 @@ This document covers implementation constraints; gameplay rules and tuning live 
   /assets        (Images - currently empty)
   /core          (game-manager.ts, event-bus.ts)
   /data          (Static data: car-database.ts, rival-database.ts)
-  /scenes        (Phaser Scenes: boot-scene.ts, garage-scene.ts, map-scene.ts, auction-scene.ts, negotiation-scene.ts)
+  /scenes        (Phaser Scenes: boot-scene.ts, garage-scene.ts, map-scene.ts, auction-scene.ts)
   /systems       (Logic: economy.ts, rival-ai.ts, time-system.ts)
   /ui            (DOM UI owner: ui-manager.ts)
     /internal    (UIManager implementation modules: modals/toasts/tutorial/map)

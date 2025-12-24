@@ -12,7 +12,7 @@ export const SKILL_METADATA = {
     name: 'Tongue',
     icon: '💬',
     color: '#9b59b6',
-    description: 'Negotiate and persuade',
+    description: 'Auction tactics and pressure',
   },
   network: {
     name: 'Network',
@@ -50,13 +50,8 @@ export const GAME_CONFIG = {
     },
   },
 
-  day: {
-    maxAP: 18, // Action Points per day (increased from 15 for better pacing)
-  },
-
   progression: {
     unlocks: {
-      dealership: 50, // Prestige required to access Dealership
       auction: 150,   // Prestige required to access Auction House
     }
   },
@@ -79,7 +74,6 @@ export const GAME_CONFIG = {
       // XP gains per action
       xpGains: {
         inspect: 10, // Eye XP
-        haggle: 5, // Tongue XP
         auction: 15, // Tongue XP
         travelNewLocation: 20, // Network XP
       },
@@ -88,7 +82,7 @@ export const GAME_CONFIG = {
 
   victory: {
     // Win conditions: must meet ALL of these
-    requiredPrestige: 500, // Reduced from 1000 with 15 AP economy and more content
+    requiredPrestige: 500, // Reduced from 1000 with earlier pacing and more content
     requiredUnicorns: 2, // Reduced from 3 (more achievable)
     requiredCollectionCars: 5, // Must be achievable with collection capacity (currently scales with garage slots)
     requiredSkillLevel: 4, // Reduced from 5 (max level still valuable but not required)
@@ -142,7 +136,7 @@ export const GAME_CONFIG = {
     dailyRent: 100, // Base rent for 1 slot
     
     // Rent scales with garage slots to add progression challenge
-    // Rebalanced to be less punishing with 15 AP economy
+    // Rebalanced to be less punishing in early progression
     rentByGarageSlots: {
       1: 100,
       2: 150,  // Was 200
@@ -160,11 +154,9 @@ export const GAME_CONFIG = {
     challenges: {
       rustRemoval: {
         cost: 500,
-        apCost: 2,
       },
       engineRebuild: {
         cost: 1500,
-        apCost: 4,
       },
     },
 
@@ -190,7 +182,6 @@ export const GAME_CONFIG = {
       charlieMinor: {
         availableBelowCondition: 100,
         costRateOfBaseValue: 0.02,
-        apCost: 2, // Reduced from 3 for better pacing
         conditionGain: 10,
         failChance: 0.1,
         failConditionPenalty: 5,
@@ -199,7 +190,6 @@ export const GAME_CONFIG = {
       artisanMajor: {
         availableBelowCondition: 90,
         costRateOfBaseValue: 0.15,
-        apCost: 4, // Reduced from 5 for better pacing
         conditionGain: 30,
       },
     },
@@ -225,19 +215,8 @@ export const GAME_CONFIG = {
     },
   },
 
-  timeCosts: {
-    inspectAP: 1,
-    auctionAP: 2,
-  },
-
   encounters: {
     rivalPresenceChance: 0.5,
-  },
-
-  negotiation: {
-    askingPriceMultiplier: 1.2,
-    lowestPriceMultiplier: 0.9,
-    haggleReductionRate: 0.05,
   },
 
   valuation: {

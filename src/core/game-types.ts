@@ -26,12 +26,11 @@ export interface PlayerState {
 }
 
 /**
- * World State - Represents game day and action points.
- * Days advance via end-of-day transitions. AP refreshes each new day.
+ * World State - Represents the global day progression and per-day state.
+ * Days advance via end-of-day transitions.
  */
 export interface WorldState {
   day: number;
-  currentAP: number;
   currentLocation: string;
   /**
    * Per-day car offer for each location id.

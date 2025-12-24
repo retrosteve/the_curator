@@ -14,7 +14,7 @@ export interface SpecialEvent {
   x: number;
   y: number;
   color: number;
-  /** Action Point (AP) cost to attend this special event. */
+  /** Time cost metadata for attending this special event. */
   timeCost: number;
   reward: {
     carValueMultiplier?: number;

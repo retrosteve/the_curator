@@ -10,7 +10,6 @@ export function createMapLocationCard(options: {
   description: string;
   icon: string;
   color: number;
-  apCost: number;
   isGarage: boolean;
   isLocked: boolean;
   lockReason?: string;
@@ -26,7 +25,6 @@ export function createMapLocationCard(options: {
     description,
     icon,
     color,
-    apCost,
     isGarage,
     isLocked,
     lockReason,
@@ -88,10 +86,7 @@ export function createMapLocationCard(options: {
     statusBar.appendChild(lockBadge);
   } else {
     if (!isGarage) {
-      const apBadge = document.createElement('span');
-      apBadge.textContent = `⚡ ${apCost} AP`;
-      apBadge.className = 'map-badge map-badge--ap';
-      statusBar.appendChild(apBadge);
+      // No per-location cost badge.
     } else {
       const homeBadge = document.createElement('span');
       homeBadge.textContent = 'FREE';

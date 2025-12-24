@@ -2,17 +2,13 @@ import { debugLog, errorLog } from '@/utils/log';
 import { BaseGameScene } from './base-game-scene';
 import { Car, calculateCarValue, getCarById } from '@/data/car-database';
 import { Rival, getRivalById, calculateRivalInterest, BarkTrigger, getRivalBark } from '@/data/rival-database';
+import { BASE_LOCATIONS } from '@/data/location-database';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
 import {
   createEncounterCenteredLayoutRoot,
-  createEncounterActionsPanel,
-  createEncounterLogPanel,
-  type EncounterLogEntry,
-  type EncounterLogPanelApi,
-  createEncounterTwoColGrid,
   disableEncounterActionButton,
   formatEncounterNeedLabel,
   ensureEncounterLayoutStyles,
@@ -27,9 +23,11 @@ import {
   rivalTurnImmediate as rivalTurnImmediateInternal,
 } from './internal/auction-bidding';
 
-type AuctionLogKind = 'system' | 'player' | 'rival' | 'auctioneer' | 'market' | 'warning' | 'error';
-
-type AuctionLogEntry = EncounterLogEntry<AuctionLogKind>;
+type BidHistoryEntry = {
+  bidder: 'player' | 'rival';
+  totalBid: number;
+  atMs: number;
+};
 
 type AuctionParticipant = 'auctioneer' | 'player' | 'rival';
 
@@ -76,21 +74,15 @@ export class AuctionScene extends BaseGameScene {
   private pendingUIRefreshTimeoutId?: number;
   private pendingRivalBarkTimeoutId?: number;
   private pendingRivalTurnTimeoutId?: number;
-  private pendingLogRenderTimeoutId?: number;
   private pendingPlayerTurnEnableTimeoutId?: number;
   private pendingEndAuctionTimeoutId?: number;
-  private lastLogRenderAtMs: number = 0;
 
   private isPlayerTurn: boolean = false;
   private lastBidder?: 'player' | 'rival';
 
-  private logPanelApi?: EncounterLogPanelApi<AuctionLogKind>;
-
-  // Full log history (used for de-dupe + persistence).
-  private auctionLog: AuctionLogEntry[] = [];
-  // What the player has actually seen in the panel.
-  private auctionLogRendered: AuctionLogEntry[] = [];
-  private pendingLogRenderQueue: AuctionLogEntry[] = [];
+  private bidHistory: BidHistoryEntry[] = [];
+  private lastAuctioneerLine: string = '';
+  private auctioneerQuoteEl?: HTMLElement;
   private hasAnyBids: boolean = false;
 
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
@@ -119,17 +111,15 @@ export class AuctionScene extends BaseGameScene {
     this.currentBid = Math.floor(calculateCarValue(this.car) * AuctionScene.STARTING_BID_MULTIPLIER);
     this.stallUsesThisAuction = 0;
     this.powerBidStreak = 0;
+    this.bidHistory = [];
+    this.lastAuctioneerLine = '';
+    this.auctioneerQuoteEl = undefined;
     this.auctionMarketEstimateValue = 0;
 
     this.participantFlash = { anchors: {}, clearTimeoutIds: {} };
     this.pendingUIRefreshTimeoutId = undefined;
     this.pendingRivalBarkTimeoutId = undefined;
     this.pendingRivalTurnTimeoutId = undefined;
-    this.pendingLogRenderTimeoutId = undefined;
-
-    this.auctionLog = [];
-    this.auctionLogRendered = [];
-    this.pendingLogRenderQueue = [];
     this.hasAnyBids = false;
   }
 
@@ -213,7 +203,6 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.clearPendingUIRefresh();
       this.clearPendingRivalTurn();
       this.clearPendingRivalBark();
-      this.clearPendingLogRender();
       this.clearPendingPlayerTurnEnable();
       this.clearPendingEndAuction();
       this.clearAllParticipantFlashTimeouts();
@@ -286,7 +275,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.clearPendingUIRefresh();
     this.clearPendingRivalTurn();
     this.clearPendingRivalBark();
-    this.clearPendingLogRender();
     this.clearPendingPlayerTurnEnable();
     this.clearPendingEndAuction();
 
@@ -315,7 +303,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (!this.hasAnyBids) {
       this.hasAnyBids = true;
       this.lastBidder = 'rival';
-      this.appendAuctionLog(`Opening bid → ${formatCurrency(this.currentBid)}.`, 'rival');
+      this.recordBid('rival', this.currentBid);
       this.showAuctioneerBark('rival_bid');
       this.endAuction(false, 'You ended the auction early.');
       return;
@@ -332,7 +320,6 @@ Tip: Visit the Garage to sell something, then come back.`,
       const decision = this.rivalAI.decideBid(this.currentBid);
 
       if (!decision.shouldBid) {
-        this.appendAuctionLog(`${decision.reason}.`, 'rival');
         const finalBark: BarkTrigger = decision.reason === 'Lost patience' ? 'patience_low' : 'outbid';
         this.endAuction(true, `${this.rival.name} ${decision.reason}!`, finalBark);
         return;
@@ -340,10 +327,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
       this.currentBid += decision.bidAmount;
       this.lastBidder = 'rival';
-      this.appendAuctionLog(
-        `Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.`,
-        'rival'
-      );
+      this.recordBid('rival', this.currentBid);
       this.showAuctioneerBark('rival_bid');
       this.endAuction(false, 'You ended the auction early.');
       return;
@@ -383,69 +367,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
   }
 
-  private clearPendingLogRender(): void {
-    if (this.pendingLogRenderTimeoutId !== undefined) {
-      window.clearTimeout(this.pendingLogRenderTimeoutId);
-      this.pendingLogRenderTimeoutId = undefined;
-    }
-    this.pendingLogRenderQueue = [];
-    this.lastLogRenderAtMs = 0;
-  }
-
-  private isQuotedDialogueLogEntry(entry: AuctionLogEntry): boolean {
-    if (entry.kind !== 'auctioneer' && entry.kind !== 'rival') return false;
-    // Dialogue lines are written with surrounding quotes (portrait already shows the speaker).
-    // Keep this heuristic narrow so non-dialogue rival lines (bids, reasons) still drip-feed.
-    return entry.text.startsWith('"') && entry.text.endsWith('"');
-  }
-
-  private getLogGapMsForEntry(entry: AuctionLogEntry): number {
-    // A small gap keeps back-to-back flashes readable (e.g. player action -> auctioneer call).
-    if (this.isQuotedDialogueLogEntry(entry)) return 350;
-    return GAME_CONFIG.ui.modalDelays.auctionLogLine;
-  }
-
-  private renderAuctionLogEntryNow(entry: AuctionLogEntry): void {
-    this.auctionLogRendered.push(entry);
-    if (this.auctionLogRendered.length > 50) {
-      this.auctionLogRendered.splice(0, this.auctionLogRendered.length - 50);
-    }
-    this.lastLogRenderAtMs = performance.now();
-    this.logPanelApi?.appendEntry(entry);
-
-    // Flash the corresponding portrait when the entry is actually visible.
-    if (entry.kind === 'auctioneer') this.flashParticipant('auctioneer');
-    else if (entry.kind === 'rival') this.flashParticipant('rival');
-    else if (entry.kind === 'player') this.flashParticipant('player');
-  }
-
-  private scheduleNextLogRender(delayMs: number): void {
-    this.pendingLogRenderTimeoutId = window.setTimeout(() => {
-      this.pendingLogRenderTimeoutId = undefined;
-      if (!this.scene.isActive()) return;
-
-      const next = this.pendingLogRenderQueue.shift();
-      if (!next) return;
-
-      this.renderAuctionLogEntryNow(next);
-
-      if (this.pendingLogRenderQueue.length > 0) {
-        const nextDelayMs = this.getLogGapMsForEntry(this.pendingLogRenderQueue[0]!);
-        this.scheduleNextLogRender(nextDelayMs);
-      }
-    }, delayMs);
-  }
-
-  private enqueueAuctionLogRender(entry: AuctionLogEntry): void {
-    this.pendingLogRenderQueue.push(entry);
-    if (this.pendingLogRenderTimeoutId !== undefined) return;
-
-    const now = performance.now();
-    const gapMs = this.getLogGapMsForEntry(entry);
-    const delayMs = this.lastLogRenderAtMs <= 0 ? 0 : Math.max(0, gapMs - (now - this.lastLogRenderAtMs));
-    this.scheduleNextLogRender(delayMs);
-  }
-
   private showRivalBarkAfterAuctioneer(
     trigger: BarkTrigger,
     delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer
@@ -458,24 +379,23 @@ Tip: Visit the Garage to sell something, then come back.`,
     }, delayMs);
   }
 
-  private getLogStyle(kind: AuctionLogKind): { color: string; fontWeight?: string } {
-    switch (kind) {
-      case 'player':
-        return { color: '#4CAF50', fontWeight: 'bold' };
-      case 'rival':
-        return { color: '#ffd700', fontWeight: 'bold' };
-      case 'auctioneer':
-        return { color: '#ccc', fontWeight: 'bold' };
-      case 'market':
-        return { color: '#FFC107' };
-      case 'error':
-        return { color: '#f44336', fontWeight: 'bold' };
-      case 'warning':
-        return { color: '#ff9800' };
-      case 'system':
-      default:
-        return { color: '#ccc' };
+  private recordBid(bidder: 'player' | 'rival', totalBid: number): void {
+    this.bidHistory.push({ bidder, totalBid, atMs: Date.now() });
+    if (this.bidHistory.length > 50) {
+      this.bidHistory.splice(0, this.bidHistory.length - 50);
     }
+    this.flashParticipant(bidder);
+  }
+
+  private formatBidTimeAgo(atMs: number): string {
+    const deltaMs = Math.max(0, Date.now() - atMs);
+    const seconds = Math.floor(deltaMs / 1000);
+    if (seconds < 10) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
   }
 
 
@@ -483,7 +403,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     // resetUIWithHUD() clears the entire overlay. Clear anchor refs and pending flash cleanup timers.
     this.clearAllParticipantFlashTimeouts();
     this.participantFlash.anchors = {};
-    this.logPanelApi = undefined;
+    this.auctioneerQuoteEl = undefined;
 
     this.resetUIWithHUD();
 
@@ -493,188 +413,495 @@ Tip: Visit the Garage to sell something, then come back.`,
     ensureEncounterLayoutStyles({
       styleId: 'auctionLayoutStyles',
       rootClass: 'auction-layout',
-      topClass: 'auction-layout__top',
-      bottomClass: 'auction-layout__bottom',
+      topClass: 'auction-layout__main',
+      bottomClass: 'auction-layout__main',
     });
 
     const layoutRoot = createEncounterCenteredLayoutRoot('auction-layout');
-    const topGrid = createEncounterTwoColGrid('auction-layout__top');
+    layoutRoot.style.gap = '12px';
 
-    // LEFT: car + your numbers
-    const leftPanel = this.uiManager.createPanel({ padding: '18px' });
+    const pixelUI = isPixelUIEnabled();
 
-    const marketValue = this.auctionMarketEstimateValue;
+    const openingBidMode = !this.hasAnyBids;
+    const normalBidTotal = openingBidMode ? this.currentBid : this.currentBid + AuctionScene.BID_INCREMENT;
+    const powerBidTotal = this.currentBid + AuctionScene.POWER_BID_INCREMENT;
 
-    const carPanel = this.uiManager.createCarInfoPanel(this.car, {
-      showValue: false,
-      titleColor: '#ffd700',
-      style: {
-        marginBottom: '12px',
-      },
-    });
-    leftPanel.appendChild(carPanel);
-
-    leftPanel.appendChild(
-      this.uiManager.createText(
-        `Estimated Value: ${formatCurrency(marketValue)}`,
-        { fontSize: '13px', color: '#ccc', textAlign: 'center', margin: '0 0 12px 0' }
-      )
-    );
-
-    leftPanel.appendChild(
-      this.uiManager.createHeading(`Current Bid: ${formatCurrency(this.currentBid)}`, 3, {
-        textAlign: 'center',
-        marginBottom: '10px',
-        color: '#4CAF50',
-      })
-    );
-
-    leftPanel.appendChild(
-      this.uiManager.createText(`Your Money: ${formatCurrency(player.money)}`, {
-        textAlign: 'center',
-        margin: '0',
-        fontWeight: 'bold',
-      })
-    );
-
-    const participantStrip = document.createElement('div');
-    Object.assign(participantStrip.style, {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: '12px',
-      margin: '0 0 12px 0',
-      overflow: 'visible',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const makePortraitAnchor = (url: string, alt: string): HTMLDivElement => {
+    const makePortraitAnchor = (url: string, alt: string, sizePx: number = 40): HTMLDivElement => {
       const anchor = document.createElement('div');
       Object.assign(anchor.style, {
         position: 'relative',
-        width: '48px',
-        height: '48px',
+        width: `${sizePx}px`,
+        height: `${sizePx}px`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        flex: '0 0 auto',
       } satisfies Partial<CSSStyleDeclaration>);
 
       const img = document.createElement('img');
       img.src = url;
       img.alt = alt;
       Object.assign(img.style, {
-        width: '48px',
-        height: '48px',
+        width: `${sizePx}px`,
+        height: `${sizePx}px`,
         display: 'block',
         margin: '0',
         objectFit: 'cover',
         boxSizing: 'border-box',
-        borderRadius: isPixelUIEnabled() ? '0px' : '8px',
+        borderRadius: pixelUI ? '0px' : '10px',
         border: '2px solid rgba(255,255,255,0.2)',
         backgroundColor: 'rgba(0,0,0,0.2)',
-        imageRendering: isPixelUIEnabled() ? 'pixelated' : 'auto',
+        imageRendering: pixelUI ? 'pixelated' : 'auto',
       } satisfies Partial<CSSStyleDeclaration>);
 
       anchor.appendChild(img);
       return anchor;
     };
 
-    const makeParticipantColumn = (portrait: HTMLElement, label: string): HTMLDivElement => {
-      const col = document.createElement('div');
-      Object.assign(col.style, {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '6px',
-        flex: '1 1 0',
+    const header = this.uiManager.createPanel({
+      padding: '12px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '14px',
+    });
+
+    const headerLeft = document.createElement('div');
+    Object.assign(headerLeft.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    headerLeft.appendChild(
+      this.uiManager.createHeading('AUCTION', 2, {
+        margin: '0',
+        color: '#ffd700',
+        letterSpacing: pixelUI ? '0.08em' : '0.02em',
+        textTransform: pixelUI ? 'uppercase' : 'none',
+      })
+    );
+
+    const locationName = (() => {
+      if (!this.locationId) return null;
+
+      const base = BASE_LOCATIONS.find((loc) => loc.id === this.locationId);
+      if (base) return base.name;
+
+      const specials = this.gameManager.getActiveSpecialEvents();
+      const special = specials.find((event) => event.id === this.locationId);
+      if (special) return special.name;
+
+      return null;
+    })();
+
+    headerLeft.appendChild(
+      this.uiManager.createText(locationName ?? 'Live bidding encounter', {
+        margin: '0',
+        fontSize: '12px',
+        opacity: '0.8',
+      })
+    );
+
+    const headerRight = document.createElement('div');
+    Object.assign(headerRight.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      flex: '0 0 auto',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const creditsBox = this.uiManager.createPanel({
+      padding: '10px 12px',
+      borderRadius: pixelUI ? '0px' : '12px',
+      background: 'rgba(0,0,0,0.18)',
+      boxShadow: 'none',
+      border: '1px solid rgba(255,255,255,0.10)',
+    });
+    creditsBox.appendChild(
+      this.uiManager.createText('Your credits', {
+        margin: '0 0 2px 0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      })
+    );
+    creditsBox.appendChild(
+      this.uiManager.createText(formatCurrency(player.money), {
+        margin: '0',
+        fontWeight: '800',
+        color: '#ffd700',
+      })
+    );
+    headerRight.appendChild(creditsBox);
+
+    const youPortrait = makePortraitAnchor(PLAYER_PORTRAIT_PLACEHOLDER_URL, 'You', 36);
+    this.participantFlash.anchors.player = youPortrait;
+    headerRight.appendChild(youPortrait);
+    headerRight.appendChild(
+      this.uiManager.createText('You', {
+        margin: '0',
+        fontWeight: '800',
+        whiteSpace: 'nowrap',
+      })
+    );
+
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+    layoutRoot.appendChild(header);
+
+    const mainGrid = document.createElement('div');
+    mainGrid.classList.add('auction-layout__main');
+    Object.assign(mainGrid.style, {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+      gap: '14px',
+      alignItems: 'start',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const leftCol = document.createElement('div');
+    Object.assign(leftCol.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const rightCol = document.createElement('div');
+    Object.assign(rightCol.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '14px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    // LEFT: status strip (reference: countdown + current bid)
+    const statusStrip = this.uiManager.createPanel({
+      padding: '14px 16px',
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+      gap: '12px',
+      alignItems: 'center',
+    });
+
+    const patienceBox = document.createElement('div');
+    Object.assign(patienceBox.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    patienceBox.appendChild(
+      this.uiManager.createText('Rival patience', {
+        margin: '0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      })
+    );
+
+    const patience = Math.max(0, Math.min(100, Math.floor(this.rivalAI.getPatience())));
+    patienceBox.appendChild(
+      this.uiManager.createText(`${patience}%`, {
+        margin: '0',
+        fontWeight: '900',
+        fontSize: '22px',
+      })
+    );
+
+    const patienceBarOuter = document.createElement('div');
+    Object.assign(patienceBarOuter.style, {
+      height: '10px',
+      borderRadius: pixelUI ? '0px' : '999px',
+      backgroundColor: 'rgba(255,255,255,0.10)',
+      overflow: 'hidden',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const patienceBarInner = document.createElement('div');
+    Object.assign(patienceBarInner.style, {
+      height: '100%',
+      width: `${patience}%`,
+      background: 'linear-gradient(135deg, #27ae60, #229954)',
+    } satisfies Partial<CSSStyleDeclaration>);
+    patienceBarOuter.appendChild(patienceBarInner);
+    patienceBox.appendChild(patienceBarOuter);
+
+    const bidBox = document.createElement('div');
+    Object.assign(bidBox.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-end',
+      gap: '6px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    bidBox.appendChild(
+      this.uiManager.createText('Current bid', {
+        margin: '0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      })
+    );
+    bidBox.appendChild(
+      this.uiManager.createText(formatCurrency(this.currentBid), {
+        margin: '0',
+        fontWeight: '900',
+        fontSize: '22px',
+        color: '#ffd700',
+        textAlign: 'right',
+      })
+    );
+
+    statusStrip.appendChild(patienceBox);
+    statusStrip.appendChild(bidBox);
+    leftCol.appendChild(statusStrip);
+
+    // LEFT: car showcase
+    const marketValue = this.auctionMarketEstimateValue;
+    const carPanel = this.uiManager.createCarInfoPanel(this.car, {
+      showValue: false,
+      showTags: false,
+      showCondition: false,
+      imageHeightPx: 240,
+      titleColor: '#ecf0f1',
+      style: { margin: '0' },
+    });
+    leftCol.appendChild(carPanel);
+
+    // LEFT: quick stats row (reference: chips)
+    const chips = this.uiManager.createPanel({
+      padding: '12px 16px',
+      display: 'grid',
+      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+      gap: '10px',
+    });
+
+    const makeChip = (label: string, value: string, valueColor?: string): HTMLDivElement => {
+      const chip = document.createElement('div');
+      Object.assign(chip.style, {
+        border: '1px solid rgba(255,255,255,0.12)',
+        borderRadius: pixelUI ? '0px' : '12px',
+        padding: '10px 10px',
+        backgroundColor: 'rgba(0,0,0,0.14)',
         minWidth: '0',
       } satisfies Partial<CSSStyleDeclaration>);
-      col.appendChild(portrait);
-      col.appendChild(
+      chip.appendChild(
         this.uiManager.createText(label, {
-          textAlign: 'center',
-          fontWeight: 'bold',
-          margin: '0',
-          fontSize: '12px',
-          color: '#ccc',
-          lineHeight: '1.2',
-          wordBreak: 'break-word',
+          margin: '0 0 4px 0',
+          fontSize: '11px',
+          opacity: '0.75',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
         })
       );
-      return col;
+      chip.appendChild(
+        this.uiManager.createText(value, {
+          margin: '0',
+          fontWeight: '800',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          color: valueColor ?? '#e0e6ed',
+        })
+      );
+      return chip;
     };
 
-    const auctioneerAnchor = makePortraitAnchor(
+    chips.appendChild(makeChip('Estimate', formatCurrency(marketValue), '#FFC107'));
+    chips.appendChild(makeChip('Condition', `${Math.round(this.car.condition)}/100`, '#4CAF50'));
+    chips.appendChild(makeChip('Increment', formatCurrency(AuctionScene.BID_INCREMENT)));
+    chips.appendChild(makeChip('Rival budget', formatCurrency(Math.floor(this.rivalAI.getBudget())), '#ffd700'));
+    leftCol.appendChild(chips);
+
+    // LEFT: auctioneer callout (reference: auctioneer dialogue card)
+    const auctioneerPanel = this.uiManager.createPanel({
+      padding: '14px 16px',
+    });
+    const auctioneerRow = document.createElement('div');
+    Object.assign(auctioneerRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      margin: '0 0 10px 0',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const auctioneerPortrait = makePortraitAnchor(
       getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
-      `${this.auctioneerName} portrait`
+      `${this.auctioneerName} portrait`,
+      44
     );
-    this.participantFlash.anchors.auctioneer = auctioneerAnchor;
-    participantStrip.appendChild(makeParticipantColumn(auctioneerAnchor, this.auctioneerName));
+    this.participantFlash.anchors.auctioneer = auctioneerPortrait;
 
-    const playerPortrait = makePortraitAnchor(PLAYER_PORTRAIT_PLACEHOLDER_URL, 'You');
-    this.participantFlash.anchors.player = playerPortrait;
-    participantStrip.appendChild(makeParticipantColumn(playerPortrait, 'You'));
-
-    const rivalAnchor = makePortraitAnchor(
-      getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-      `${this.rival.name} portrait`
+    const auctioneerMeta = document.createElement('div');
+    Object.assign(auctioneerMeta.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    auctioneerMeta.appendChild(
+      this.uiManager.createText(this.auctioneerName, {
+        margin: '0',
+        fontWeight: '900',
+        color: '#ffd700',
+      })
     );
-    this.participantFlash.anchors.rival = rivalAnchor;
-    participantStrip.appendChild(makeParticipantColumn(rivalAnchor, this.rival.name));
+    auctioneerMeta.appendChild(
+      this.uiManager.createText('Auctioneer', {
+        margin: '0',
+        fontSize: '12px',
+        opacity: '0.75',
+      })
+    );
 
-    const rightPanel = createEncounterLogPanel(this.uiManager, {
-      title: '',
-      entries: this.auctionLogRendered,
-      getStyle: (kind) => this.getLogStyle(kind),
-      maxEntries: 50,
-      height: '520px',
-      topContent: participantStrip,
-      newestFirst: true,
-      onReady: (api) => {
-        this.logPanelApi = api;
+    auctioneerRow.appendChild(auctioneerPortrait);
+    auctioneerRow.appendChild(auctioneerMeta);
+    auctioneerPanel.appendChild(auctioneerRow);
+
+    const auctioneerText = this.lastAuctioneerLine || 'Opening bid—who wants it?';
+    const quote = this.uiManager.createText(`"${auctioneerText}"`, {
+      margin: '0',
+      fontStyle: pixelUI ? 'normal' : 'italic',
+      opacity: '0.95',
+      lineHeight: '1.25',
+    });
+    this.auctioneerQuoteEl = quote;
+    auctioneerPanel.appendChild(quote);
+    leftCol.appendChild(auctioneerPanel);
+
+    // LEFT: bidding controls (reference: quick increments + place bid)
+    const biddingPanel = this.uiManager.createPanel({
+      padding: '16px',
+    });
+    biddingPanel.appendChild(
+      this.uiManager.createHeading('PLACE YOUR BID', 3, {
+        margin: '0 0 12px 0',
+        textAlign: 'left',
+      })
+    );
+
+    const quickRow = document.createElement('div');
+    Object.assign(quickRow.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+      gap: '10px',
+      margin: '0 0 12px 0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const quickBtnStyle: Partial<CSSStyleDeclaration> = {
+      padding: '12px 10px',
+      fontSize: '14px',
+    };
+
+    const normalQuickText = openingBidMode
+      ? `Opening\n${formatCurrency(this.currentBid)}`
+      : `+${formatCurrency(AuctionScene.BID_INCREMENT)}`;
+    const normalBtn = this.uiManager.createButton(normalQuickText, () => this.playerBid(AuctionScene.BID_INCREMENT), {
+      variant: 'primary',
+      style: quickBtnStyle,
+    });
+    const powerBtn = this.uiManager.createButton(
+      `Power\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)}`,
+      () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
+      { variant: 'warning', style: quickBtnStyle }
+    );
+    powerBtn.dataset.tutorialTarget = 'auction.power-bid';
+
+    const endBtn = this.uiManager.createButton('End\nAuction', () => this.playerEndAuctionEarly(), {
+      variant: 'danger',
+      style: quickBtnStyle,
+    });
+
+    // Affordability gating
+    if (player.money < normalBidTotal) {
+      disableEncounterActionButton(normalBtn, formatEncounterNeedLabel('Bid', formatCurrency(normalBidTotal)));
+    }
+    if (player.money < powerBidTotal) {
+      disableEncounterActionButton(powerBtn, formatEncounterNeedLabel('Power', formatCurrency(powerBidTotal)));
+    }
+
+    quickRow.appendChild(normalBtn);
+    quickRow.appendChild(powerBtn);
+    quickRow.appendChild(endBtn);
+    biddingPanel.appendChild(quickRow);
+
+    const bidDisplayRow = document.createElement('div');
+    Object.assign(bidDisplayRow.style, {
+      display: 'grid',
+      gridTemplateColumns: 'minmax(0, 1fr) auto',
+      gap: '10px',
+      alignItems: 'center',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const bidDisplay = document.createElement('div');
+    bidDisplay.classList.add('auction-bid-display');
+    Object.assign(bidDisplay.style, {
+      border: '1px solid rgba(255,255,255,0.14)',
+      borderRadius: pixelUI ? '0px' : '12px',
+      padding: '12px 12px',
+      backgroundColor: 'rgba(0,0,0,0.18)',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    bidDisplay.appendChild(
+      this.uiManager.createText('Next bid', {
+        margin: '0 0 2px 0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+      })
+    );
+    bidDisplay.appendChild(
+      this.uiManager.createText(formatCurrency(normalBidTotal), {
+        margin: '0',
+        fontWeight: '900',
+        fontSize: '20px',
+      })
+    );
+
+    const placeBtn = this.uiManager.createButton('PLACE BID', () => this.playerBid(AuctionScene.BID_INCREMENT), {
+      variant: 'success',
+      style: {
+        padding: '14px 16px',
+        fontSize: '15px',
+        whiteSpace: 'nowrap',
       },
     });
 
-    topGrid.appendChild(leftPanel);
-    topGrid.appendChild(rightPanel);
-    layoutRoot.appendChild(topGrid);
-
-    // BOTTOM: actions + log
-    const bottomGrid = createEncounterTwoColGrid('auction-layout__bottom');
-
-    const { actionsPanel, buttonGrid, buttonTextStyle } = createEncounterActionsPanel(this.uiManager);
-
-    const openingBidMode = !this.hasAnyBids;
-
-    const bidBtn = this.uiManager.createButton(
-      openingBidMode ? `Bid\n${formatCurrency(this.currentBid)}` : `Bid\n+${formatCurrency(AuctionScene.BID_INCREMENT)}`,
-      () => this.playerBid(AuctionScene.BID_INCREMENT),
-      { variant: 'primary', style: buttonTextStyle }
-    );
-    const bidTotal = openingBidMode ? this.currentBid : this.currentBid + AuctionScene.BID_INCREMENT;
-    if (player.money < bidTotal) {
-      disableEncounterActionButton(bidBtn, formatEncounterNeedLabel('Bid', formatCurrency(bidTotal)));
+    // Mirror the same gating as normal bid.
+    if (player.money < normalBidTotal) {
+      disableEncounterActionButton(placeBtn, formatEncounterNeedLabel('Place', formatCurrency(normalBidTotal)));
     }
-    buttonGrid.appendChild(bidBtn);
 
-    const powerBidBtn = this.uiManager.createButton(
-      `Power Bid\n+${formatCurrency(AuctionScene.POWER_BID_INCREMENT)} · Patience -${GAME_CONFIG.auction.powerBidPatiencePenalty}`,
-      () => this.playerBid(AuctionScene.POWER_BID_INCREMENT, { power: true }),
-      { variant: 'warning', style: buttonTextStyle }
-    );
-    powerBidBtn.dataset.tutorialTarget = 'auction.power-bid';
-    const powerBidTotal = this.currentBid + AuctionScene.POWER_BID_INCREMENT;
-    if (player.money < powerBidTotal) {
-      disableEncounterActionButton(
-        powerBidBtn,
-        formatEncounterNeedLabel('Power Bid', formatCurrency(powerBidTotal))
-      );
+    // Turn gating: only allow actions on the player's turn.
+    if (!this.isPlayerTurn) {
+      disableEncounterActionButton(normalBtn, 'Bid\nWaiting');
+      disableEncounterActionButton(powerBtn, 'Power\nWaiting');
+      disableEncounterActionButton(endBtn, 'End\nWaiting');
+      disableEncounterActionButton(placeBtn, 'Waiting');
     }
-    buttonGrid.appendChild(powerBidBtn);
+
+    bidDisplayRow.appendChild(bidDisplay);
+    bidDisplayRow.appendChild(placeBtn);
+    biddingPanel.appendChild(bidDisplayRow);
+
+    const tacticsRow = document.createElement('div');
+    Object.assign(tacticsRow.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '10px',
+      margin: '12px 0 0 0',
+    } satisfies Partial<CSSStyleDeclaration>);
 
     const kickTiresBtn = this.uiManager.createButton(
       `Kick Tires\nEye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ · Budget -${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)}`,
       () => this.playerKickTires(),
-      { variant: 'info', style: buttonTextStyle }
+      { variant: 'info', style: { padding: '12px 10px', fontSize: '14px' } }
     );
     if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
       disableEncounterActionButton(
@@ -682,14 +909,13 @@ Tip: Visit the Garage to sell something, then come back.`,
         `Kick Tires\nRequires Eye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+`
       );
     }
-    buttonGrid.appendChild(kickTiresBtn);
 
     const maxStalls = player.skills.tongue;
     const stallsRemaining = Math.max(0, maxStalls - this.stallUsesThisAuction);
     const stallBtn = this.uiManager.createButton(
-      `Stall\nTongue ${AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL}+ · Uses left: ${stallsRemaining}`,
+      `Stall\nUses left: ${stallsRemaining}`,
       () => this.playerStall(),
-      { variant: 'special', style: buttonTextStyle }
+      { variant: 'special', style: { padding: '12px 10px', fontSize: '14px' } }
     );
     if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL || stallsRemaining <= 0) {
       if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
@@ -701,105 +927,236 @@ Tip: Visit the Garage to sell something, then come back.`,
         disableEncounterActionButton(stallBtn, 'Stall\nNo uses left');
       }
     }
-    buttonGrid.appendChild(stallBtn);
 
-    // Turn gating: only allow player actions on the player's turn.
     if (!this.isPlayerTurn) {
-      disableEncounterActionButton(bidBtn, 'Bid\nWaiting');
-      disableEncounterActionButton(powerBidBtn, 'Power Bid\nWaiting');
       disableEncounterActionButton(kickTiresBtn, 'Kick Tires\nWaiting');
       disableEncounterActionButton(stallBtn, 'Stall\nWaiting');
     }
 
-    const quitBtn = this.uiManager.createButton('End Auction', () => this.playerEndAuctionEarly(), {
-      variant: 'danger',
-      style: {
-        ...buttonTextStyle,
-        gridColumn: '1 / -1',
-        textAlign: 'center',
-      },
-    });
-    buttonGrid.appendChild(quitBtn);
+    tacticsRow.appendChild(kickTiresBtn);
+    tacticsRow.appendChild(stallBtn);
+    biddingPanel.appendChild(tacticsRow);
 
-    actionsPanel.appendChild(buttonGrid);
+    biddingPanel.appendChild(
+      this.uiManager.createText(
+        `Minimum increment: ${formatCurrency(AuctionScene.BID_INCREMENT)} · Power bids reduce rival patience`,
+        { margin: '12px 0 0 0', fontSize: '12px', opacity: '0.75' }
+      )
+    );
+    leftCol.appendChild(biddingPanel);
 
-    actionsPanel.style.gridColumn = '1 / -1';
+    // RIGHT: bidders list (reference: rival bidders)
+    const biddersPanel = this.uiManager.createPanel({ padding: '14px 16px' });
+    biddersPanel.appendChild(
+      this.uiManager.createHeading('BIDDERS', 3, { margin: '0 0 12px 0', textAlign: 'left' })
+    );
 
-    bottomGrid.appendChild(actionsPanel);
-    layoutRoot.appendChild(bottomGrid);
+    const biddersList = document.createElement('div');
+    Object.assign(biddersList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+    } satisfies Partial<CSSStyleDeclaration>);
 
-    this.uiManager.append(layoutRoot);
-  }
+    const makeBidderRow = (params: {
+      key: 'player' | 'rival';
+      name: string;
+      portraitUrl: string;
+      isLeader: boolean;
+    }): HTMLDivElement => {
+      const row = document.createElement('div');
+      Object.assign(row.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '10px 10px',
+        border: `1px solid ${params.isLeader ? 'rgba(255,215,0,0.45)' : 'rgba(255,255,255,0.12)'}`,
+        borderRadius: pixelUI ? '0px' : '12px',
+        backgroundColor: 'rgba(0,0,0,0.14)',
+      } satisfies Partial<CSSStyleDeclaration>);
 
-  private appendAuctionLog(
-    entry: string,
-    kind: AuctionLogKind = 'system',
-    options?: { portraitUrl?: string; portraitAlt?: string; portraitSizePx?: number }
-  ): void {
-    const trimmed = entry.trim();
-    if (!trimmed) return;
+      const anchor = makePortraitAnchor(params.portraitUrl, `${params.name} portrait`, 38);
+      if (params.key === 'player') this.participantFlash.anchors.player = anchor;
+      else this.participantFlash.anchors.rival = anchor;
 
-    const portrait =
-      options?.portraitUrl
-        ? {
-            portraitUrl: options.portraitUrl,
-            portraitAlt: options.portraitAlt,
-            portraitSizePx: options.portraitSizePx,
-          }
-        : kind === 'rival'
-          ? {
-              portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-              portraitAlt: this.rival.name,
-              portraitSizePx: 48,
-            }
-          : kind === 'auctioneer'
-            ? {
-                portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
-                portraitAlt: this.auctioneerName,
-                portraitSizePx: 48,
-              }
-            : kind === 'player'
-              ? {
-                  portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
-                  portraitAlt: 'You',
-                  portraitSizePx: 48,
-                }
-              : undefined;
+      const meta = document.createElement('div');
+      Object.assign(meta.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        minWidth: '0',
+        flex: '1 1 auto',
+      } satisfies Partial<CSSStyleDeclaration>);
 
-    const logEntry: AuctionLogEntry = {
-      text: trimmed,
-      kind,
-      ...portrait,
+      meta.appendChild(
+        this.uiManager.createText(params.name, {
+          margin: '0',
+          fontWeight: '900',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        })
+      );
+      meta.appendChild(
+        this.uiManager.createText(params.isLeader ? 'Current high bidder' : 'Outbid', {
+          margin: '0',
+          fontSize: '12px',
+          opacity: '0.75',
+        })
+      );
+
+      const amount = this.uiManager.createText(params.isLeader ? formatCurrency(this.currentBid) : '', {
+        margin: '0',
+        fontWeight: '900',
+        color: params.isLeader ? '#ffd700' : '#ccc',
+        whiteSpace: 'nowrap',
+      });
+
+      row.appendChild(anchor);
+      row.appendChild(meta);
+      row.appendChild(amount);
+      return row;
     };
 
-    this.auctionLog.push(logEntry);
-    if (this.auctionLog.length > 50) {
-      this.auctionLog.splice(0, this.auctionLog.length - 50);
+    biddersList.appendChild(
+      makeBidderRow({
+        key: 'player',
+        name: 'You',
+        portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
+        isLeader: this.lastBidder === 'player',
+      })
+    );
+    biddersList.appendChild(
+      makeBidderRow({
+        key: 'rival',
+        name: this.rival.name,
+        portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
+        isLeader: this.lastBidder === 'rival' || (!this.lastBidder && !this.hasAnyBids),
+      })
+    );
+
+    biddersPanel.appendChild(biddersList);
+    rightCol.appendChild(biddersPanel);
+
+    // RIGHT: bid history (no narrative log)
+    const bidHistoryPanel = this.uiManager.createPanel({ padding: '14px 16px' });
+    bidHistoryPanel.appendChild(
+      this.uiManager.createHeading('BID HISTORY', 3, { margin: '0 0 12px 0', textAlign: 'left' })
+    );
+
+    const bidHistoryScroll = document.createElement('div');
+    Object.assign(bidHistoryScroll.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      maxHeight: '520px',
+      paddingRight: '6px',
+      boxSizing: 'border-box',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const makeHistoryRow = (entry: BidHistoryEntry): HTMLDivElement => {
+      const isPlayer = entry.bidder === 'player';
+      const row = document.createElement('div');
+      Object.assign(row.style, {
+        display: 'grid',
+        gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+        gap: '10px',
+        alignItems: 'center',
+        padding: '10px 10px',
+        border: `1px solid ${isPlayer ? 'rgba(76,175,80,0.35)' : 'rgba(255,255,255,0.12)'}`,
+        borderRadius: pixelUI ? '0px' : '12px',
+        backgroundColor: 'rgba(0,0,0,0.14)',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const portraitUrl = isPlayer
+        ? PLAYER_PORTRAIT_PLACEHOLDER_URL
+        : getCharacterPortraitUrlOrPlaceholder(this.rival.name);
+      const avatar = document.createElement('img');
+      avatar.src = portraitUrl;
+      avatar.alt = isPlayer ? 'You' : this.rival.name;
+      Object.assign(avatar.style, {
+        width: '28px',
+        height: '28px',
+        objectFit: 'cover',
+        borderRadius: pixelUI ? '0px' : '6px',
+        border: '2px solid rgba(255,255,255,0.18)',
+        backgroundColor: 'rgba(0,0,0,0.18)',
+        imageRendering: pixelUI ? 'pixelated' : 'auto',
+        boxSizing: 'border-box',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const meta = document.createElement('div');
+      Object.assign(meta.style, {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        minWidth: '0',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const nameRow = document.createElement('div');
+      Object.assign(nameRow.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        minWidth: '0',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const name = this.uiManager.createText(isPlayer ? 'YOU' : this.rival.name, {
+        margin: '0',
+        fontWeight: '900',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      });
+      nameRow.appendChild(name);
+
+      const time = this.uiManager.createText(this.formatBidTimeAgo(entry.atMs), {
+        margin: '0',
+        fontSize: '11px',
+        opacity: '0.65',
+        whiteSpace: 'nowrap',
+      });
+
+      meta.appendChild(nameRow);
+      meta.appendChild(time);
+
+      const amount = this.uiManager.createText(formatCurrency(entry.totalBid), {
+        margin: '0',
+        fontWeight: '900',
+        color: isPlayer ? '#4CAF50' : '#ffd700',
+        whiteSpace: 'nowrap',
+      });
+
+      row.appendChild(avatar);
+      row.appendChild(meta);
+      row.appendChild(amount);
+      return row;
+    };
+
+    const recent = this.bidHistory.slice(-50).slice().reverse();
+    for (const entry of recent) {
+      bidHistoryScroll.appendChild(makeHistoryRow(entry));
     }
 
-    // Drip-feed all lines so bursts don't visually batch.
-    this.enqueueAuctionLogRender(logEntry);
+    bidHistoryPanel.appendChild(bidHistoryScroll);
+    rightCol.appendChild(bidHistoryPanel);
+
+    mainGrid.appendChild(leftCol);
+    mainGrid.appendChild(rightCol);
+    layoutRoot.appendChild(mainGrid);
+
+    this.uiManager.append(layoutRoot);
   }
 
   private showToastAndLog(
     toast: string,
     options?: { backgroundColor?: string; durationMs?: number },
     log?: string,
-    logKind: AuctionLogKind = 'warning'
+    _logKind: string = 'warning'
   ): void {
-    let logEntry = (log ?? toast).trim();
-    // Ensure non-speech lines still get the prefix-based coloring.
-    if (logEntry && !logEntry.includes(':')) {
-      if (logKind === 'error') logEntry = `Error: ${logEntry}`;
-      else if (logKind === 'warning') logEntry = `Warning: ${logEntry}`;
-    }
-    if (logEntry) {
-      const last = this.auctionLog.length > 0 ? this.auctionLog[this.auctionLog.length - 1] : undefined;
-      if (!last || last.text !== logEntry) {
-        this.appendAuctionLog(logEntry, logKind);
-      }
-    }
-
+    void log;
     this.uiManager.showToast(toast, options);
   }
 
@@ -807,7 +1164,8 @@ Tip: Visit the Garage to sell something, then come back.`,
     const mood = this.rival.mood || 'Normal';
     const bark = getRivalBark(mood, trigger).trim();
     if (!bark) return;
-    this.appendAuctionLog(`"${bark}"`, 'rival');
+    this.flashParticipant('rival');
+    this.uiManager.showToast(`"${bark}"`, { durationMs: 2600 });
   }
   private showAuctioneerBark(trigger: 'start' | 'opening_prompt' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)] ?? '';
@@ -868,8 +1226,11 @@ Tip: Visit the Garage to sell something, then come back.`,
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    // Log-only (no speech bubble). Portrait flash is driven by the rendered log entry.
-    this.appendAuctionLog(`"${trimmed}"`, 'auctioneer');
+    this.lastAuctioneerLine = trimmed;
+    if (this.auctioneerQuoteEl) {
+      this.auctioneerQuoteEl.textContent = `"${trimmed}"`;
+    }
+    this.flashParticipant('auctioneer');
   }
 
   private playerBid(amount: number, options?: { power?: boolean }): void {
@@ -891,8 +1252,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       gameManager: this.gameManager,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
-        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
-      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+        this.showToastAndLog(toast, opts, log, logKind),
+      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
@@ -932,8 +1293,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       gameManager: this.gameManager,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
-        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
-      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+        this.showToastAndLog(toast, opts, log, logKind),
+      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
@@ -973,8 +1334,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       gameManager: this.gameManager,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
-        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
-      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+        this.showToastAndLog(toast, opts, log, logKind),
+      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
@@ -1023,8 +1384,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       gameManager: this.gameManager,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
-        this.showToastAndLog(toast, opts, log, logKind as AuctionLogKind | undefined),
-      onAppendLog: (text: string, kind?: string) => this.appendAuctionLog(text, kind as AuctionLogKind | undefined),
+        this.showToastAndLog(toast, opts, log, logKind),
+      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
       onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
       onSetupUI: () => this.setupUI(),
@@ -1073,7 +1434,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.clearPendingUIRefresh();
     this.clearPendingRivalTurn();
     this.clearPendingRivalBark();
-    this.clearPendingLogRender();
     this.clearPendingPlayerTurnEnable();
     this.clearPendingEndAuction();
     this.isPlayerTurn = false;
@@ -1140,6 +1500,15 @@ Tip: Visit the Garage to sell something, then come back.`,
 
         // Winning (and acquiring) exhausts the location's daily offer.
         this.consumeOfferIfNeeded();
+
+        // Tutorial: after the first (tutorial) auction win, advance to the restore beat.
+        try {
+          if (this.tutorialManager.isTutorialActive() && this.tutorialManager.isOnFirstVisitAuctionStep()) {
+            this.tutorialManager.onFirstTutorialCarPurchased();
+          }
+        } catch {
+          // Ignore tutorial errors
+        }
         
         // Award Tongue XP for winning an auction
         const tongueXPGain = GAME_CONFIG.player.skillProgression.xpGains.auction;
@@ -1169,7 +1538,7 @@ Tip: Visit the Garage to sell something, then come back.`,
                   // Show tutorial completion dialogue before returning to map
                   this.tutorialManager.showDialogueWithCallback(
                     "Uncle Ray",
-                    "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Inspecting cars with your Eye skill\n• Restoring cars to increase value\n• Bidding strategically in auctions\n• Reading rival behavior\n\nNow go build the world's greatest car collection! Remember: every car tells a story, and you're the curator.",
+                    "🎉 Congratulations! 🎉\n\nYou've mastered the basics of car collecting:\n• Winning cars through auctions\n• Restoring cars to increase value\n• Bidding strategically\n• Reading rival behavior\n\nNow go build the world's greatest car collection! Remember: every car tells a story, and you're the curator.",
                     () => {
                       this.tutorialManager.onTutorialCompleted();
                       this.scene.start('MapScene');
@@ -1227,11 +1596,11 @@ Tip: Visit the Garage to sell something, then come back.`,
         if (this.tutorialManager.isOnRedemptionStep()) {
           this.tutorialManager.showDialogueWithCallback(
             'Uncle Ray',
-            'No worries—redemption means we keep coming back until we win. Head back to the Weekend Auction House and we\'ll run it again.',
+            'No worries—redemption means we keep coming back until we win. Head back to the Auction House and we\'ll run it again.',
             () => {
               this.uiManager.showModal(
                 'Back to Map',
-                'Head back to the Weekend Auction House and try again when you are ready.',
+                'Head back to the Auction House and try again when you are ready.',
                 [
                   { text: 'Stay', onClick: () => {} },
                   { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },

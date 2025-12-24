@@ -17,26 +17,24 @@ You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You m
 
 ## Core Loop
 1. **Morning Phase:** Start in Garage. Check news/intel.
-2. **Map Phase (The Day Loop):** Choose a node to visit. There is no separate travel AP cost; the AP cost is charged by the encounter type when you commit to the visit.
+2. **Map Phase (The Day Loop):** Choose nodes to visit. There is no Action Point (AP) limiter; the day only advances when you choose **End Day** from the Garage.
   - **Daily Offers:** Each non-special location has a single car offer per day (locked in for the day). Once you resolve the encounter (buy/win/leave/lose), that location is exhausted until tomorrow.
 3. **Encounter Phase:**
-  - If rival present -> Auction (turn-based battle, costs 2 AP).
-  - If solo -> Negotiation (menu choices using Player Stats, costs 1 AP).
+  - **Auction:** Turn-based bidding battle.
   - **Outcome:** Return to Map (continue day) or Return to Garage (if
     inventory full/day ends).
-4. **Garage Phase:** Restore cars (3-5 AP), sell inventory, or end day.
+4. **Garage Phase:** Restore cars, sell inventory, or end day.
 
 ### Expanded Loop (Target)
-The game is played across **Days** and **Weeks**. The player manages **Cash**, **Time**, and **Prestige**.
+The game is played across **Days** and **Weeks**. The player manages **Cash**, **Timing**, and **Prestige**.
 
 - **Phase 1: The Morning Paper (Intel)**
-  - **The Map:** The city is a board with Nodes (Dealerships, Scrapyards, Docks, Barns).
-  - **The Decision:** Icons appear on nodes indicating leads. You have limited time per day.
+  - **The Map:** The city is a board with Nodes (Auction Houses + special event leads).
+  - **The Decision:** Icons appear on nodes indicating leads. The day advances only when you choose **End Day**.
   - **The Conflict:** Rivals move on the map. If a Rival reaches a node before you, the car might be gone or the price can spike.
 - **Phase 2: The Acquisition (Action)**
   - **Encounter:** When you arrive at a car, the view switches to a 2D static scene.
-  - **Negotiation (PvE):** If alone, you use RPG skills to haggle with the seller and/or inspect for hidden damage.
-  - **Auction (PvP):** If a Rival is present, you enter a turn-based Bidding War. You manage your budget against the Rival’s **Patience** and **Budget**.
+  - **Auction (PvP):** You enter a turn-based Bidding War. You manage your budget against the Rival’s **Patience** and **Budget**.
 - **Phase 3: The Garage (Management)**
   - **Restoration:** Spend Time + Money on restoration services. This increases the car’s condition.
   - **The Choice:**
@@ -120,17 +118,10 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 ### Economy & Time
 - **Currencies:** Cash ($) and Prestige (Reputation).
 - **Concept (The Action Budget):** Time is the player’s primary resource.
-- **Action Points (AP):** Every meaningful action consumes Action Points.
 - **Day Cycle:**
-  - Each day starts with **18 Action Points** (rebalanced from 15 for better pacing)
-  - Day ends when AP reaches 0 or player returns to garage
-- **Constraints:**
-  - Every action costs AP (1-5 AP depending on complexity).
-  - If `currentAP < actionCost`: the action is **blocked** and the player must
-    end the day.
-- **Next Day:** When the player chooses "End Day" (or is forced to), `day`
-  increments, `currentAP` resets to **18**, daily expenses are deducted, and
-  the map resets.
+  - There is no Action Point (AP) limiter.
+  - The day advances when the player chooses **End Day** from the Garage.
+  - Daily expenses are applied at day end and the map rolls new daily offers.
 - **Daily Costs:**
   - **Daily Rent:** Scales with garage capacity (balanced to avoid mid-game bankruptcies):
     - 1 slot: $100/day
@@ -167,8 +158,7 @@ Special Events add dynamic variety to the exploration phase, appearing as tempor
   - **Dealer Liquidation Sale** (`dealerClearance`): discounted cars plus a small money bonus; longer duration.
 - **Event Duration:** Events expire after a small number of days (varies by type; currently 1-4 days).
 - **Rewards:** Events can modify the generated car (e.g., guaranteed tags and value multipliers) and may grant money/prestige bonuses on purchase.
-- **Time Cost:** Visiting special events costs a fixed Action Point cost (varies by event) and does not additionally charge the normal inspection cost.
-- **No Rivals:** Special events are always solo encounters (no auctions).
+- **Encounters:** Special events lead to special auctions featuring event-modified cars.
 
 **Implementation Note:** Special events are generated daily in GameManager.endDay(), stored in SpecialEventsSystem, and displayed as dynamic nodes in MapScene.
 
@@ -206,9 +196,9 @@ As the player levels up, they improve three core tools:
 1. **The Eye (Appraisal)**
    - Lvl 1: Sees price and model.
    - Lvl 5: Sees hidden damage and a more accurate market value.
-2. **The Tongue (Negotiation)**
-   - Lvl 1: Basic bid/pass and simple negotiation.
-   - Lvl 5: Unlocks stronger options (e.g., aggressive raise / bluff / charm) to manipulate Rival patience.
+2. **The Tongue (Tactics)**
+  - Lvl 1: Basic bids and auction presence.
+  - Lvl 5: Unlocks stronger options (e.g., aggressive raises / stalling) to manipulate Rival patience.
 3. **The Network (Intel)**
    - Lvl 1: Mostly public opportunities.
    - Lvl 5: Earlier visibility into rare/private leads (e.g., barn finds, private sales).
@@ -240,7 +230,7 @@ As the player levels up, they improve three core tools:
 ### Restoration UI
 - **Card-Based Selection:** Players choose specialists via an interactive card layout showing:
   - Specialist name and description
-  - Cost (money) and AP cost
+  - Cost (money)
   - Expected condition gain
   - **Profit Preview:** Estimated profit/loss and ROI percentage calculated before committing
   - Risk warnings (if applicable, e.g., Cheap Charlie's potential value loss)
@@ -253,23 +243,12 @@ As the player levels up, they improve three core tools:
   - **Minor Service:** `+10` condition
   - **Major Overhaul:** `+30` condition
 
-#### Restoration AP Costs
-- **Minor Service:** 2 AP (reduced from 3 for better pacing)
-- **Major Overhaul:** 4 AP (reduced from 5 for better pacing)
-
 ### Garage Rules
 - **Garage capacity:** Starts at 1 slot (upgradeable).
 - If the player attempts to buy a car while the Garage is full: show error
   **"Garage Full - Sell or Scrap current car first."**
 - **Softlock prevention:** Add a **"Sell As-Is"** option in the Garage.
   - Sell value: `sellAsIsValue = carValue × 0.7`.
-
-## Action Point Costs
-- **Travel:** No separate cost (included in encounter AP)
-- **Inspect:** 1 AP
-- **Auction:** 2 AP
-- **Restore (Minor Service):** 2 AP (reduced from 3)
-- **Restore (Major Overhaul):** 4 AP (reduced from 5)
 
 ## Car Progression Tiers (Design)
 - **Tier 1: Daily Drivers** (grind cash via flips)
@@ -291,17 +270,17 @@ As the player levels up, they improve three core tools:
 
 ### Minute 0–2: The Setup
 - Scene: Dirty Garage. Mentor: “Uncle Ray.”
-- Dialogue: Uncle Ray welcomes you and instructs you to go to the Map and visit Joe's Scrapyard.
-- Action: Go to Scrapyard. Enter inspection screen for "Rusty Sedan."
-- Mechanic: **The Eye** skill works passively - your level determines what details you see. At level 1, you only see basic info (condition: 30%). At level 2+, you'd see damage history (rust, bald tires).
-- Action: Accept the asking price (~$350-$400 based on car's poor condition). Purchase completes; you gain Eye XP automatically for inspecting.
+- Dialogue: Uncle Ray welcomes you and instructs you to go to the Map and visit the Auction House.
+- Action: Go to the Auction House. Start a tutorial auction for the "Rusty Sedan." Place the opening bid and try to win.
+- Mechanic: Auctions are the sole way to acquire cars; tactics can pressure rivals by draining Patience or Budget.
+- Action: Win the auction and acquire the car.
 
 ### Minute 2–4: Restoration
 - Action: Return to Garage. Uncle Ray guides you to view your Inventory.
 - Action: Select the Rusty Sedan and choose restoration service.
 - Choice: Assign the car to **"Cheap Charlie's Quick Fix"** (Low Cost, Fast,
   Risky).
-- Action: Perform a **Minor Service** (2 AP). Car condition improves
+- Action: Perform a **Minor Service**. Car condition improves
   significantly. Value increases.
 - Tutorial override: this first restoration always succeeds (ignore Cheap
   Charlie's risk).
@@ -328,7 +307,7 @@ Note: During the tutorial, the Auction House/Estate Sale location is accessible 
 ## Development Checklist
 
 ### Assets Needed (Art)
-- [ ] Backgrounds: Garage, City Map, Scrapyard, Suburbs
+- [ ] Backgrounds: Garage, City Map, Suburbs
 - [ ] Car Sprites: Sedan (Rusty/Clean), Wagon (Clean), Muscle Car (Silhouette)
 - [ ] UI: Cash Counter, Clock, Action Bar (Bid, Inspect)
 - [ ] Portraits: Uncle Ray, Sterling Vance (Rival), Scrapyard Joe (Rival)

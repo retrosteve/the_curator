@@ -11,14 +11,13 @@ export interface RestorationChallenge {
   id: string;
   name: string;
   cost: number;
-  apCost: number;
   description: string;
   requiredFor: string[]; // History tags that require this challenge
 }
 
 /**
  * Restoration option configuration.
- * Defines cost, AP cost, quality, and risk for a specific restoration service.
+ * Defines cost, quality, and risk for a specific restoration service.
  */
 export interface RestorationOption {
   id: string;
@@ -26,7 +25,6 @@ export interface RestorationOption {
   specialist: 'Charlie' | 'Artisan';
   type: 'Minor' | 'Major';
   cost: number;
-  apCost: number;
   conditionGain: number;
   description: string;
   risk?: string;
@@ -52,7 +50,6 @@ export class Economy {
         id: 'rust_removal',
         name: 'Rust Removal Treatment',
         cost: GAME_CONFIG.economy.challenges.rustRemoval.cost,
-        apCost: GAME_CONFIG.economy.challenges.rustRemoval.apCost,
         description: 'Remove rust and treat metal surfaces before restoration.',
         requiredFor: ['Rust'],
       });
@@ -64,7 +61,6 @@ export class Economy {
         id: 'engine_rebuild',
         name: 'Engine Rebuild',
         cost: GAME_CONFIG.economy.challenges.engineRebuild.cost,
-        apCost: GAME_CONFIG.economy.challenges.engineRebuild.apCost,
         description: 'Rebuild engine to fix water damage before restoration.',
         requiredFor: ['Flooded'],
       });
@@ -110,7 +106,6 @@ export class Economy {
         specialist: 'Charlie',
         type: 'Minor',
         cost: Math.floor(baseValue * charlie.costRateOfBaseValue),
-        apCost: charlie.apCost,
         conditionGain: charlie.conditionGain,
         description: "Fast and cheap. Don't ask questions.",
         risk: `${Math.round(charlie.failChance * 100)}% chance to damage car`,
@@ -126,7 +121,6 @@ export class Economy {
         specialist: 'Artisan',
         type: 'Major',
         cost: Math.floor(baseValue * artisan.costRateOfBaseValue),
-        apCost: artisan.apCost,
         conditionGain: artisan.conditionGain,
         description: 'Perfection takes time. Increases value significantly.',
       });

@@ -7,8 +7,7 @@ import { debugLog } from '@/utils/log';
  */
 export type TutorialStep = 
   | 'intro'
-  | 'first_visit_scrapyard'
-  | 'first_inspect'
+  | 'first_visit_auction'
   | 'first_buy'
   | 'first_restore'
   | 'first_flip'
@@ -24,9 +23,7 @@ export type TutorialHighlightTarget =
   | 'garage.back'
   | 'garage.restore'
   | 'map.location.garage'
-  | 'map.location.scrapyard_1'
   | 'map.location.auction_1'
-  | 'negotiation.accept-offer'
   | 'auction.power-bid';
 
 /**
@@ -47,12 +44,8 @@ export class TutorialManager {
     return this.currentStep === 'complete';
   }
 
-  public isOnFirstVisitScrapyardStep(): boolean {
-    return this.isActive && this.currentStep === 'first_visit_scrapyard';
-  }
-
-  public isOnFirstInspectStep(): boolean {
-    return this.isActive && this.currentStep === 'first_inspect';
+  public isOnFirstVisitAuctionStep(): boolean {
+    return this.isActive && this.currentStep === 'first_visit_auction';
   }
 
   public isOnFirstLossStep(): boolean {
@@ -61,30 +54,6 @@ export class TutorialManager {
 
   public isOnRedemptionStep(): boolean {
     return this.isActive && this.currentStep === 'redemption';
-  }
-
-  /**
-   * Scrapyard loop covers the pre-purchase beats of the first car.
-   * Used for deterministic tutorial encounter forcing and soft-lock prevention.
-   */
-  public isInScrapyardTutorialLoop(): boolean {
-    if (!this.isActive) return false;
-    return (
-      this.currentStep === 'first_visit_scrapyard' ||
-      this.currentStep === 'first_inspect'
-    );
-  }
-
-  /**
-   * Early scrapyard beat before the first car is successfully purchased.
-   * Used to avoid consuming the daily offer when backing out (prevents a soft-lock).
-   */
-  public isInEarlyScrapyardBeatBeforePurchase(): boolean {
-    if (!this.isActive) return false;
-    return (
-      this.currentStep === 'first_visit_scrapyard' ||
-      this.currentStep === 'first_inspect'
-    );
   }
 
   /**
@@ -112,17 +81,9 @@ export class TutorialManager {
     if (!this.isActive) return [];
 
     switch (this.currentStep) {
-      case 'first_visit_scrapyard':
-        // Highlight scrapyard on the map if present; otherwise guide the player to the map.
-        return ['map.location.scrapyard_1', 'garage.explore-map', 'garage.back'];
-      case 'first_inspect':
-        // If the player backs out of negotiation, keep guiding them back to Joe's Scrapyard.
-        return [
-          'negotiation.accept-offer',
-          'map.location.scrapyard_1',
-          'garage.explore-map',
-          'garage.back',
-        ];
+      case 'first_visit_auction':
+        // Auction-only: guide the player to the Auction House.
+        return ['map.location.auction_1', 'garage.explore-map', 'garage.back'];
       case 'first_buy':
         // Player should restore the first car; if they're still on the map, highlight returning home.
         return ['garage.restore', 'garage.view-garage', 'map.location.garage', 'garage.back'];
@@ -152,10 +113,9 @@ export class TutorialManager {
     if (!this.isActive) return null;
 
     switch (this.currentStep) {
-      // Early loop: only the scrapyard path is relevant.
-      case 'first_visit_scrapyard':
-      case 'first_inspect':
-        return new Set(['garage', 'scrapyard_1']);
+      // Early loop: only the first auction path is relevant.
+      case 'first_visit_auction':
+        return new Set(['garage', 'auction_1']);
 
       // After purchasing the first car, funnel the player back to the Garage to restore it.
       case 'first_buy':
@@ -194,7 +154,7 @@ export class TutorialManager {
     switch (action) {
       case 'end-day':
         // Allow ending the day at any time during the tutorial.
-        // This prevents AP-burning deviations (e.g., leaving encounters) from soft-locking progress.
+        // This prevents side-action deviations (e.g., leaving encounters) from soft-locking progress.
         return true;
       case 'upgrade-garage':
       case 'sell-car':
@@ -219,16 +179,10 @@ export class TutorialManager {
 
   // ---- Intent-level step transitions (keeps scene code from directly naming steps everywhere) ----
 
-  public onEnteredFirstScrapyardInspection(): void {
-    if (!this.isActive) return;
-    if (this.currentStep === 'first_visit_scrapyard') {
-      this.advanceStep('first_inspect');
-    }
-  }
-
   public onFirstTutorialCarPurchased(): void {
     if (!this.isActive) return;
-    if (this.currentStep === 'first_inspect') {
+    // Auction-only: acquiring the first car advances to the restore beat.
+    if (this.isOnFirstVisitAuctionStep()) {
       this.advanceStep('first_buy');
     }
   }
@@ -318,7 +272,7 @@ export class TutorialManager {
     this.showDialogueWithCallback(
       "Uncle Ray", 
       "Welcome to the garage, kid. It's a dump, but it's ours. Let's get you started in the car collecting business.",
-      () => this.advanceStep('first_visit_scrapyard')
+      () => this.advanceStep('first_visit_auction')
     );
   }
 
@@ -341,22 +295,15 @@ export class TutorialManager {
     
     // Per-step dialogue/actions according to design document
     switch (step) {
-      case 'first_visit_scrapyard':
+      case 'first_visit_auction':
         this.showDialogue(
           "Uncle Ray",
-          "Now click \"Explore Map\", then select \"Joe's Scrapyard\" to find your first car. Exploring costs Action Points, so keep an eye on your AP."
-        );
-        break;
-      
-      case 'first_inspect':
-        this.showDialogue(
-          "Uncle Ray",
-          "You're now inspecting this Rusty Sedan. Your Eye skill (currently level 1) shows you the basics - condition is 30%, which is pretty rough. At higher levels, you'll see hidden damage details. The asking price should be under $400 for a car this beat up. Go ahead and accept if that matches."
+          "Now click \"Explore Map\", then select the Auction House to bid on your first car. You can take as many actions as you want during a day—use \"End Day\" when you're ready to advance time."
         );
         break;
       
       case 'first_buy':
-        // Dialogue shown in NegotiationScene before scene transition
+        // Dialogue is driven by the encounter scenes (e.g., AuctionScene win modal).
         break;
       
       case 'first_restore':
@@ -453,10 +400,16 @@ export class TutorialManager {
    * Load tutorial state from save.
    * @param state - Saved tutorial state
    */
-  public loadState(state: { currentStep: TutorialStep; isActive: boolean }): void {
-    this.currentStep = state.currentStep;
+  public loadState(state: { currentStep: string; isActive: boolean }): void {
+    // Robust to older saves: map removed legacy steps to the new auction-first step.
+    const migratedStep: TutorialStep =
+      state.currentStep === 'first_visit_scrapyard' || state.currentStep === 'first_inspect'
+        ? 'first_visit_auction'
+        : (state.currentStep as TutorialStep);
+
+    this.currentStep = migratedStep;
     this.isActive = state.isActive;
-    debugLog(`Tutorial state loaded: step=${state.currentStep}, active=${state.isActive}`);
+    debugLog(`Tutorial state loaded: step=${migratedStep}, active=${state.isActive}`);
 
     // Refresh UI hinting after loading.
     eventBus.emit('tutorial-highlight-changed', { targets: [...this.getHighlightTargetsForCurrentStep()] });

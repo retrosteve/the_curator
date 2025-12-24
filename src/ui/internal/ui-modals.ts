@@ -37,10 +37,10 @@ export class ModalManager {
         5: '✓ Predict market fluctuations 1 day ahead\n✓ Master appraiser status\n✓ See hidden car attributes',
       },
       tongue: {
-        2: '✓ Unlock "Stall" tactic in auctions\n✓ More persuasive in negotiations\n✓ Better haggling results',
-        3: '✓ Unlock "Sweet Talk" (reduce asking price 10%)\n✓ Increased Stall effectiveness\n✓ Rivals respect your reputation',
-        4: '✓ 4 Stall uses per auction (up from 2)\n✓ Advanced negotiation tactics\n✓ Lower starting bids in auctions',
-        5: '✓ Unlock "Intimidate" (force rival skip turn)\n✓ Master negotiator status\n✓ Maximum persuasion power',
+        2: '✓ Unlock "Stall" tactic in auctions\n✓ Better control of auction pacing',
+        3: '✓ Unlock "Sweet Talk" (reduces rival patience)\n✓ Increased Stall effectiveness\n✓ Rivals respect your reputation',
+        4: '✓ 4 Stall uses per auction (up from 2)\n✓ Lower starting bids in auctions',
+        5: '✓ Unlock "Intimidate" (force rival skip turn)\n✓ Maximum pressure potential',
       },
       network: {
         2: '✓ 25% chance to see special events 1 day early\n✓ Better location intel\n✓ More reliable leads',
@@ -68,7 +68,7 @@ export class ModalManager {
     const skillName = skillNames[skill];
     const defaultDescriptions = {
       eye: 'You can now spot more details when inspecting cars.',
-      tongue: 'You can now haggle more effectively.',
+      tongue: 'You can now apply stronger auction tactics.',
       network: 'Your network has expanded, revealing new opportunities.',
     };
     const message = description || defaultDescriptions[skill];
@@ -126,7 +126,6 @@ export class ModalManager {
     options: Array<{
       name: string;
       cost: number;
-      apCost: number;
       description: string;
       conditionGain: number;
       valueIncrease: number;
@@ -201,7 +200,7 @@ export class ModalManager {
       optionName.className = 'restoration-option-card__title';
 
       const costInfo = this.deps.createDiv('restoration-option-card__cost');
-      costInfo.textContent = `${formatCurrency(opt.cost)} • ${opt.apCost} AP`;
+      costInfo.textContent = `${formatCurrency(opt.cost)}`;
 
       leftHeader.appendChild(optionName);
       cardHeader.appendChild(leftHeader);

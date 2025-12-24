@@ -42,12 +42,6 @@ export function createHUD(
           <span class="hud-value" data-hud-value="day">${data.day}</span>
         </div>
 
-        <div class="hud-item" data-hud="ap">
-          <span class="hud-icon">⚡</span>
-          <span class="hud-label">AP</span>
-          <span class="hud-value" data-hud-value="ap">${data.ap}</span>
-        </div>
-
         ${data.location !== undefined ? `
           <div class="hud-item hud-item--wide" data-hud="location">
             <span class="hud-icon">📍</span>
@@ -151,7 +145,6 @@ export function updateHUD(
   const garageValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="garage"]');
   const skillsValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="skills"]');
   const dayValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="day"]');
-  const apValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="ap"]');
   const locationValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="location"]');
   const marketValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="market"]');
   const hudGrid = hud.querySelector<HTMLDivElement>('.hud-grid');
@@ -170,9 +163,6 @@ export function updateHUD(
   }
   if (data.day !== undefined && dayValueEl) {
     dayValueEl.textContent = `${data.day}`;
-  }
-  if (data.ap !== undefined && apValueEl) {
-    apValueEl.textContent = data.ap;
   }
   if (data.location !== undefined && locationValueEl) {
     const formatLocationLabel = options?.formatLocationLabel;

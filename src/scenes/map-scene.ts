@@ -2,15 +2,12 @@ import { debugLog, errorLog } from '@/utils/log';
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { calculateCarValue, getCarById, getRandomCar, type Car } from '@/data/car-database';
-import { calculateRivalInterest, getRivalById } from '@/data/rival-database';
+import { calculateRivalInterest, getRivalById, getRivalByTierProgression } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { BASE_LOCATIONS, type LocationType } from '@/data/location-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
 import { buildSpecialEventCar, routeRegularEncounter } from '@/systems/map-encounter-router';
 import { formatCurrency } from '@/utils/format';
-
-const AUCTION_AP = GAME_CONFIG.timeCosts.auctionAP;
-const INSPECT_AP = GAME_CONFIG.timeCosts.inspectAP;
 
 /**
  * Map Node configuration.
@@ -29,7 +26,7 @@ interface MapNode {
 
 /**
  * Map Scene - Dashboard/Command Center for location selection.
- * Displays location cards with status information, rivals, and AP costs.
+ * Displays location cards with status information and rivals.
  * Information-dense interface for making informed decisions about where to visit.
  */
 export class MapScene extends BaseGameScene {
@@ -47,7 +44,7 @@ export class MapScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
     const isTutorialActive = this.tutorialManager.isTutorialActive();
     const bidIncrement = GAME_CONFIG.auction.bidIncrement;
-    const minMoneyToBid = openingBid + bidIncrement;
+    const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
     this.uiManager.showModal(
       'Not Enough Money',
       isTutorialActive
@@ -145,8 +142,6 @@ export class MapScene extends BaseGameScene {
 
   private createLocationCard(node: MapNode): HTMLElement {
     const player = this.gameManager.getPlayerState();
-    const hasRival = Boolean(node.hasRival);
-    const canSeeRivals = player.skills.network >= 2;
     const isGarage = node.id === 'garage' || node.type === 'garage';
 
     const isTutorialActive = this.tutorialManager.isTutorialActive();
@@ -155,14 +150,8 @@ export class MapScene extends BaseGameScene {
     const isDisallowedByTutorial = isTutorialRestricted && !allowedLocationIds.has(node.id);
     const isTutorialRedemptionAuction =
       isTutorialActive && node.id === 'auction_1' && this.tutorialManager.isOnRedemptionStep();
-    const isTutorialScrapyardLoop =
-      isTutorialActive && node.id === 'scrapyard_1' && this.tutorialManager.isInScrapyardTutorialLoop();
-
-    // AP is charged once, at encounter start (no extra travel AP for regular locations).
-    // If the player can't see rivals yet, avoid revealing rival presence via AP cost.
-    const apCost = isGarage
-      ? 0
-      : (node.specialEvent?.timeCost ?? ((canSeeRivals && hasRival) ? AUCTION_AP : INSPECT_AP));
+    const isTutorialFirstAuctionLoop =
+      isTutorialActive && node.id === 'auction_1' && this.tutorialManager.isOnFirstVisitAuctionStep();
 
     // Check for locks
     let isLocked = false;
@@ -173,10 +162,13 @@ export class MapScene extends BaseGameScene {
       lockReason = 'Tutorial: Follow the current step to continue.';
     }
 
-    if (node.type === 'dealership' && player.prestige < GAME_CONFIG.progression.unlocks.dealership) {
-      isLocked = true;
-      lockReason = `Requires ${GAME_CONFIG.progression.unlocks.dealership} Prestige`;
-    } else if (node.type === 'auction' && player.prestige < GAME_CONFIG.progression.unlocks.auction) {
+    // The base Auction House is a core gameplay location and must never be gated.
+    // Prestige gating (if desired) should apply only to additional/premium auction nodes.
+    if (
+      node.type === 'auction' &&
+      node.id !== 'auction_1' &&
+      player.prestige < GAME_CONFIG.progression.unlocks.auction
+    ) {
       if (!this.tutorialManager.shouldBypassAuctionPrestigeLock()) {
         isLocked = true;
         lockReason = `Requires ${GAME_CONFIG.progression.unlocks.auction} Prestige`;
@@ -194,7 +186,7 @@ export class MapScene extends BaseGameScene {
     const effectiveIsExhaustedToday =
       isExhaustedToday &&
       !isTutorialRedemptionAuction &&
-      !isTutorialScrapyardLoop;
+      !isTutorialFirstAuctionLoop;
 
     return this.uiManager.createMapLocationCard({
       locationId: node.id,
@@ -202,12 +194,11 @@ export class MapScene extends BaseGameScene {
       description: this.getLocationDescription(node),
       icon: this.getLocationIcon(node),
       color: node.color,
-      apCost,
       isGarage,
       isLocked,
       lockReason,
       isExhaustedToday: effectiveIsExhaustedToday,
-      showRivalBadge: hasRival && canSeeRivals,
+      showRivalBadge: false,
       showSpecialBadge: node.type === 'special',
       onVisit: () => this.visitNode(node),
     });
@@ -217,8 +208,6 @@ export class MapScene extends BaseGameScene {
     if (node.id === 'garage') return '🏠';
     
     switch (node.type) {
-      case 'scrapyard': return '🔧';
-      case 'dealership': return '🏪';
       case 'auction': return '🔨';
       case 'special': return '✨';
       default: return '📍';
@@ -235,10 +224,6 @@ export class MapScene extends BaseGameScene {
     }
 
     switch (node.type) {
-      case 'scrapyard':
-        return 'Rough diamonds in the rough. Low prices, questionable condition.';
-      case 'dealership':
-        return 'Higher quality stock. Prices reflect the better condition.';
       case 'auction':
         return 'Competitive bidding. Face rivals for rare finds.';
       default:
@@ -277,14 +262,14 @@ export class MapScene extends BaseGameScene {
 
     const isTutorialActive = this.tutorialManager.isTutorialActive();
 
-    const isTutorialScrapyardVisit =
-      node.id === 'scrapyard_1' && isTutorialActive && this.tutorialManager.isInScrapyardTutorialLoop();
+    const isTutorialFirstAuctionVisit =
+      node.id === 'auction_1' && isTutorialActive && this.tutorialManager.isOnFirstVisitAuctionStep();
     const isTutorialRedemptionAuctionVisit =
       node.id === 'auction_1' && isTutorialActive && this.tutorialManager.isOnRedemptionStep();
 
     // If the location's daily offer has already been consumed, block the visit.
     // Tutorial exceptions:
-    // - allow scrapyard visit during early steps to prevent a soft-lock
+    // - allow the first tutorial auction to prevent a soft-lock
     // - allow auction house visit during redemption to prevent a soft-lock
     if (node.type !== 'special') {
       const world = this.gameManager.getWorldState();
@@ -293,7 +278,7 @@ export class MapScene extends BaseGameScene {
         Object.prototype.hasOwnProperty.call(offerMap, node.id) && offerMap[node.id] === null;
 
       if (isExhaustedToday) {
-        if (isTutorialScrapyardVisit) {
+        if (isTutorialFirstAuctionVisit) {
           // Allowed: tutorial loop protection.
         } else if (isTutorialRedemptionAuctionVisit) {
           // Allowed: redemption replays until the player wins.
@@ -309,24 +294,14 @@ export class MapScene extends BaseGameScene {
       }
     }
 
-    // Special events have custom AP costs and should still charge immediately.
+    // Special events can have custom metadata (e.g., special rewards).
     if (node.type === 'special') {
-      const requiredAP = node.specialEvent?.timeCost ?? 0;
-      const block = this.timeSystem.getAPBlockModal(requiredAP, `attending ${node.name}`);
-      if (block) {
-        this.uiManager.showModal(block.title, block.message, [
-          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-        ]);
-        return;
-      }
-
-      this.timeSystem.spendAP(requiredAP);
       this.applyArrivalEffects(node);
       this.generateEncounter(node);
       return;
     }
 
-    // Regular locations: no travel AP. AP is charged once when the encounter starts.
+    // Regular locations: no travel cost; encounter starts immediately.
     this.generateEncounter(node);
   }
 
@@ -361,25 +336,42 @@ export class MapScene extends BaseGameScene {
     // Tutorial-specific encounters with specific cars
     try {
       if (this.tutorialManager && this.tutorialManager.isTutorialActive()) {
-        // Force Rusty Sedan for first inspection/buy
-        if (node.id === 'scrapyard_1' && this.tutorialManager.isInScrapyardTutorialLoop()) {
+        // Force Rusty Sedan for the first tutorial auction (first car acquisition)
+        if (node.id === 'auction_1' && this.tutorialManager.isOnFirstVisitAuctionStep()) {
           const car = getCarById('car_tutorial_rusty_sedan') || getRandomCar();
-          if (!this.hasGarageSpace()) {
-            this.showGarageFullGate();
-            return;
-          }
+          const rival = getRivalById('scrapyard_joe');
+          const interest = calculateRivalInterest(rival, car.tags);
 
-          const apBlock = this.timeSystem.getAPBlockModal(INSPECT_AP, 'inspecting this car');
-          if (apBlock) {
-            this.uiManager.showModal(apBlock.title, apBlock.message, [
-              { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-            ]);
-            return;
-          }
+          this.tutorialManager.showDialogueWithCallback(
+            'Uncle Ray',
+            'Auctions are how we acquire cars now. Place the opening bid and try to win your first car. Keep an eye on the rival’s patience and budget.',
+            () => {
+              if (!this.hasGarageSpace()) {
+                this.showGarageFullGate();
+                return;
+              }
 
-          this.timeSystem.spendAP(INSPECT_AP);
-          this.applyArrivalEffects(node);
-          this.scene.start('NegotiationScene', { car, locationId: node.id });
+              const openingBid = this.getAuctionOpeningBid(car);
+              const beforeTopUp = this.gameManager.getPlayerState();
+
+              if (beforeTopUp.money < openingBid) {
+                const delta = openingBid - beforeTopUp.money;
+                this.gameManager.addMoney(delta);
+                this.uiManager.showToast('Tutorial: Uncle Ray covers the opening bid.');
+              }
+
+              const afterTopUp = this.gameManager.getPlayerState();
+              if (afterTopUp.money < openingBid) {
+                this.showCannotAffordAuctionModal(openingBid);
+                return;
+              }
+
+              this.applyArrivalEffects(node);
+              this.scene.stop('MapScene');
+              // Intentionally omit locationId so retrying doesn't consume the daily offer.
+              this.scene.start('AuctionScene', { car, rival, interest });
+            }
+          );
           return;
         }
         
@@ -389,14 +381,6 @@ export class MapScene extends BaseGameScene {
           const sterlingVance = getRivalById('sterling_vance');
           const interest = calculateRivalInterest(sterlingVance, car.tags);
 
-          const apBlock = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
-          if (apBlock) {
-            this.uiManager.showModal(apBlock.title, apBlock.message, [
-              { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-            ]);
-            return;
-          }
-          
           // Show Sterling's dramatic intro dialogue, then start auction
           this.tutorialManager.showDialogueWithCallback(
             "Sterling Vance",
@@ -430,7 +414,6 @@ export class MapScene extends BaseGameScene {
 
               // After dialogue is dismissed, mark the Sterling encounter beat and start auction
               this.tutorialManager.onSterlingEncounterStarted();
-              this.timeSystem.spendAP(AUCTION_AP);
               this.applyArrivalEffects(node);
               // Use scene.switch to properly transition - this stops current scene and starts new one
               this.scene.stop('MapScene');
@@ -459,14 +442,6 @@ export class MapScene extends BaseGameScene {
             return;
           }
 
-          const apBlock = this.timeSystem.getAPBlockModal(AUCTION_AP, 'an auction');
-          if (apBlock) {
-            this.uiManager.showModal(apBlock.title, apBlock.message, [
-              { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-            ]);
-            return;
-          }
-
           this.tutorialManager.showDialogueWithCallback(
             'Uncle Ray',
             'Alright—back in. This time, use "Power Bid" early to rattle Scrapyard Joe and make him quit.',
@@ -476,7 +451,6 @@ export class MapScene extends BaseGameScene {
                 return;
               }
 
-              this.timeSystem.spendAP(AUCTION_AP);
               this.applyArrivalEffects(node);
               this.scene.stop('MapScene');
               const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
@@ -505,108 +479,86 @@ export class MapScene extends BaseGameScene {
       return;
     }
     
-    // Check if this node has a pre-determined rival (from map indicators)
-    const hasRival = node.hasRival || false;
-
     const playerPrestige = this.gameManager.getPlayerState().prestige;
     const routed = routeRegularEncounter({
       locationId: node.id,
       car,
-      hasRival,
       playerPrestige,
-      auctionApCost: AUCTION_AP,
-      inspectApCost: INSPECT_AP,
     });
 
-    if (routed.kind === 'auction') {
-      // Auction encounter (single AP charge)
-      const block = this.timeSystem.getAPBlockModal(routed.apCost, 'an auction');
-      if (block) {
-        this.uiManager.showModal(block.title, block.message, [
-          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-        ]);
-        return;
-      }
-
-      const { rival } = routed.sceneData;
-
-      // Explain why we're switching to an auction encounter.
-      this.uiManager.showModal(
-        'Rival Spotted',
-        `You arrive at ${node.name} and find ${rival.name} eyeing the same car.\n\nA bidding war begins for:\n${car.name}`,
-        [
-          {
-            text: 'Start Auction',
-            onClick: () => {
-              if (!this.hasGarageSpace()) {
-                this.showGarageFullGate();
-                return;
-              }
-
-              const player = this.gameManager.getPlayerState();
-              const openingBid = this.getAuctionOpeningBid(car);
-              if (player.money < openingBid) {
-                this.showCannotAffordAuctionModal(openingBid);
-                return;
-              }
-              this.timeSystem.spendAP(routed.apCost);
-              this.applyArrivalEffects(node);
-              this.scene.start(routed.sceneKey, routed.sceneData);
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    // Negotiation consumes inspection AP
-    const block = this.timeSystem.getAPBlockModal(routed.apCost, 'inspecting this car');
-    if (block) {
-      this.uiManager.showModal(block.title, block.message, [
-        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-      ]);
-      return;
-    }
-
     if (!this.hasGarageSpace()) {
       this.showGarageFullGate();
       return;
     }
 
-    this.timeSystem.spendAP(routed.apCost);
-    this.applyArrivalEffects(node);
+    const { rival } = routed.sceneData;
 
-    // Solo negotiation
-    this.scene.start(routed.sceneKey, routed.sceneData);
-  }
-
-  private generateSpecialEncounter(specialEvent: SpecialEvent): void {
-    const car = buildSpecialEventCar(specialEvent);
-
-    // Special events always have a car to negotiate for (no auctions for simplicity)
-    // AP was already spent in visitNode(); do not charge additional inspection AP here.
-    if (!this.hasGarageSpace()) {
-      this.showGarageFullGate();
-      return;
-    }
-
-    // Show special event description
     this.uiManager.showModal(
-      specialEvent.name,
-      `${specialEvent.description}\n\nYou find an interesting vehicle:\n${car.name}`,
+      'Auction Starting',
+      `You arrive at ${node.name}.\n\nUp for bid today:\n${car.name}\n\nCompetition: ${rival.name}`,
       [
         {
-          text: 'Negotiate Purchase',
+          text: 'Start Auction',
           onClick: () => {
             if (!this.hasGarageSpace()) {
               this.showGarageFullGate();
               return;
             }
-            // Remove the event since it's been completed
+
+            const player = this.gameManager.getPlayerState();
+            const openingBid = this.getAuctionOpeningBid(car);
+            if (player.money < openingBid) {
+              this.showCannotAffordAuctionModal(openingBid);
+              return;
+            }
+            this.applyArrivalEffects(node);
+            this.scene.start(routed.sceneKey, routed.sceneData);
+          },
+        },
+      ]
+    );
+  }
+
+  private generateSpecialEncounter(specialEvent: SpecialEvent): void {
+    const car = buildSpecialEventCar(specialEvent);
+
+    // Special events are also auctions.
+    if (!this.hasGarageSpace()) {
+      this.showGarageFullGate();
+      return;
+    }
+
+    const playerPrestige = this.gameManager.getPlayerState().prestige;
+    const rival = getRivalByTierProgression(playerPrestige);
+    const interest = calculateRivalInterest(rival, car.tags);
+
+    this.uiManager.showModal(
+      specialEvent.name,
+      `${specialEvent.description}\n\nUp for bid:\n${car.name}\n\nCompetition: ${rival.name}`,
+      [
+        {
+          text: 'Start Special Auction',
+          onClick: () => {
+            if (!this.hasGarageSpace()) {
+              this.showGarageFullGate();
+              return;
+            }
+
+            const player = this.gameManager.getPlayerState();
+            const openingBid = this.getAuctionOpeningBid(car);
+            if (player.money < openingBid) {
+              this.showCannotAffordAuctionModal(openingBid);
+              return;
+            }
+
+            // Remove the event since it's been started/completed.
             this.gameManager.removeSpecialEvent(specialEvent.id);
-            this.scene.start('NegotiationScene', {
+            this.scene.start('AuctionScene', {
               car,
-              specialEvent: specialEvent
+              rival,
+              interest,
+              locationId: specialEvent.id,
+              specialEvent,
             });
           },
         },

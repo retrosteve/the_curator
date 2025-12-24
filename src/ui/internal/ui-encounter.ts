@@ -1,12 +1,12 @@
 /**
  * @internal
- * Shared DOM builders for "encounter" style UIs (Auction/Negotiation):
+ * Shared DOM builders for "encounter" style UIs (Auctions):
  * - Centered responsive layout scaffold
  * - Sticky log panel with prefix-only coloring
  */
 
-import { isPixelUIEnabled } from './ui-style';
 import { createDiv, createImg, createSpan } from './ui-elements';
+import { isPixelUIEnabled } from './ui-style';
 
 export type EncounterLogStyle = {
   color: string;

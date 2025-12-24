@@ -26,7 +26,7 @@ export function showRestorationChallenges(
     onRestoreCar: (carId: string) => void;
   }
 ): void {
-  const { gameManager, uiManager, timeSystem, onShowInventory, onRestoreCar } = context;
+  const { gameManager, uiManager, onShowInventory, onRestoreCar } = context;
 
   // Build plain text message with proper formatting
   let message = '⚠️ RESTORATION BLOCKED\n\n';
@@ -36,7 +36,7 @@ export function showRestorationChallenges(
   challenges.forEach((challenge, index) => {
     message += `${challenge.name}\n`;
     message += `${challenge.description}\n\n`;
-    message += `💰 Cost: ${formatCurrency(challenge.cost)} | ⏰ Time: ${challenge.apCost} AP\n`;
+    message += `💰 Cost: ${formatCurrency(challenge.cost)}\n`;
 
     if (index < challenges.length - 1) {
       message += '\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
@@ -46,14 +46,7 @@ export function showRestorationChallenges(
   const buttons = challenges.map((challenge) => ({
     text: `Fix: ${challenge.name}`,
     onClick: () => {
-      const block = timeSystem.getAPBlockModal(challenge.apCost, `fixing ${car.name}`);
-      if (block) {
-        uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
-        return;
-      }
-
       if (gameManager.spendMoney(challenge.cost)) {
-        timeSystem.spendAP(challenge.apCost);
         const fixedCar = Economy.completeRestorationChallenge(car, challenge);
         gameManager.updateCar(fixedCar);
 
@@ -89,7 +82,7 @@ export function showRestorationOptions(
     onShowInventory: () => void;
   }
 ): void {
-  const { gameManager, uiManager, timeSystem, tutorialManager, onShowInventory } = context;
+  const { gameManager, uiManager, tutorialManager, onShowInventory } = context;
 
   const options = Economy.getRestorationOptions(car);
 
@@ -106,7 +99,6 @@ export function showRestorationOptions(
     return {
       name: opt.name,
       cost: opt.cost,
-      apCost: opt.apCost,
       description: opt.description,
       conditionGain: opt.conditionGain,
       valueIncrease,
@@ -117,14 +109,7 @@ export function showRestorationOptions(
       ),
       portraitAlt: opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan',
       onClick: () => {
-        const block = timeSystem.getAPBlockModal(opt.apCost, `restoring ${car.name}`);
-        if (block) {
-          uiManager.showModal(block.title, block.message, [{ text: 'OK', onClick: () => {} }]);
-          return;
-        }
         if (gameManager.spendMoney(opt.cost)) {
-          timeSystem.spendAP(opt.apCost);
-
           // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
           const isTutorialFirstRestore = tutorialManager.shouldForceFirstRestorationSuccess();
           const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
@@ -191,7 +176,7 @@ export function showRestorationOptions(
                         setTimeout(() => {
                           tutorialManager.showDialogueWithCallback(
                             'Uncle Ray',
-                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map", then visit the Weekend Auction House. You'll face competition from other collectors there.`,
+                            `Great work! You've completed your first car deal and made a profit.\n\nNow let's try something more challenging. Click "Explore Map", then visit the Auction House. You'll face competition from other collectors there.`,
                             onShowInventory
                           );
                         }, 300);

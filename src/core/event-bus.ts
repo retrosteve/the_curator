@@ -14,7 +14,6 @@ export type GameEvents = {
   'money-changed': number;
   'prestige-changed': number;
   'inventory-changed': Car[];
-  'ap-changed': number;
   'day-changed': number;
   'location-changed': string;
   'victory': VictoryResult;

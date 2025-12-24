@@ -70,7 +70,6 @@ const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
 const PRESTON_LOAN_AMOUNT = GAME_CONFIG.economy.finance.prestonLoan.amount;
 const PRESTON_LOAN_FEE_RATE = GAME_CONFIG.economy.finance.prestonLoan.feeRate;
-const MAX_AP = GAME_CONFIG.day.maxAP;
 
 const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for on-change autosave)
 
@@ -122,10 +121,6 @@ export class GameManager {
     eventBus.emit('inventory-changed', cloneInventory(this.player.inventory));
   }
 
-  private emitAPChanged(): void {
-    eventBus.emit('ap-changed', this.world.currentAP);
-  }
-
   private emitDayChanged(): void {
     eventBus.emit('day-changed', this.world.day);
   }
@@ -153,7 +148,6 @@ export class GameManager {
 
     this.world = {
       day: 1,
-      currentAP: MAX_AP,
       currentLocation: 'garage',
       carOfferByLocation: {},
       rivalPresenceByLocation: {},
@@ -782,23 +776,7 @@ export class GameManager {
   }
 
   /**
-   * Spend Action Points for an action.
-   * @param cost - AP to spend
-   */
-  public spendAP(cost: number): void {
-    if (!Number.isFinite(cost) || cost <= 0) {
-      if (cost !== 0) {
-        warnLog('spendAP called with non-positive/invalid cost; ignoring.', cost);
-      }
-      return;
-    }
-    this.world.currentAP = Math.max(0, this.world.currentAP - cost);
-    this.emitAPChanged();
-    this.debouncedSave();
-  }
-
-  /**
-   * End the current day and start the next day with fresh AP.
+    * End the current day and start the next day.
    * Applies daily rent (based on garage slots). If rent cannot be paid, the player is bankrupt.
    */
   public endDay(): EndDayResult {
@@ -808,7 +786,6 @@ export class GameManager {
     }
 
     this.world.day += 1;
-    this.world.currentAP = MAX_AP;
 
     // New day: re-roll daily rival presence (but keep it stable within the day).
     this.resetDailyRivalPresence();
@@ -837,7 +814,6 @@ export class GameManager {
     }
 
     this.emitDayChanged();
-    this.emitAPChanged();
 
     this.save(); // Immediate save on day end (critical checkpoint)
     return { bankrupt: false, rentPaid };
@@ -1020,7 +996,7 @@ export class GameManager {
 
   /**
    * Set current location and emit location-changed event.
-   * @param location - Name of the location (e.g., 'garage', 'scrapyard')
+   * @param location - Name of the location (e.g., 'garage', 'auction')
    */
   public setLocation(location: string): void {
     this.world.currentLocation = location;
@@ -1146,7 +1122,6 @@ export class GameManager {
     this.emitPrestigeChanged();
     this.emitInventoryChanged();
     this.emitDayChanged();
-    this.emitAPChanged();
     this.emitLocationChanged(this.world.currentLocation);
   }
 }

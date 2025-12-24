@@ -141,7 +141,7 @@ export class GarageScene extends BaseGameScene {
 
     container.appendChild(
       this.uiManager.createText(
-        `Day ${world.day} · AP ${world.currentAP}/${GAME_CONFIG.day.maxAP}`,
+        `Day ${world.day}`,
         lineStyle
       )
     );
@@ -381,8 +381,8 @@ export class GarageScene extends BaseGameScene {
     const skills: SkillKey[] = ['eye', 'tongue', 'network'];
     const skillTooltips = {
       eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
-      tongue: 'Lvl 1: Basic negotiation\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master negotiator (max Stall uses)',
-      network: 'Lvl 1: Access public opportunities\nLvl 2: See rival movements\nLvl 3: Unlock private sales\nLvl 4: Earlier event notifications\nLvl 5: Insider deals & exclusive leads'
+      tongue: 'Lvl 1: Basic auction tactics\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master tactician (max Stall uses)',
+      network: 'Lvl 1: Access public opportunities\nLvl 2: Better location intel\nLvl 3: Earlier special-event visibility\nLvl 4: See rival movements\nLvl 5: Insider leads & exclusive events'
     };
 
     skills.forEach((skill) => {
@@ -503,7 +503,7 @@ export class GarageScene extends BaseGameScene {
 
   /**
    * Create button with tutorial-based disabling logic.
-   * During 'first_visit_scrapyard' tutorial step, button is visually disabled and non-functional.
+  * During the first tutorial auction step, button is visually disabled and non-functional.
    * @param label - Button text
    * @param action - Click handler (disabled during tutorial)
    * @param options - Button styling options
@@ -514,7 +514,7 @@ export class GarageScene extends BaseGameScene {
     action: () => void,
     options: Parameters<typeof this.uiManager.createButton>[2] = {}
   ): HTMLButtonElement {
-    const isTutorialFirstStep = this.tutorialManager?.isOnFirstVisitScrapyardStep();
+    const isTutorialFirstStep = this.tutorialManager?.isOnFirstVisitAuctionStep();
     return this.uiManager.createButton(
       label,
       isTutorialFirstStep ? () => {} : action,
@@ -832,23 +832,23 @@ export class GarageScene extends BaseGameScene {
         ],
       },
       tongue: {
-        name: '💬 Tongue (Negotiation)',
+        name: '💬 Tongue (Tactics)',
         color: '#9b59b6',
         abilities: [
-          { level: 1, description: 'Basic haggling - minor price reduction' },
-          { level: 2, description: 'Improved haggling - better deals' },
+          { level: 1, description: 'Basic bids and auction presence' },
+          { level: 2, description: 'Unlock Stall (drain rival patience)' },
           { level: 3, description: 'Stall tactic in auctions (drain rival patience)' },
-          { level: 4, description: 'Master negotiator - significant discounts' },
-          { level: 5, description: 'Silver tongue - sellers trust you completely' },
+          { level: 4, description: 'Advanced tactics - stronger pressure tools' },
+          { level: 5, description: 'Master tactician - maximum pressure potential' },
         ],
       },
       network: {
         name: '🌐 Network (Connections)',
         color: '#e67e22',
         abilities: [
-          { level: 1, description: 'Access to basic dealerships' },
+          { level: 1, description: 'Access to public opportunities' },
           { level: 2, description: 'Spot special events more clearly' },
-          { level: 3, description: 'Access to exclusive private sales' },
+          { level: 3, description: 'Earlier visibility into special leads' },
           { level: 4, description: 'See rival movements and locations' },
           { level: 5, description: 'Underground deals and legendary cars' },
         ],
@@ -882,7 +882,7 @@ export class GarageScene extends BaseGameScene {
       message += `\n`;
     });
 
-    message += `\nEarn XP by:\n• Inspecting cars (+10 Eye XP)\n• Haggling (+5 Tongue XP)\n• Winning auctions (+15 Tongue XP)\n• Visiting new locations (+20 Network XP)`;
+    message += `\nEarn XP by:\n• Inspecting cars (+10 Eye XP)\n• Winning auctions (+15 Tongue XP)\n• Visiting new locations (+20 Network XP)`;
 
     this.uiManager.showModal('📚 Skills Reference', message, [
       { text: 'Close', onClick: () => {} },
@@ -914,7 +914,7 @@ export class GarageScene extends BaseGameScene {
     
     // Hint 2: Rival activity (random rumor)
     const rivals = ['Sterling Vance', 'Marcus Kane', 'Scrapyard Joe', 'Elena Rossi'];
-    const locations = ["Joe's Scrapyard", 'Classic Car Dealership', 'Weekend Auction House'];
+    const locations = ['Auction House', 'An Estate Sale', 'A Private Auction'];
     const randomRival = rivals[Math.floor(Math.random() * rivals.length)];
     const randomLocation = locations[Math.floor(Math.random() * locations.length)];
     hints.push(`🔍 Word on the street: ${randomRival} was spotted near ${randomLocation}`);
@@ -977,7 +977,6 @@ export class GarageScene extends BaseGameScene {
     const world = this.gameManager.getWorldState();
     const rent = this.gameManager.getDailyRent();
     const collectionPrestige = this.gameManager.getCollectionPrestigeInfo();
-    const unusedAP = world.currentAP;
 
     const garageCarCount = this.gameManager.getGarageCarCount();
     const collectionCarCount = this.gameManager.getCollectionCars().length;
@@ -1070,7 +1069,6 @@ export class GarageScene extends BaseGameScene {
       `📊 END DAY ${world.day} SUMMARY:\n\n` +
       `💰 Current Money: ${formatCurrency(playerBefore.money)}\n` +
       `🏆 Current Prestige: ${formatNumber(playerBefore.prestige)}\n` +
-      `⏰ Unused AP: ${unusedAP}/${GAME_CONFIG.day.maxAP}\n\n` +
       `💸 Rent Due: ${formatCurrency(rent)}\n` +
       `🏛️ Collection Prestige: +${collectionPrestige.totalPerDay} prestige (${collectionPrestige.carCount} cars)\n\n` +
       `After rent, you'll have ${formatCurrency(playerBefore.money - rent)}.\n\n` +

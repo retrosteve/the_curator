@@ -1,6 +1,6 @@
-export type LocationType = 'garage' | 'scrapyard' | 'dealership' | 'auction';
+export type LocationType = 'garage' | 'auction';
 
-export type BaseLocationId = 'garage' | 'scrapyard_1' | 'dealership_1' | 'auction_1';
+export type BaseLocationId = 'garage' | 'auction_1';
 
 export interface BaseLocationDefinition {
   id: BaseLocationId;
@@ -17,20 +17,8 @@ export const BASE_LOCATIONS = [
     color: 0x2ecc71,
   },
   {
-    id: 'scrapyard_1',
-    name: "Joe's Scrapyard",
-    type: 'scrapyard',
-    color: 0x8b4513,
-  },
-  {
-    id: 'dealership_1',
-    name: 'Classic Car Dealership',
-    type: 'dealership',
-    color: 0x4169e1,
-  },
-  {
     id: 'auction_1',
-    name: 'Weekend Auction House',
+    name: 'Auction House',
     type: 'auction',
     color: 0xffd700,
   },

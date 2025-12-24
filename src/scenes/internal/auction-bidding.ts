@@ -30,7 +30,7 @@ export interface BiddingCallbacks {
   gameManager: GameManager;
   uiManager: UIManager;
   onShowToastAndLog: (toast: string, options?: { backgroundColor?: string }, log?: string, logKind?: string) => void;
-  onAppendLog: (entry: string, kind?: string) => void;
+  onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => void;
   onShowAuctioneerBark: (trigger: string) => void;
   onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => void;
   onSetupUI: () => void;
@@ -41,7 +41,6 @@ export interface BiddingCallbacks {
 
 const BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
 const POWER_BID_INCREMENT = GAME_CONFIG.auction.powerBidIncrement;
-const STALL_PATIENCE_PENALTY = GAME_CONFIG.auction.stallPatiencePenalty;
 const KICK_TIRES_BUDGET_REDUCTION = GAME_CONFIG.auction.kickTires.rivalBudgetReduction;
 const REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = GAME_CONFIG.auction.kickTires.requiredEyeLevel;
 const REQUIRED_TONGUE_LEVEL_FOR_STALL = GAME_CONFIG.auction.stall.requiredTongueLevel;
@@ -77,7 +76,7 @@ export function playerBid(
 
     context.hasAnyBids = true;
     context.lastBidder = 'player';
-    callbacks.onAppendLog(`Opening bid → ${formatCurrency(openingBid)}.`, 'player');
+    callbacks.onRecordBid('player', openingBid);
 
     // If the player clicked Power Bid as their first action, treat it as:
     // opening bid (logged) + immediate power raise.
@@ -94,7 +93,7 @@ export function playerBid(
 
       context.currentBid = nextBid;
       context.lastBidder = 'player';
-      callbacks.onAppendLog(`Power bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
+      callbacks.onRecordBid('player', context.currentBid);
       callbacks.onShowAuctioneerBark('player_power_bid');
 
       context.powerBidStreak++;
@@ -136,11 +135,7 @@ export function playerBid(
   context.currentBid = nextBid;
   context.lastBidder = 'player';
 
-  if (options?.power) {
-    callbacks.onAppendLog(`Power bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
-  } else {
-    callbacks.onAppendLog(`Bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
-  }
+  callbacks.onRecordBid('player', context.currentBid);
 
   callbacks.onShowAuctioneerBark(options?.power ? 'player_power_bid' : 'player_bid');
 
@@ -209,7 +204,6 @@ export function playerKickTires(
   context.rivalAI.onPlayerKickTires(KICK_TIRES_BUDGET_REDUCTION);
 
   callbacks.onShowAuctioneerBark('kick_tires');
-  callbacks.onAppendLog('Kick tires (pressure applied; they look less willing to spend).', 'player');
 
   if (context.currentBid > context.rivalAI.getBudget()) {
     const playerWon = context.lastBidder === 'player';
@@ -270,7 +264,6 @@ export function playerStall(
   context.rivalAI.onPlayerStall();
 
   callbacks.onShowAuctioneerBark('stall');
-  callbacks.onAppendLog(`Stall (-${STALL_PATIENCE_PENALTY} rival patience).`, 'player');
 
   // Check for patience reaction
   if (context.rivalAI.getPatience() < 30 && context.rivalAI.getPatience() > 0) {
@@ -306,12 +299,9 @@ export function rivalTurnImmediate(
     // If the rival is already the high bidder, they don't need to "bid again".
     // Avoid ending the auction with confusing dialogue like "Not worth it!" while they win.
     if (rivalIsHighBidder) {
-      callbacks.onAppendLog(`Holding at ${formatCurrency(context.currentBid)}.`, 'rival');
       callbacks.onEndAuction(false, `${context.rival.name} holds at ${formatCurrency(context.currentBid)}.`);
       return context;
     }
-
-    callbacks.onAppendLog(`${decision.reason}.`, 'rival');
     const playerWon = context.lastBidder === 'player';
 
     // Match the bark to the *reason* they fold.
@@ -329,31 +319,7 @@ export function rivalTurnImmediate(
       context.lastBidder = 'rival';
     }
 
-    // Add flavor text based on rival's patience level
-    const patience = context.rivalAI.getPatience();
-    let flavorText = '';
-
-    if (patience < 20) {
-      // Avoid absolute promises like "final offer" since the rival may still bid after a counter.
-      flavorText = "\n\nI'm near my limit.";
-    } else if (patience < 30) {
-      flavorText = '\n\nGetting tired of this...';
-    } else if (patience < 50) {
-      flavorText = '\n\nYou\'re really pushing it.';
-    }
-
-    const flavorInline = flavorText.replace(/\n+/g, ' ').trim();
-    if (isFirstBid) {
-      callbacks.onAppendLog(
-        `Opening bid → ${formatCurrency(context.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
-        'rival'
-      );
-    } else {
-      callbacks.onAppendLog(
-        `Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(context.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
-        'rival'
-      );
-    }
+    callbacks.onRecordBid('rival', context.currentBid);
 
     // Auctioneer commentary should come AFTER the bid is logged so the log timeline reads correctly.
     callbacks.onShowAuctioneerBark('rival_bid');

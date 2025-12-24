@@ -9,7 +9,7 @@ import type { SkillKey } from '@/config/game-config';
 /**
  * BaseGameScene - Abstract base class for all gameplay scenes.
  * Provides common event handlers, managers, and setup patterns.
- * Eliminates code duplication across Garage, Map, Auction, and Negotiation scenes.
+ * Eliminates code duplication across Garage, Map, and Auction scenes.
  */
 export abstract class BaseGameScene extends Phaser.Scene {
   protected gameManager!: GameManager;
@@ -58,11 +58,6 @@ export abstract class BaseGameScene extends Phaser.Scene {
     });
   };
 
-
-  protected readonly handleAPChanged = (_currentAP: number): void => {
-    this.uiManager.updateHUD({ ap: this.timeSystem.getFormattedAP() });
-  };
-
   protected readonly handleDayChanged = (day: number): void => {
     this.uiManager.updateHUD({ day });
   };
@@ -98,7 +93,6 @@ export abstract class BaseGameScene extends Phaser.Scene {
   protected setupCommonEventListeners(): void {
     eventBus.on('money-changed', this.handleMoneyChanged);
     eventBus.on('prestige-changed', this.handlePrestigeChanged);
-    eventBus.on('ap-changed', this.handleAPChanged);
     eventBus.on('day-changed', this.handleDayChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
     eventBus.on('inventory-changed', this.handleInventoryChanged);
@@ -209,7 +203,6 @@ export abstract class BaseGameScene extends Phaser.Scene {
   protected cleanupCommonEventListeners(): void {
     eventBus.off('money-changed', this.handleMoneyChanged);
     eventBus.off('prestige-changed', this.handlePrestigeChanged);
-    eventBus.off('ap-changed', this.handleAPChanged);
     eventBus.off('day-changed', this.handleDayChanged);
     eventBus.off('location-changed', this.handleLocationChanged);
     eventBus.off('xp-gained', this.handleXPGained);
@@ -285,7 +278,6 @@ export abstract class BaseGameScene extends Phaser.Scene {
       prestige: player.prestige,
       skills: player.skills,
       day: world.day,
-      ap: this.timeSystem.getFormattedAP(),
       location: world.currentLocation,
       garage: {
         used: this.gameManager.getGarageCarCount(),
@@ -315,7 +307,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
             nextSteps.push('Add more cars to your collection (any car at 80%+ condition can be added).');
           }
           if (!victoryResult.skillLevel.met) {
-            nextSteps.push('Level skills: Inspect (Eye), Haggle/Auction (Tongue), Visit new locations (Network).');
+            nextSteps.push('Level skills: Inspect (Eye), Auction tactics (Tongue), Visit new locations (Network).');
           }
 
           const nextStepsText = nextSteps.length > 0 ? `\n\nNext steps:\n- ${nextSteps.join('\n- ')}` : '';

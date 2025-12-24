@@ -77,7 +77,7 @@ export function playerBid(
 
     context.hasAnyBids = true;
     context.lastBidder = 'player';
-    callbacks.onAppendLog(`You: Opening bid → ${formatCurrency(openingBid)}.`, 'player');
+    callbacks.onAppendLog(`Opening bid → ${formatCurrency(openingBid)}.`, 'player');
 
     // If the player clicked Power Bid as their first action, treat it as:
     // opening bid (logged) + immediate power raise.
@@ -94,7 +94,7 @@ export function playerBid(
 
       context.currentBid = nextBid;
       context.lastBidder = 'player';
-      callbacks.onAppendLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
+      callbacks.onAppendLog(`Power bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
       callbacks.onShowAuctioneerBark('player_power_bid');
 
       context.powerBidStreak++;
@@ -137,9 +137,9 @@ export function playerBid(
   context.lastBidder = 'player';
 
   if (options?.power) {
-    callbacks.onAppendLog(`You: Power bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
+    callbacks.onAppendLog(`Power bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
   } else {
-    callbacks.onAppendLog(`You: Bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
+    callbacks.onAppendLog(`Bid +${formatCurrency(amount)} → ${formatCurrency(context.currentBid)}.`, 'player');
   }
 
   callbacks.onShowAuctioneerBark(options?.power ? 'player_power_bid' : 'player_bid');
@@ -209,7 +209,7 @@ export function playerKickTires(
   context.rivalAI.onPlayerKickTires(KICK_TIRES_BUDGET_REDUCTION);
 
   callbacks.onShowAuctioneerBark('kick_tires');
-  callbacks.onAppendLog(`You: Kick tires (pressure applied; they look less willing to spend).`, 'player');
+  callbacks.onAppendLog('Kick tires (pressure applied; they look less willing to spend).', 'player');
 
   if (context.currentBid > context.rivalAI.getBudget()) {
     const playerWon = context.lastBidder === 'player';
@@ -270,7 +270,7 @@ export function playerStall(
   context.rivalAI.onPlayerStall();
 
   callbacks.onShowAuctioneerBark('stall');
-  callbacks.onAppendLog(`You: Stall (-${STALL_PATIENCE_PENALTY} rival patience).`, 'player');
+  callbacks.onAppendLog(`Stall (-${STALL_PATIENCE_PENALTY} rival patience).`, 'player');
 
   // Check for patience reaction
   if (context.rivalAI.getPatience() < 30 && context.rivalAI.getPatience() > 0) {
@@ -306,12 +306,12 @@ export function rivalTurnImmediate(
     // If the rival is already the high bidder, they don't need to "bid again".
     // Avoid ending the auction with confusing dialogue like "Not worth it!" while they win.
     if (rivalIsHighBidder) {
-      callbacks.onAppendLog(`${context.rival.name}: Holding at ${formatCurrency(context.currentBid)}.`, 'rival');
+      callbacks.onAppendLog(`Holding at ${formatCurrency(context.currentBid)}.`, 'rival');
       callbacks.onEndAuction(false, `${context.rival.name} holds at ${formatCurrency(context.currentBid)}.`);
       return context;
     }
 
-    callbacks.onAppendLog(`${context.rival.name}: ${decision.reason}.`, 'rival');
+    callbacks.onAppendLog(`${decision.reason}.`, 'rival');
     const playerWon = context.lastBidder === 'player';
 
     // Match the bark to the *reason* they fold.
@@ -334,7 +334,8 @@ export function rivalTurnImmediate(
     let flavorText = '';
 
     if (patience < 20) {
-      flavorText = '\n\nFinal offer!';
+      // Avoid absolute promises like "final offer" since the rival may still bid after a counter.
+      flavorText = "\n\nI'm near my limit.";
     } else if (patience < 30) {
       flavorText = '\n\nGetting tired of this...';
     } else if (patience < 50) {
@@ -344,12 +345,12 @@ export function rivalTurnImmediate(
     const flavorInline = flavorText.replace(/\n+/g, ' ').trim();
     if (isFirstBid) {
       callbacks.onAppendLog(
-        `${context.rival.name}: Opening bid → ${formatCurrency(context.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
+        `Opening bid → ${formatCurrency(context.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
         'rival'
       );
     } else {
       callbacks.onAppendLog(
-        `${context.rival.name}: Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(context.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
+        `Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(context.currentBid)}.${flavorInline ? ` ${flavorInline}` : ''}`,
         'rival'
       );
     }

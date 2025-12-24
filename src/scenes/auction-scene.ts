@@ -315,7 +315,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (!this.hasAnyBids) {
       this.hasAnyBids = true;
       this.lastBidder = 'rival';
-      this.appendAuctionLog(`${this.rival.name}: Opening bid → ${formatCurrency(this.currentBid)}.`, 'rival');
+      this.appendAuctionLog(`Opening bid → ${formatCurrency(this.currentBid)}.`, 'rival');
       this.showAuctioneerBark('rival_bid');
       this.endAuction(false, 'You ended the auction early.');
       return;
@@ -332,7 +332,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       const decision = this.rivalAI.decideBid(this.currentBid);
 
       if (!decision.shouldBid) {
-        this.appendAuctionLog(`${this.rival.name}: ${decision.reason}.`, 'rival');
+        this.appendAuctionLog(`${decision.reason}.`, 'rival');
         const finalBark: BarkTrigger = decision.reason === 'Lost patience' ? 'patience_low' : 'outbid';
         this.endAuction(true, `${this.rival.name} ${decision.reason}!`, finalBark);
         return;
@@ -341,7 +341,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.currentBid += decision.bidAmount;
       this.lastBidder = 'rival';
       this.appendAuctionLog(
-        `${this.rival.name}: Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.`,
+        `Bid +${formatCurrency(decision.bidAmount)} → ${formatCurrency(this.currentBid)}.`,
         'rival'
       );
       this.showAuctioneerBark('rival_bid');
@@ -394,14 +394,14 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private isQuotedDialogueLogEntry(entry: AuctionLogEntry): boolean {
     if (entry.kind !== 'auctioneer' && entry.kind !== 'rival') return false;
-    // Dialogue lines are written as: Name: "..."
+    // Dialogue lines are written with surrounding quotes (portrait already shows the speaker).
     // Keep this heuristic narrow so non-dialogue rival lines (bids, reasons) still drip-feed.
-    return entry.text.includes(': "') && entry.text.endsWith('"');
+    return entry.text.startsWith('"') && entry.text.endsWith('"');
   }
 
   private getLogGapMsForEntry(entry: AuctionLogEntry): number {
     // A small gap keeps back-to-back flashes readable (e.g. player action -> auctioneer call).
-    if (this.isQuotedDialogueLogEntry(entry)) return 140;
+    if (this.isQuotedDialogueLogEntry(entry)) return 350;
     return GAME_CONFIG.ui.modalDelays.auctionLogLine;
   }
 
@@ -807,7 +807,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     const mood = this.rival.mood || 'Normal';
     const bark = getRivalBark(mood, trigger).trim();
     if (!bark) return;
-    this.appendAuctionLog(`${this.rival.name}: "${bark}"`, 'rival');
+    this.appendAuctionLog(`"${bark}"`, 'rival');
   }
   private showAuctioneerBark(trigger: 'start' | 'opening_prompt' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)] ?? '';
@@ -869,7 +869,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (!trimmed) return;
 
     // Log-only (no speech bubble). Portrait flash is driven by the rendered log entry.
-    this.appendAuctionLog(`${this.auctioneerName}: "${trimmed}"`, 'auctioneer');
+    this.appendAuctionLog(`"${trimmed}"`, 'auctioneer');
   }
 
   private playerBid(amount: number, options?: { power?: boolean }): void {
@@ -1046,6 +1046,29 @@ Tip: Visit the Garage to sell something, then come back.`,
 
 
   private endAuction(playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger): void {
+    // Tutorial: the Sterling Vance encounter is meant to be a scripted loss beat.
+    // If the player manages to "win" via tactics (patience/budget), force a loss so the
+    // redemption flow remains deterministic and the tutorial cannot get stuck.
+    let forceSterlingTutorialLoss = false;
+    try {
+      forceSterlingTutorialLoss =
+        playerWon &&
+        this.tutorialManager.isTutorialActive() &&
+        this.tutorialManager.isOnFirstLossStep() &&
+        this.rival.id === 'sterling_vance';
+    } catch {
+      forceSterlingTutorialLoss = false;
+    }
+
+    if (forceSterlingTutorialLoss) {
+      playerWon = false;
+      // Make the final call/readout coherent even if the rival "quit" in the underlying logic.
+      this.hasAnyBids = true;
+      this.lastBidder = 'rival';
+      this.currentBid += AuctionScene.BID_INCREMENT;
+      message = `${this.rival.name} outbids you at the last second.`;
+    }
+
     // Prevent any scheduled UI refresh from wiping the final result modal.
     this.clearPendingUIRefresh();
     this.clearPendingRivalTurn();

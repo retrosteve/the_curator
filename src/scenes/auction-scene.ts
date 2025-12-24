@@ -7,6 +7,7 @@ import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portrai
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
+import type { AuctionRivalEntry } from '@/systems/map-encounter-router';
 import {
   createEncounterCenteredLayoutRoot,
   disableEncounterActionButton,
@@ -17,23 +18,26 @@ import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 import {
   type BiddingContext,
   type BiddingCallbacks,
+  type BidderId,
+  makeRivalBidderId,
   playerBid as playerBidInternal,
   playerKickTires as playerKickTiresInternal,
   playerStall as playerStallInternal,
   rivalTurnImmediate as rivalTurnImmediateInternal,
+  rivalOnlyTurnImmediate as rivalOnlyTurnImmediateInternal,
 } from './internal/auction-bidding';
 
 type BidHistoryEntry = {
-  bidder: 'player' | 'rival';
+  bidderId: BidderId;
   totalBid: number;
   atMs: number;
 };
 
-type AuctionParticipant = 'auctioneer' | 'player' | 'rival';
+type AuctionParticipantKey = 'auctioneer' | BidderId;
 
 type ParticipantFlashState = {
-  anchors: Partial<Record<AuctionParticipant, HTMLDivElement>>;
-  clearTimeoutIds: Partial<Record<AuctionParticipant, number>>;
+  anchors: Partial<Record<AuctionParticipantKey, HTMLDivElement>>;
+  clearTimeoutIds: Partial<Record<AuctionParticipantKey, number>>;
 };
 
 const AUCTIONEER_NAMES = [
@@ -58,8 +62,9 @@ const PLAYER_PORTRAIT_PLACEHOLDER_URL = `data:image/svg+xml;charset=utf-8,${enco
  */
 export class AuctionScene extends BaseGameScene {
   private car!: Car;
-  private rival!: Rival;
-  private rivalAI!: RivalAI;
+  private rivals: Rival[] = [];
+  private rivalAIsById: Record<string, RivalAI> = {};
+  private activeRivalIds: string[] = [];
   private locationId?: string;
   private auctioneerName!: string;
   private encounterStarted: boolean = false;
@@ -67,6 +72,7 @@ export class AuctionScene extends BaseGameScene {
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
   private auctionMarketEstimateValue: number = 0;
+  private playerHasWithdrawn: boolean = false;
 
   // Participant portrait anchors + flash timers.
   private participantFlash: ParticipantFlashState = { anchors: {}, clearTimeoutIds: {} };
@@ -78,7 +84,7 @@ export class AuctionScene extends BaseGameScene {
   private pendingEndAuctionTimeoutId?: number;
 
   private isPlayerTurn: boolean = false;
-  private lastBidder?: 'player' | 'rival';
+  private lastBidder?: BidderId;
 
   private bidHistory: BidHistoryEntry[] = [];
   private lastAuctioneerLine: string = '';
@@ -98,10 +104,14 @@ export class AuctionScene extends BaseGameScene {
     super({ key: 'AuctionScene' });
   }
 
-  init(data: { car: Car; rival: Rival; interest: number; locationId?: string }): void {
+  init(data: { car: Car; rivals: AuctionRivalEntry[]; locationId?: string }): void {
     this.car = data.car;
-    this.rival = data.rival;
-    this.rivalAI = new RivalAI(data.rival, data.interest);
+    this.rivals = data.rivals.map((e) => e.rival);
+    this.rivalAIsById = {};
+    for (const entry of data.rivals) {
+      this.rivalAIsById[entry.rival.id] = new RivalAI(entry.rival, entry.interest);
+    }
+    this.activeRivalIds = this.rivals.map((r) => r.id);
     this.locationId = data.locationId;
     this.auctioneerName = AUCTIONEER_NAMES[Math.floor(Math.random() * AUCTIONEER_NAMES.length)];
     this.encounterStarted = false;
@@ -216,7 +226,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.participantFlash.clearTimeoutIds = {};
   }
 
-  private flashParticipant(participant: AuctionParticipant): void {
+  private flashParticipant(participant: AuctionParticipantKey): void {
     const anchor = this.participantFlash.anchors[participant];
     if (!anchor || !anchor.isConnected) return;
 
@@ -299,42 +309,26 @@ Tip: Visit the Garage to sell something, then come back.`,
     // Player opted out: consider this encounter consumed.
     this.consumeOfferIfNeeded();
 
-    // If nobody has bid yet, assume the rival snaps up the opening bid.
-    if (!this.hasAnyBids) {
-      this.hasAnyBids = true;
-      this.lastBidder = 'rival';
-      this.recordBid('rival', this.currentBid);
-      this.showAuctioneerBark('rival_bid');
-      this.endAuction(false, 'You ended the auction early.');
+    // From here on, the player is withdrawn: rivals should continue bidding until a winner.
+    this.playerHasWithdrawn = true;
+    this.isPlayerTurn = false;
+    this.setupUI();
+
+    // If there are no rivals left, the player wins by default (rare edge-case).
+    if (this.activeRivalIds.length === 0) {
+      this.endAuction('player', 'All rival bidders dropped out.');
       return;
     }
 
-    // If the rival is already winning, just close it out.
-    if (this.lastBidder === 'rival') {
-      this.endAuction(false, 'You ended the auction early.');
-      return;
-    }
+    // Re-open bidding at the current price without the player participating.
+    // This makes the remaining auction "play out" among rivals.
+    this.hasAnyBids = false;
+    this.lastBidder = undefined;
+    this.showToastAndLog('You withdraw. Bidding continues without you.', { backgroundColor: '#607d8b' });
 
-    // If the player is winning, give the rival one final chance to outbid.
-    if (this.lastBidder === 'player') {
-      const decision = this.rivalAI.decideBid(this.currentBid);
-
-      if (!decision.shouldBid) {
-        const finalBark: BarkTrigger = decision.reason === 'Lost patience' ? 'patience_low' : 'outbid';
-        this.endAuction(true, `${this.rival.name} ${decision.reason}!`, finalBark);
-        return;
-      }
-
-      this.currentBid += decision.bidAmount;
-      this.lastBidder = 'rival';
-      this.recordBid('rival', this.currentBid);
-      this.showAuctioneerBark('rival_bid');
-      this.endAuction(false, 'You ended the auction early.');
-      return;
-    }
-
-    // Fallback: treat as rival win.
-    this.endAuction(false, 'You ended the auction early.');
+    // Kick off the rival-only sequence.
+    this.scheduleRivalTurn(Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.6)));
+    return;
   }
 
   private clearPendingUIRefresh(): void {
@@ -356,8 +350,59 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.pendingRivalTurnTimeoutId = window.setTimeout(() => {
       this.pendingRivalTurnTimeoutId = undefined;
       if (!this.scene.isActive()) return;
-      this.rivalTurnImmediate();
+      if (this.playerHasWithdrawn) {
+        this.rivalOnlyTurnImmediate();
+      } else {
+        this.rivalTurnImmediate();
+      }
     }, delayMs);
+  }
+
+  private rivalOnlyTurnImmediate(): void {
+    const context: BiddingContext = {
+      car: this.car,
+      rivals: this.rivals,
+      rivalAIsById: this.rivalAIsById,
+      auctioneerName: this.auctioneerName,
+      currentBid: this.currentBid,
+      hasAnyBids: this.hasAnyBids,
+      lastBidder: this.lastBidder,
+      stallUsesThisAuction: this.stallUsesThisAuction,
+      powerBidStreak: this.powerBidStreak,
+      isPlayerTurn: false,
+      locationId: this.locationId,
+      activeRivalIds: this.activeRivalIds,
+    };
+
+    const callbacks: BiddingCallbacks = {
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) =>
+        this.showToastAndLog(toast, opts, log, logKind),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
+      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
+        this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
+      onSetupUI: () => this.setupUI(),
+      onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
+      // In rival-only mode, "enable player" means "continue the rival bidding cadence".
+      onScheduleEnablePlayerTurn: (delayMs?: number) =>
+        this.scheduleRivalTurn(delayMs ?? GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer),
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => {
+        const finalMessage = `${message}\n\nYou left early. ${this.getBidderDisplayName(winner)} wins for ${formatCurrency(this.currentBid)}.`;
+        this.endAuction(winner, finalMessage, rivalFinalBarkTrigger);
+      },
+    };
+
+    const updatedContext = rivalOnlyTurnImmediateInternal(context, callbacks);
+
+    this.currentBid = updatedContext.currentBid;
+    this.hasAnyBids = updatedContext.hasAnyBids;
+    this.lastBidder = updatedContext.lastBidder;
+    this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
+    this.powerBidStreak = updatedContext.powerBidStreak;
+    this.isPlayerTurn = false;
+    this.activeRivalIds = updatedContext.activeRivalIds;
   }
 
   private clearPendingRivalBark(): void {
@@ -368,6 +413,7 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private showRivalBarkAfterAuctioneer(
+    rivalId: string,
     trigger: BarkTrigger,
     delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer
   ): void {
@@ -375,16 +421,16 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.pendingRivalBarkTimeoutId = window.setTimeout(() => {
       this.pendingRivalBarkTimeoutId = undefined;
       if (!this.scene.isActive()) return;
-      this.showRivalBark(trigger);
+      this.showRivalBark(rivalId, trigger);
     }, delayMs);
   }
 
-  private recordBid(bidder: 'player' | 'rival', totalBid: number): void {
-    this.bidHistory.push({ bidder, totalBid, atMs: Date.now() });
+  private recordBid(bidderId: BidderId, totalBid: number): void {
+    this.bidHistory.push({ bidderId, totalBid, atMs: Date.now() });
     if (this.bidHistory.length > 50) {
       this.bidHistory.splice(0, this.bidHistory.length - 50);
     }
-    this.flashParticipant(bidder);
+    this.flashParticipant(bidderId);
   }
 
   private formatBidTimeAgo(atMs: number): string {
@@ -594,7 +640,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       minWidth: '0',
     } satisfies Partial<CSSStyleDeclaration>);
     patienceBox.appendChild(
-      this.uiManager.createText('Rival patience', {
+      this.uiManager.createText('Lowest rival patience', {
         margin: '0',
         fontSize: '11px',
         opacity: '0.75',
@@ -603,7 +649,12 @@ Tip: Visit the Garage to sell something, then come back.`,
       })
     );
 
-    const patience = Math.max(0, Math.min(100, Math.floor(this.rivalAI.getPatience())));
+    const activePatienceValues = this.activeRivalIds
+      .map((id) => this.rivalAIsById[id])
+      .filter(Boolean)
+      .map((ai) => Math.floor(ai.getPatience()));
+    const lowestPatience = activePatienceValues.length > 0 ? Math.min(...activePatienceValues) : 0;
+    const patience = Math.max(0, Math.min(100, lowestPatience));
     patienceBox.appendChild(
       this.uiManager.createText(`${patience}%`, {
         margin: '0',
@@ -714,7 +765,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     chips.appendChild(makeChip('Estimate', formatCurrency(marketValue), '#FFC107'));
     chips.appendChild(makeChip('Condition', `${Math.round(this.car.condition)}/100`, '#4CAF50'));
     chips.appendChild(makeChip('Increment', formatCurrency(AuctionScene.BID_INCREMENT)));
-    chips.appendChild(makeChip('Rival budget', formatCurrency(Math.floor(this.rivalAI.getBudget())), '#ffd700'));
+    chips.appendChild(makeChip('Active rivals', `${this.activeRivalIds.length}/${this.rivals.length}`, '#ffd700'));
     leftCol.appendChild(chips);
 
     // LEFT: auctioneer callout (reference: auctioneer dialogue card)
@@ -958,11 +1009,13 @@ Tip: Visit the Garage to sell something, then come back.`,
       gap: '10px',
     } satisfies Partial<CSSStyleDeclaration>);
 
+    const activeRivalIdSet = new Set(this.activeRivalIds);
     const makeBidderRow = (params: {
-      key: 'player' | 'rival';
+      bidderId: BidderId;
       name: string;
       portraitUrl: string;
       isLeader: boolean;
+      statusLabel: string;
     }): HTMLDivElement => {
       const row = document.createElement('div');
       Object.assign(row.style, {
@@ -976,8 +1029,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       } satisfies Partial<CSSStyleDeclaration>);
 
       const anchor = makePortraitAnchor(params.portraitUrl, `${params.name} portrait`, 38);
-      if (params.key === 'player') this.participantFlash.anchors.player = anchor;
-      else this.participantFlash.anchors.rival = anchor;
+      this.participantFlash.anchors[params.bidderId] = anchor;
 
       const meta = document.createElement('div');
       Object.assign(meta.style, {
@@ -998,7 +1050,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         })
       );
       meta.appendChild(
-        this.uiManager.createText(params.isLeader ? 'Current high bidder' : 'Outbid', {
+        this.uiManager.createText(params.statusLabel, {
           margin: '0',
           fontSize: '12px',
           opacity: '0.75',
@@ -1020,20 +1072,35 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     biddersList.appendChild(
       makeBidderRow({
-        key: 'player',
+        bidderId: 'player',
         name: 'You',
         portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
         isLeader: this.lastBidder === 'player',
+        statusLabel: this.hasAnyBids ? (this.lastBidder === 'player' ? 'Current high bidder' : 'Outbid') : 'Awaiting opening bid',
       })
     );
-    biddersList.appendChild(
-      makeBidderRow({
-        key: 'rival',
-        name: this.rival.name,
-        portraitUrl: getCharacterPortraitUrlOrPlaceholder(this.rival.name),
-        isLeader: this.lastBidder === 'rival' || (!this.lastBidder && !this.hasAnyBids),
-      })
-    );
+    for (const rival of this.rivals) {
+      const bidderId = makeRivalBidderId(rival.id);
+      const isActive = activeRivalIdSet.has(rival.id);
+      const isLeader = this.lastBidder === bidderId;
+      const statusLabel = this.hasAnyBids
+        ? isLeader
+          ? 'Current high bidder'
+          : isActive
+            ? 'Outbid'
+            : 'Dropped'
+        : 'Ready';
+
+      biddersList.appendChild(
+        makeBidderRow({
+          bidderId,
+          name: rival.name,
+          portraitUrl: getCharacterPortraitUrlOrPlaceholder(rival.name),
+          isLeader,
+          statusLabel,
+        })
+      );
+    }
 
     biddersPanel.appendChild(biddersList);
     rightCol.appendChild(biddersPanel);
@@ -1057,7 +1124,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     } satisfies Partial<CSSStyleDeclaration>);
 
     const makeHistoryRow = (entry: BidHistoryEntry): HTMLDivElement => {
-      const isPlayer = entry.bidder === 'player';
+      const isPlayer = entry.bidderId === 'player';
       const row = document.createElement('div');
       Object.assign(row.style, {
         display: 'grid',
@@ -1070,12 +1137,10 @@ Tip: Visit the Garage to sell something, then come back.`,
         backgroundColor: 'rgba(0,0,0,0.14)',
       } satisfies Partial<CSSStyleDeclaration>);
 
-      const portraitUrl = isPlayer
-        ? PLAYER_PORTRAIT_PLACEHOLDER_URL
-        : getCharacterPortraitUrlOrPlaceholder(this.rival.name);
+      const portraitUrl = this.getBidderPortraitUrl(entry.bidderId);
       const avatar = document.createElement('img');
       avatar.src = portraitUrl;
-      avatar.alt = isPlayer ? 'You' : this.rival.name;
+      avatar.alt = this.getBidderDisplayName(entry.bidderId);
       Object.assign(avatar.style, {
         width: '28px',
         height: '28px',
@@ -1103,7 +1168,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         minWidth: '0',
       } satisfies Partial<CSSStyleDeclaration>);
 
-      const name = this.uiManager.createText(isPlayer ? 'YOU' : this.rival.name, {
+      const name = this.uiManager.createText(isPlayer ? 'YOU' : this.getBidderDisplayName(entry.bidderId), {
         margin: '0',
         fontWeight: '900',
         overflow: 'hidden',
@@ -1160,14 +1225,50 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.uiManager.showToast(toast, options);
   }
 
-  private showRivalBark(trigger: BarkTrigger): void {
-    const mood = this.rival.mood || 'Normal';
+  private getRivalByIdInAuction(rivalId: string): Rival | null {
+    return this.rivals.find((r) => r.id === rivalId) ?? null;
+  }
+
+  private getBidderDisplayName(bidderId: BidderId): string {
+    if (bidderId === 'player') return 'You';
+    const rivalId = bidderId.slice('rival:'.length);
+    return this.getRivalByIdInAuction(rivalId)?.name ?? 'Rival';
+  }
+
+  private getBidderPortraitUrl(bidderId: BidderId): string {
+    if (bidderId === 'player') return PLAYER_PORTRAIT_PLACEHOLDER_URL;
+    const rivalId = bidderId.slice('rival:'.length);
+    const name = this.getRivalByIdInAuction(rivalId)?.name;
+    return name ? getCharacterPortraitUrlOrPlaceholder(name) : PLAYER_PORTRAIT_PLACEHOLDER_URL;
+  }
+
+  private getAnyRivalId(): string | null {
+    return this.activeRivalIds[0] ?? this.rivals[0]?.id ?? null;
+  }
+
+  private showRivalBark(rivalId: string, trigger: BarkTrigger): void {
+    const rival = this.getRivalByIdInAuction(rivalId);
+    if (!rival) return;
+    const mood = rival.mood || 'Normal';
     const bark = getRivalBark(mood, trigger).trim();
     if (!bark) return;
-    this.flashParticipant('rival');
+    this.flashParticipant(makeRivalBidderId(rivalId));
     this.uiManager.showToast(`"${bark}"`, { durationMs: 2600 });
   }
-  private showAuctioneerBark(trigger: 'start' | 'opening_prompt' | 'player_bid' | 'player_power_bid' | 'rival_bid' | 'stall' | 'kick_tires' | 'end_player_win' | 'end_player_lose'): void {
+
+  private showAuctioneerBark(
+    trigger:
+      | 'start'
+      | 'opening_prompt'
+      | 'player_bid'
+      | 'player_power_bid'
+      | 'rival_bid'
+      | 'stall'
+      | 'kick_tires'
+      | 'end_player_win'
+      | 'end_player_lose',
+    options?: { winnerBidderId?: BidderId }
+  ): void {
     const pick = (lines: readonly string[]): string => lines[Math.floor(Math.random() * lines.length)] ?? '';
 
     let text = '';
@@ -1216,7 +1317,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         text = `Sold! To you for ${formatCurrency(this.currentBid)}.`;
         break;
       case 'end_player_lose':
-        text = `Sold! To ${this.rival.name} for ${formatCurrency(this.currentBid)}.`;
+        text = `Sold! To ${this.getBidderDisplayName(options?.winnerBidderId ?? (this.lastBidder ?? 'player'))} for ${formatCurrency(this.currentBid)}.`;
         break;
       default:
         text = '';
@@ -1236,8 +1337,8 @@ Tip: Visit the Garage to sell something, then come back.`,
   private playerBid(amount: number, options?: { power?: boolean }): void {
     const context: BiddingContext = {
       car: this.car,
-      rival: this.rival,
-      rivalAI: this.rivalAI,
+      rivals: this.rivals,
+      rivalAIsById: this.rivalAIsById,
       auctioneerName: this.auctioneerName,
       currentBid: this.currentBid,
       hasAnyBids: this.hasAnyBids,
@@ -1245,7 +1346,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       stallUsesThisAuction: this.stallUsesThisAuction,
       powerBidStreak: this.powerBidStreak,
       isPlayerTurn: this.isPlayerTurn,
-      locationId: this.locationId
+      locationId: this.locationId,
+      activeRivalIds: this.activeRivalIds,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -1253,13 +1355,15 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
+      onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
+        this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
+        this.endAuction(winner, message, rivalFinalBarkTrigger),
     };
 
     const updatedContext = playerBidInternal(amount, context, callbacks, options);
@@ -1271,14 +1375,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
     this.powerBidStreak = updatedContext.powerBidStreak;
     this.isPlayerTurn = updatedContext.isPlayerTurn;
+    this.activeRivalIds = updatedContext.activeRivalIds;
   }
 
 
   private playerKickTires(): void {
     const context: BiddingContext = {
       car: this.car,
-      rival: this.rival,
-      rivalAI: this.rivalAI,
+      rivals: this.rivals,
+      rivalAIsById: this.rivalAIsById,
       auctioneerName: this.auctioneerName,
       currentBid: this.currentBid,
       hasAnyBids: this.hasAnyBids,
@@ -1286,7 +1391,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       stallUsesThisAuction: this.stallUsesThisAuction,
       powerBidStreak: this.powerBidStreak,
       isPlayerTurn: this.isPlayerTurn,
-      locationId: this.locationId
+      locationId: this.locationId,
+      activeRivalIds: this.activeRivalIds,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -1294,13 +1400,15 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
+      onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
+        this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
+        this.endAuction(winner, message, rivalFinalBarkTrigger),
     };
 
     const updatedContext = playerKickTiresInternal(context, callbacks);
@@ -1312,14 +1420,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
     this.powerBidStreak = updatedContext.powerBidStreak;
     this.isPlayerTurn = updatedContext.isPlayerTurn;
+    this.activeRivalIds = updatedContext.activeRivalIds;
   }
 
 
   private playerStall(): void {
     const context: BiddingContext = {
       car: this.car,
-      rival: this.rival,
-      rivalAI: this.rivalAI,
+      rivals: this.rivals,
+      rivalAIsById: this.rivalAIsById,
       auctioneerName: this.auctioneerName,
       currentBid: this.currentBid,
       hasAnyBids: this.hasAnyBids,
@@ -1327,7 +1436,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       stallUsesThisAuction: this.stallUsesThisAuction,
       powerBidStreak: this.powerBidStreak,
       isPlayerTurn: this.isPlayerTurn,
-      locationId: this.locationId
+      locationId: this.locationId,
+      activeRivalIds: this.activeRivalIds,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -1335,13 +1445,15 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
+      onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
+        this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
+        this.endAuction(winner, message, rivalFinalBarkTrigger),
     };
 
     const updatedContext = playerStallInternal(context, callbacks);
@@ -1353,6 +1465,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
     this.powerBidStreak = updatedContext.powerBidStreak;
     this.isPlayerTurn = updatedContext.isPlayerTurn;
+    this.activeRivalIds = updatedContext.activeRivalIds;
   }
 
 
@@ -1368,8 +1481,8 @@ Tip: Visit the Garage to sell something, then come back.`,
   private rivalTurnImmediate(): void {
     const context: BiddingContext = {
       car: this.car,
-      rival: this.rival,
-      rivalAI: this.rivalAI,
+      rivals: this.rivals,
+      rivalAIsById: this.rivalAIsById,
       auctioneerName: this.auctioneerName,
       currentBid: this.currentBid,
       hasAnyBids: this.hasAnyBids,
@@ -1377,7 +1490,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       stallUsesThisAuction: this.stallUsesThisAuction,
       powerBidStreak: this.powerBidStreak,
       isPlayerTurn: this.isPlayerTurn,
-      locationId: this.locationId
+      locationId: this.locationId,
+      activeRivalIds: this.activeRivalIds,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -1385,13 +1499,15 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => this.recordBid(bidder, totalBid),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
       onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
-      onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => this.showRivalBarkAfterAuctioneer(trigger, delayMs),
+      onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
+        this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => this.setupUI(),
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => this.endAuction(playerWon, message, rivalFinalBarkTrigger)
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
+        this.endAuction(winner, message, rivalFinalBarkTrigger),
     };
 
     const updatedContext = rivalTurnImmediateInternal(context, callbacks);
@@ -1403,10 +1519,13 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.stallUsesThisAuction = updatedContext.stallUsesThisAuction;
     this.powerBidStreak = updatedContext.powerBidStreak;
     this.isPlayerTurn = updatedContext.isPlayerTurn;
+    this.activeRivalIds = updatedContext.activeRivalIds;
   }
 
 
-  private endAuction(playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger): void {
+  private endAuction(winnerBidderId: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger): void {
+    let playerWon = winnerBidderId === 'player';
+
     // Tutorial: the Sterling Vance encounter is meant to be a scripted loss beat.
     // If the player manages to "win" via tactics (patience/budget), force a loss so the
     // redemption flow remains deterministic and the tutorial cannot get stuck.
@@ -1416,18 +1535,24 @@ Tip: Visit the Garage to sell something, then come back.`,
         playerWon &&
         this.tutorialManager.isTutorialActive() &&
         this.tutorialManager.isOnFirstLossStep() &&
-        this.rival.id === 'sterling_vance';
+        this.rivals.some((r) => r.id === 'sterling_vance');
     } catch {
       forceSterlingTutorialLoss = false;
     }
 
     if (forceSterlingTutorialLoss) {
       playerWon = false;
+
+      const sterlingId = 'sterling_vance';
+      const sterling = this.rivals.find((r) => r.id === sterlingId);
+      const forcedWinner = sterling ? makeRivalBidderId(sterlingId) : (this.lastBidder && this.lastBidder !== 'player' ? this.lastBidder : undefined);
+      winnerBidderId = forcedWinner ?? makeRivalBidderId(this.getAnyRivalId() ?? sterlingId);
+
       // Make the final call/readout coherent even if the rival "quit" in the underlying logic.
       this.hasAnyBids = true;
-      this.lastBidder = 'rival';
+      this.lastBidder = winnerBidderId;
       this.currentBid += AuctionScene.BID_INCREMENT;
-      message = `${this.rival.name} outbids you at the last second.`;
+      message = `${sterling?.name ?? 'Sterling Vance'} outbids you at the last second.`;
     }
 
     // Prevent any scheduled UI refresh from wiping the final result modal.
@@ -1446,10 +1571,17 @@ Tip: Visit the Garage to sell something, then come back.`,
     // Show final bark
     if (playerWon) {
       this.showAuctioneerBark('end_player_win');
-      this.showRivalBarkAfterAuctioneer(rivalFinalBarkTrigger ?? 'lose');
+      const anyRivalId = this.getAnyRivalId();
+      if (anyRivalId) {
+        this.showRivalBarkAfterAuctioneer(anyRivalId, rivalFinalBarkTrigger ?? 'lose');
+      }
     } else {
-      this.showAuctioneerBark('end_player_lose');
-      this.showRivalBarkAfterAuctioneer('win');
+      this.showAuctioneerBark('end_player_lose', { winnerBidderId });
+      const winnerRivalId = typeof winnerBidderId === 'string' && winnerBidderId.startsWith('rival:') ? winnerBidderId.slice('rival:'.length) : undefined;
+      const barkRivalId = winnerRivalId ?? this.getAnyRivalId();
+      if (barkRivalId) {
+        this.showRivalBarkAfterAuctioneer(barkRivalId, 'win');
+      }
     }
 
     if (playerWon) {
@@ -1461,7 +1593,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.consumeOfferIfNeeded();
         this.uiManager.showModal(
           "Won But Can't Pay",
-          `${message}\n\nYou pressured ${this.rival.name} into quitting, but the winning bid is ${formatCurrency(this.currentBid)} and you only have ${formatCurrency(player.money)}.\n\nYou forfeit the car.`,
+          `${message}\n\nYou pressured the other bidders into quitting, but the winning bid is ${formatCurrency(this.currentBid)} and you only have ${formatCurrency(player.money)}.\n\nYou forfeit the car.`,
           [
             { text: 'Stay', onClick: () => {} },
             {
@@ -1576,7 +1708,8 @@ Tip: Visit the Garage to sell something, then come back.`,
                       const scrappyJoe = getRivalById('scrapyard_joe');
                       if (boxywagon && scrappyJoe) {
                         const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
-                        this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+                        const rivals: AuctionRivalEntry[] = [{ rival: scrappyJoe, interest }];
+                        this.scene.start('AuctionScene', { car: boxywagon, rivals });
                       }
                     },
                   },
@@ -1641,15 +1774,19 @@ Tip: Visit the Garage to sell something, then come back.`,
    * Helps player understand what happened and learn tactics.
    */
   private showAuctionDebrief(): void {
-    const patience = this.rivalAI.getPatience();
-    const budget = this.rivalAI.getBudget();
+    const losingRivalId = this.lastBidder && this.lastBidder.startsWith('rival:') ? this.lastBidder.slice('rival:'.length) : undefined;
+    const losingRival = losingRivalId ? this.getRivalByIdInAuction(losingRivalId) : undefined;
+    const losingAI = losingRivalId ? this.rivalAIsById[losingRivalId] : undefined;
+
+    const patience = losingAI?.getPatience() ?? 0;
+    const budget = losingAI?.getBudget() ?? 0;
     const player = this.gameManager.getPlayerState();
 
     let analysis = `📈 AUCTION ANALYSIS\n\n`;
     analysis += `YOUR BID: ${formatCurrency(this.currentBid)}\n`;
     analysis += `RIVAL BID: Won the auction\n\n`;
     
-    analysis += `👤 RIVAL STATUS:\n`;
+    analysis += `👤 RIVAL STATUS${losingRival ? ` (${losingRival.name})` : ''}:\n`;
     analysis += `• Patience Remaining: ${patience}/100\n`;
     analysis += `• Budget Remaining: ${formatCurrency(budget)}\n\n`;
     

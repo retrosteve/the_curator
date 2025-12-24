@@ -12,31 +12,54 @@ import { GAME_CONFIG } from '@/config/game-config';
  * Extracted from AuctionScene to reduce file size and improve maintainability.
  */
 
+export type BidderId = 'player' | `rival:${string}`;
+
+export function makeRivalBidderId(rivalId: string): BidderId {
+  return `rival:${rivalId}`;
+}
+
+function pickSpokespersonRivalId(context: BiddingContext): string | null {
+  return context.activeRivalIds[0] ?? null;
+}
+
+function findRivalById(rivals: readonly Rival[], rivalId: string): Rival | null {
+  return rivals.find((r) => r.id === rivalId) ?? null;
+}
+
+function shuffleInPlace<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
 export interface BiddingContext {
   car: Car;
-  rival: Rival;
-  rivalAI: RivalAI;
+  rivals: Rival[];
+  rivalAIsById: Record<string, RivalAI>;
   auctioneerName: string;
   currentBid: number;
   hasAnyBids: boolean;
-  lastBidder?: 'player' | 'rival';
+  lastBidder?: BidderId;
   stallUsesThisAuction: number;
   powerBidStreak: number;
   isPlayerTurn: boolean;
   locationId?: string;
+  /** IDs of rivals still active in the auction (haven't folded/quit). */
+  activeRivalIds: string[];
 }
 
 export interface BiddingCallbacks {
   gameManager: GameManager;
   uiManager: UIManager;
   onShowToastAndLog: (toast: string, options?: { backgroundColor?: string }, log?: string, logKind?: string) => void;
-  onRecordBid: (bidder: 'player' | 'rival', totalBid: number) => void;
+  onRecordBid: (bidderId: BidderId, totalBid: number) => void;
   onShowAuctioneerBark: (trigger: string) => void;
-  onShowRivalBarkAfterAuctioneer: (trigger: BarkTrigger, delayMs?: number) => void;
+  onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) => void;
   onSetupUI: () => void;
   onScheduleRivalTurn: (delayMs: number) => void;
   onScheduleEnablePlayerTurn: (delayMs?: number) => void;
-  onEndAuction: (playerWon: boolean, message: string, rivalFinalBarkTrigger?: BarkTrigger) => void;
+  onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => void;
 }
 
 const BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
@@ -97,16 +120,33 @@ export function playerBid(
       callbacks.onShowAuctioneerBark('player_power_bid');
 
       context.powerBidStreak++;
-      context.rivalAI.onPlayerPowerBid();
-
-      // Check for patience reaction
-      if (context.rivalAI.getPatience() < 30 && context.rivalAI.getPatience() > 0) {
-        const reactionDelayMs = Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45));
-        callbacks.onShowRivalBarkAfterAuctioneer('patience_low', reactionDelayMs);
+      for (const rivalId of context.activeRivalIds.slice()) {
+        const ai = context.rivalAIsById[rivalId];
+        if (!ai) continue;
+        ai.onPlayerPowerBid();
+        if (ai.getPatience() <= 0) {
+          const rival = findRivalById(context.rivals, rivalId);
+          if (rival) {
+            callbacks.onShowToastAndLog(`${rival.name} loses patience and quits!`, { backgroundColor: '#ff9800' });
+          }
+          context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+        }
       }
 
-      if (context.rivalAI.getPatience() <= 0) {
-        callbacks.onEndAuction(true, `${context.rival.name} lost patience and quit!`);
+      const spokesperson = pickSpokespersonRivalId(context);
+      if (spokesperson) {
+        const ai = context.rivalAIsById[spokesperson];
+        if (ai && ai.getPatience() < 30 && ai.getPatience() > 0) {
+          const reactionDelayMs = Math.max(
+            0,
+            Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45)
+          );
+          callbacks.onShowRivalBarkAfterAuctioneer(spokesperson, 'patience_low', reactionDelayMs);
+        }
+      }
+
+      if (context.activeRivalIds.length === 0) {
+        callbacks.onEndAuction('player', 'All rival bidders dropped out.');
         return context;
       }
     } else {
@@ -142,21 +182,41 @@ export function playerBid(
   // Trigger rival reaction to being outbid
   if (!options?.power) {
     const reactionDelayMs = Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45));
-    callbacks.onShowRivalBarkAfterAuctioneer('outbid', reactionDelayMs);
+    const spokesperson = pickSpokespersonRivalId(context);
+    if (spokesperson) {
+      callbacks.onShowRivalBarkAfterAuctioneer(spokesperson, 'outbid', reactionDelayMs);
+    }
   }
 
   if (options?.power) {
     context.powerBidStreak++;
-    context.rivalAI.onPlayerPowerBid();
-
-    // Check for patience reaction
-    if (context.rivalAI.getPatience() < 30 && context.rivalAI.getPatience() > 0) {
-      const reactionDelayMs = Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45));
-      callbacks.onShowRivalBarkAfterAuctioneer('patience_low', reactionDelayMs);
+    for (const rivalId of context.activeRivalIds.slice()) {
+      const ai = context.rivalAIsById[rivalId];
+      if (!ai) continue;
+      ai.onPlayerPowerBid();
+      if (ai.getPatience() <= 0) {
+        const rival = findRivalById(context.rivals, rivalId);
+        if (rival) {
+          callbacks.onShowToastAndLog(`${rival.name} loses patience and quits!`, { backgroundColor: '#ff9800' });
+        }
+        context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+      }
     }
 
-    if (context.rivalAI.getPatience() <= 0) {
-      callbacks.onEndAuction(true, `${context.rival.name} lost patience and quit!`);
+    const spokesperson = pickSpokespersonRivalId(context);
+    if (spokesperson) {
+      const ai = context.rivalAIsById[spokesperson];
+      if (ai && ai.getPatience() < 30 && ai.getPatience() > 0) {
+        const reactionDelayMs = Math.max(
+          0,
+          Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45)
+        );
+        callbacks.onShowRivalBarkAfterAuctioneer(spokesperson, 'patience_low', reactionDelayMs);
+      }
+    }
+
+    if (context.activeRivalIds.length === 0) {
+      callbacks.onEndAuction('player', 'All rival bidders dropped out.');
       return context;
     }
   } else {
@@ -201,13 +261,24 @@ export function playerKickTires(
   }
 
   context.powerBidStreak = 0; // Reset streak
-  context.rivalAI.onPlayerKickTires(KICK_TIRES_BUDGET_REDUCTION);
+  for (const rivalId of context.activeRivalIds.slice()) {
+    const ai = context.rivalAIsById[rivalId];
+    if (!ai) continue;
+    ai.onPlayerKickTires(KICK_TIRES_BUDGET_REDUCTION);
+    if (context.currentBid > ai.getBudget()) {
+      const rival = findRivalById(context.rivals, rivalId);
+      if (rival) {
+        callbacks.onShowToastAndLog(`${rival.name} is out of budget and quits!`, { backgroundColor: '#ff9800' });
+      }
+      context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+    }
+  }
 
   callbacks.onShowAuctioneerBark('kick_tires');
 
-  if (context.currentBid > context.rivalAI.getBudget()) {
-    const playerWon = context.lastBidder === 'player';
-    callbacks.onEndAuction(playerWon, `${context.rival.name} is out of budget and quits!`);
+  if (context.activeRivalIds.length === 0) {
+    const winner: BidderId = context.lastBidder ?? 'player';
+    callbacks.onEndAuction(winner, 'All rival bidders are out of budget and quit!');
     return context;
   }
 
@@ -261,21 +332,35 @@ export function playerStall(
 
   context.stallUsesThisAuction += 1;
   context.powerBidStreak = 0; // Reset streak
-  context.rivalAI.onPlayerStall();
+  for (const rivalId of context.activeRivalIds.slice()) {
+    const ai = context.rivalAIsById[rivalId];
+    if (!ai) continue;
+    ai.onPlayerStall();
+    if (ai.getPatience() <= 0) {
+      const rival = findRivalById(context.rivals, rivalId);
+      if (rival) {
+        callbacks.onShowToastAndLog(`${rival.name} loses patience and quits!`, { backgroundColor: '#ff9800' });
+      }
+      context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+    }
+  }
 
   callbacks.onShowAuctioneerBark('stall');
 
-  // Check for patience reaction
-  if (context.rivalAI.getPatience() < 30 && context.rivalAI.getPatience() > 0) {
-    const reactionDelayMs = Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45));
-    callbacks.onShowRivalBarkAfterAuctioneer('patience_low', reactionDelayMs);
+  const spokesperson = pickSpokespersonRivalId(context);
+  if (spokesperson) {
+    const ai = context.rivalAIsById[spokesperson];
+    if (ai && ai.getPatience() < 30 && ai.getPatience() > 0) {
+      const reactionDelayMs = Math.max(0, Math.floor(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer * 0.45));
+      callbacks.onShowRivalBarkAfterAuctioneer(spokesperson, 'patience_low', reactionDelayMs);
+    }
   }
 
-  if (context.rivalAI.getPatience() <= 0) {
-    const playerWon = context.lastBidder === 'player';
-    callbacks.onEndAuction(playerWon, `${context.rival.name} lost patience and quit!`);
+  if (context.activeRivalIds.length === 0) {
+    const winner: BidderId = context.lastBidder ?? 'player';
+    callbacks.onEndAuction(winner, 'All rival bidders lost patience and quit!');
   } else {
-    // Stalling pressures the rival but hands them the turn.
+    // Stalling pressures the rivals but hands them the turn.
     context.isPlayerTurn = false;
     callbacks.onSetupUI();
     callbacks.onScheduleRivalTurn(GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer);
@@ -291,48 +376,155 @@ export function rivalTurnImmediate(
   context: BiddingContext,
   callbacks: BiddingCallbacks
 ): BiddingContext {
-  const decision = context.rivalAI.decideBid(context.currentBid);
+  // If the player didn't raise the bid and a rival is already the high bidder,
+  // close out the auction in the rival's favor.
+  if (context.lastBidder && context.lastBidder !== 'player') {
+    callbacks.onEndAuction(context.lastBidder, 'You did not outbid the current high bidder.');
+    return context;
+  }
 
-  if (!decision.shouldBid) {
-    const rivalIsHighBidder = context.hasAnyBids && context.lastBidder === 'rival';
+  if (context.activeRivalIds.length === 0) {
+    callbacks.onEndAuction('player', 'No rival bidders remain.');
+    return context;
+  }
 
-    // If the rival is already the high bidder, they don't need to "bid again".
-    // Avoid ending the auction with confusing dialogue like "Not worth it!" while they win.
-    if (rivalIsHighBidder) {
-      callbacks.onEndAuction(false, `${context.rival.name} holds at ${formatCurrency(context.currentBid)}.`);
-      return context;
+  const shuffled = context.activeRivalIds.slice();
+  shuffleInPlace(shuffled);
+
+  for (const rivalId of shuffled) {
+    const ai = context.rivalAIsById[rivalId];
+    const rival = findRivalById(context.rivals, rivalId);
+    if (!ai || !rival) continue;
+
+    const decision = ai.decideBid(context.currentBid);
+
+    if (!decision.shouldBid) {
+      // Rival drops out of this auction.
+      context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+      continue;
     }
-    const playerWon = context.lastBidder === 'player';
 
-    // Match the bark to the *reason* they fold.
-    const rivalFinalBarkTrigger: BarkTrigger =
-      decision.reason === 'Lost patience' ? 'patience_low' : 'outbid';
-
-    callbacks.onEndAuction(playerWon, `${context.rival.name} ${decision.reason}!`, rivalFinalBarkTrigger);
-  } else {
     const isFirstBid = !context.hasAnyBids;
     if (isFirstBid) {
       context.hasAnyBids = true;
-      context.lastBidder = 'rival';
+      context.lastBidder = makeRivalBidderId(rivalId);
     } else {
       context.currentBid += decision.bidAmount;
-      context.lastBidder = 'rival';
+      context.lastBidder = makeRivalBidderId(rivalId);
     }
 
-    callbacks.onRecordBid('rival', context.currentBid);
+    callbacks.onRecordBid(context.lastBidder, context.currentBid);
 
-    // Auctioneer commentary should come AFTER the bid is logged so the log timeline reads correctly.
+    // Auctioneer commentary should come AFTER the bid is logged.
     callbacks.onShowAuctioneerBark('rival_bid');
 
     // Show rival bark for bidding (after auctioneer).
-    callbacks.onShowRivalBarkAfterAuctioneer('bid');
+    callbacks.onShowRivalBarkAfterAuctioneer(rivalId, 'bid');
 
     // Non-blocking update: refresh UI and keep momentum.
     callbacks.onSetupUI();
 
     // Auctioneer responded; now hand the turn back to the player.
-    // Slightly delay enabling player input so the rival's post-bid bark lands first.
     callbacks.onScheduleEnablePlayerTurn(GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer + 75);
+    return context;
+  }
+
+  // Nobody bid.
+  callbacks.onEndAuction('player', 'No further bids.');
+
+  return context;
+}
+
+/**
+ * Execute a rival-only turn.
+ *
+ * Used when the player withdraws: rivals continue bidding between themselves until no further bids.
+ * This differs from `rivalTurnImmediate` which assumes a player-vs-rival cadence and can end the
+ * auction immediately when a rival is already the high bidder.
+ */
+export function rivalOnlyTurnImmediate(
+  context: BiddingContext,
+  callbacks: BiddingCallbacks
+): BiddingContext {
+  if (context.activeRivalIds.length === 0) {
+    callbacks.onEndAuction('player', 'No rival bidders remain.');
+    return context;
+  }
+
+  // If only one rival remains, they win at the current price.
+  // Do NOT allow a single bidder to "bid against themselves".
+  if (context.activeRivalIds.length === 1) {
+    const soleRivalId = context.activeRivalIds[0];
+    if (!soleRivalId) {
+      callbacks.onEndAuction('player', 'No rival bidders remain.');
+      return context;
+    }
+
+    // If we haven't recorded any bids for the rival-only sequence yet, record a single winning bid
+    // so the bid history reflects what happened after the player withdrew.
+    if (!context.hasAnyBids) {
+      context.hasAnyBids = true;
+      context.lastBidder = makeRivalBidderId(soleRivalId);
+      callbacks.onRecordBid(context.lastBidder, context.currentBid);
+      callbacks.onShowAuctioneerBark('rival_bid');
+      callbacks.onShowRivalBarkAfterAuctioneer(soleRivalId, 'bid');
+      callbacks.onSetupUI();
+    }
+
+    callbacks.onEndAuction(makeRivalBidderId(soleRivalId), 'No other bidders remain.');
+    return context;
+  }
+
+  // Ensure the rivals actually "start" the auction at the current price.
+  // When the player withdraws mid-auction, we re-open bidding at the last shown bid.
+  if (!context.hasAnyBids) {
+    const openingRivalId = pickSpokespersonRivalId(context) ?? context.activeRivalIds[0] ?? null;
+    if (!openingRivalId) {
+      callbacks.onEndAuction('player', 'No rival bidders remain.');
+      return context;
+    }
+
+    context.hasAnyBids = true;
+    context.lastBidder = makeRivalBidderId(openingRivalId);
+    callbacks.onRecordBid(context.lastBidder, context.currentBid);
+    callbacks.onShowAuctioneerBark('rival_bid');
+    callbacks.onShowRivalBarkAfterAuctioneer(openingRivalId, 'bid');
+    callbacks.onSetupUI();
+    callbacks.onScheduleEnablePlayerTurn(GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer + 75);
+    return context;
+  }
+
+  const shuffled = context.activeRivalIds.slice();
+  shuffleInPlace(shuffled);
+
+  for (const rivalId of shuffled) {
+    const ai = context.rivalAIsById[rivalId];
+    const rival = findRivalById(context.rivals, rivalId);
+    if (!ai || !rival) continue;
+
+    const decision = ai.decideBid(context.currentBid);
+
+    if (!decision.shouldBid) {
+      context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+      continue;
+    }
+
+    context.currentBid += decision.bidAmount;
+    context.lastBidder = makeRivalBidderId(rivalId);
+
+    callbacks.onRecordBid(context.lastBidder, context.currentBid);
+    callbacks.onShowAuctioneerBark('rival_bid');
+    callbacks.onShowRivalBarkAfterAuctioneer(rivalId, 'bid');
+    callbacks.onSetupUI();
+    callbacks.onScheduleEnablePlayerTurn(GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer + 75);
+    return context;
+  }
+
+  // Nobody bid this round.
+  if (context.lastBidder && context.lastBidder !== 'player') {
+    callbacks.onEndAuction(context.lastBidder, 'No further bids.');
+  } else {
+    callbacks.onEndAuction('player', 'No further bids.');
   }
 
   return context;

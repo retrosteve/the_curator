@@ -2,7 +2,7 @@ import { debugLog, errorLog } from '@/utils/log';
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { calculateCarValue, getCarById, getRandomCar, type Car } from '@/data/car-database';
-import { calculateRivalInterest, getRivalById, getRivalByTierProgression } from '@/data/rival-database';
+import { calculateRivalInterest, getRivalById } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { BASE_LOCATIONS, getBaseLocationDefinitionById, type LocationType } from '@/data/location-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
@@ -486,10 +486,12 @@ export class MapScene extends BaseGameScene {
     }
     
     const playerPrestige = this.gameManager.getPlayerState().prestige;
+    const day = this.gameManager.getWorldState().day;
     const routed = routeRegularEncounter({
       locationId: node.id,
       car,
       playerPrestige,
+      day,
     });
 
     if (!this.hasGarageSpace()) {
@@ -497,11 +499,15 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
-    const { rival } = routed.sceneData;
+    const rivals = routed.sceneData.rivals;
+    const rivalryLabel =
+      rivals.length === 1
+        ? `Competition: ${rivals[0].rival.name}`
+        : `Competition: ${rivals.length} rival bidders`;
 
     this.uiManager.showModal(
       'Auction Starting',
-      `You arrive at ${node.name}.\n\nUp for bid today:\n${car.name}\n\nCompetition: ${rival.name}`,
+      `You arrive at ${node.name}.\n\nUp for bid today:\n${car.name}\n\n${rivalryLabel}`,
       [
         {
           text: 'Start Auction',
@@ -535,12 +541,17 @@ export class MapScene extends BaseGameScene {
     }
 
     const playerPrestige = this.gameManager.getPlayerState().prestige;
-    const rival = getRivalByTierProgression(playerPrestige);
-    const interest = calculateRivalInterest(rival, car.tags);
+    const day = this.gameManager.getWorldState().day;
+    const routed = routeRegularEncounter({
+      locationId: specialEvent.id,
+      car,
+      playerPrestige,
+      day,
+    });
 
     this.uiManager.showModal(
       specialEvent.name,
-      `${specialEvent.description}\n\nUp for bid:\n${car.name}\n\nCompetition: ${rival.name}`,
+      `${specialEvent.description}\n\nUp for bid:\n${car.name}\n\nCompetition: ${routed.sceneData.rivals.length} rival bidders`,
       [
         {
           text: 'Start Special Auction',
@@ -559,13 +570,7 @@ export class MapScene extends BaseGameScene {
 
             // Remove the event since it's been started/completed.
             this.gameManager.removeSpecialEvent(specialEvent.id);
-            this.scene.start('AuctionScene', {
-              car,
-              rival,
-              interest,
-              locationId: specialEvent.id,
-              specialEvent,
-            });
+            this.scene.start('AuctionScene', { ...routed.sceneData, specialEvent });
           },
         },
       ]

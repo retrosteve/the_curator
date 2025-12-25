@@ -74,6 +74,7 @@ export class AuctionScene extends BaseGameScene {
   private locationId?: string;
   private auctioneerName!: string;
   private encounterStarted: boolean = false;
+  private auctionResolved: boolean = false;
   private currentBid: number = 0;
   private stallUsesThisAuction: number = 0;
   private powerBidStreak: number = 0;
@@ -124,6 +125,7 @@ export class AuctionScene extends BaseGameScene {
     this.locationId = data.locationId;
     this.auctioneerName = AUCTIONEER_NAMES[Math.floor(Math.random() * AUCTIONEER_NAMES.length)];
     this.encounterStarted = false;
+    this.auctionResolved = false;
     this.isPlayerTurn = false;
     this.lastBidder = undefined;
     // Initialize with non-market value; we'll re-evaluate once managers are ready.
@@ -498,10 +500,17 @@ Tip: Visit the Garage to sell something, then come back.`,
       return;
     }
 
-    // Re-open bidding at the current price without the player participating.
-    // This makes the remaining auction "play out" among rivals.
-    this.hasAnyBids = false;
-    this.lastBidder = undefined;
+    // Continue bidding among rivals. Preserve the current high bidder unless:
+    // - the player was the current high bidder (player withdrew), or
+    // - the stored rival high bidder is no longer active.
+    const lastBidderRivalId =
+      this.lastBidder && this.lastBidder.startsWith('rival:') ? this.lastBidder.slice('rival:'.length) : null;
+    const lastBidderIsInactiveRival = !!lastBidderRivalId && !this.activeRivalIds.includes(lastBidderRivalId);
+    if (this.lastBidder === 'player' || this.lastBidder === undefined || lastBidderIsInactiveRival) {
+      // Re-open bidding at the current price without a current leader.
+      this.hasAnyBids = false;
+      this.lastBidder = undefined;
+    }
     this.showToastAndLog('You withdraw. Bidding continues without you.', { backgroundColor: '#607d8b' });
 
     // Kick off the rival-only sequence.
@@ -548,9 +557,9 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     // Provide a visible "thinking" cadence.
     // Cap total delay so auctions don't feel sluggish with many rivals.
-    const maxTotalMs = 1700;
-    const minStepMs = 220;
-    const maxStepMs = 420;
+    const maxTotalMs = 2600;
+    const minStepMs = 340;
+    const maxStepMs = 650;
     const stepMs = Math.min(maxStepMs, Math.max(minStepMs, Math.floor(maxTotalMs / Math.max(1, order.length))));
 
     type RivalTurnDecision = ReturnType<RivalAI['decideBid']>;
@@ -597,7 +606,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
           const message = outOfPatience ? "I'm out." : outOfBudget ? "Can't afford it." : 'Pass.';
 
-          const bubbleMs = Math.min(1200, Math.max(650, stepMs + 250));
+          const bubbleMs = Math.min(1800, Math.max(900, stepMs + 350));
           this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, {
             durationMs: bubbleMs,
             tone: willDrop ? 'drop' : 'comment',
@@ -616,11 +625,12 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private scheduleRivalTurn(delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBid): void {
     this.clearPendingRivalTurn();
+    const scaledDelayMs = Math.max(0, Math.round(delayMs * 1.5));
     this.pendingRivalTurnTimeoutId = window.setTimeout(() => {
       this.pendingRivalTurnTimeoutId = undefined;
       if (!this.scene.isActive()) return;
       this.runRivalTurnWithConsideration(this.playerHasWithdrawn);
-    }, delayMs);
+    }, scaledDelayMs);
   }
 
   private rivalOnlyTurnImmediate(
@@ -1154,10 +1164,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     );
     powerBtn.dataset.tutorialTarget = 'auction.power-bid';
 
-    const endBtn = this.uiManager.createButton('End\nAuction', () => this.playerEndAuctionEarly(), {
-      variant: 'danger',
-      style: quickBtnStyle,
-    });
+    const endBtn = this.auctionResolved
+      ? this.uiManager.createButton('Back\nTo Map', () => this.scene.start('MapScene'), {
+          variant: 'danger',
+          style: quickBtnStyle,
+        })
+      : this.uiManager.createButton('End\nAuction', () => this.playerEndAuctionEarly(), {
+          variant: 'danger',
+          style: quickBtnStyle,
+        });
 
     // Affordability gating
     if (player.money < normalBidTotal) {
@@ -1224,7 +1239,9 @@ Tip: Visit the Garage to sell something, then come back.`,
     if (!this.isPlayerTurn) {
       disableEncounterActionButton(normalBtn, 'Bid\nWaiting');
       disableEncounterActionButton(powerBtn, 'Power\nWaiting');
-      disableEncounterActionButton(endBtn, 'End\nWaiting');
+      if (!this.auctionResolved) {
+        disableEncounterActionButton(endBtn, 'End\nWaiting');
+      }
       disableEncounterActionButton(placeBtn, 'Waiting');
     }
 
@@ -1924,6 +1941,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.clearPendingPlayerTurnEnable();
     this.clearPendingEndAuction();
     this.isPlayerTurn = false;
+    this.auctionResolved = true;
 
     // Rebuild UI so action buttons are visibly disabled post-auction.
     if (this.scene.isActive()) {

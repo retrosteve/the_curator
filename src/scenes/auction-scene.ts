@@ -359,6 +359,10 @@ Tip: Visit the Garage to sell something, then come back.`,
   }
 
   private rivalOnlyTurnImmediate(): void {
+    // Cap rival-vs-rival bidding after the player withdraws to avoid extreme overpaying.
+    // Allow a modest premium over the estimate so outcomes still feel competitive.
+    const rivalOnlyMaxBid = Math.floor(this.auctionMarketEstimateValue * 1.05);
+
     const context: BiddingContext = {
       car: this.car,
       rivals: this.rivals,
@@ -372,6 +376,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       isPlayerTurn: false,
       locationId: this.locationId,
       activeRivalIds: this.activeRivalIds,
+      maxBid: rivalOnlyMaxBid,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -379,8 +384,15 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) =>
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
-      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => {
+        this.currentBid = totalBid;
+        this.recordBid(bidderId, totalBid);
+      },
+      onShowAuctioneerBark: (trigger: string) => {
+        // Keep barks aligned to the latest context bid.
+        this.currentBid = context.currentBid;
+        this.showAuctioneerBark(trigger as any);
+      },
       onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => this.setupUI(),
@@ -389,7 +401,9 @@ Tip: Visit the Garage to sell something, then come back.`,
       onScheduleEnablePlayerTurn: (delayMs?: number) =>
         this.scheduleRivalTurn(delayMs ?? GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer),
       onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => {
-        const finalMessage = `${message}\n\nYou left early. ${this.getBidderDisplayName(winner)} wins for ${formatCurrency(this.currentBid)}.`;
+        // Ensure the final message reflects the latest bid from the bidding context.
+        this.currentBid = context.currentBid;
+        const finalMessage = `${message}\n\nYou left early. ${this.getBidderDisplayName(winner)} wins for ${formatCurrency(context.currentBid)}.`;
         this.endAuction(winner, finalMessage, rivalFinalBarkTrigger);
       },
     };
@@ -1355,15 +1369,26 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
-      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => {
+        this.currentBid = totalBid;
+        this.recordBid(bidderId, totalBid);
+      },
+      onShowAuctioneerBark: (trigger: string) => {
+        this.currentBid = context.currentBid;
+        this.showAuctioneerBark(trigger as any);
+      },
       onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
-      onSetupUI: () => this.setupUI(),
+      onSetupUI: () => {
+        this.currentBid = context.currentBid;
+        this.setupUI();
+      },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
-        this.endAuction(winner, message, rivalFinalBarkTrigger),
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => {
+        this.currentBid = context.currentBid;
+        this.endAuction(winner, message, rivalFinalBarkTrigger);
+      },
     };
 
     const updatedContext = playerBidInternal(amount, context, callbacks, options);
@@ -1400,15 +1425,26 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
-      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => {
+        this.currentBid = totalBid;
+        this.recordBid(bidderId, totalBid);
+      },
+      onShowAuctioneerBark: (trigger: string) => {
+        this.currentBid = context.currentBid;
+        this.showAuctioneerBark(trigger as any);
+      },
       onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
-      onSetupUI: () => this.setupUI(),
+      onSetupUI: () => {
+        this.currentBid = context.currentBid;
+        this.setupUI();
+      },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
-        this.endAuction(winner, message, rivalFinalBarkTrigger),
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => {
+        this.currentBid = context.currentBid;
+        this.endAuction(winner, message, rivalFinalBarkTrigger);
+      },
     };
 
     const updatedContext = playerKickTiresInternal(context, callbacks);
@@ -1445,15 +1481,26 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
-      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => {
+        this.currentBid = totalBid;
+        this.recordBid(bidderId, totalBid);
+      },
+      onShowAuctioneerBark: (trigger: string) => {
+        this.currentBid = context.currentBid;
+        this.showAuctioneerBark(trigger as any);
+      },
       onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
-      onSetupUI: () => this.setupUI(),
+      onSetupUI: () => {
+        this.currentBid = context.currentBid;
+        this.setupUI();
+      },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
-        this.endAuction(winner, message, rivalFinalBarkTrigger),
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => {
+        this.currentBid = context.currentBid;
+        this.endAuction(winner, message, rivalFinalBarkTrigger);
+      },
     };
 
     const updatedContext = playerStallInternal(context, callbacks);
@@ -1499,15 +1546,26 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
-      onRecordBid: (bidderId: BidderId, totalBid: number) => this.recordBid(bidderId, totalBid),
-      onShowAuctioneerBark: (trigger: string) => this.showAuctioneerBark(trigger as any),
+      onRecordBid: (bidderId: BidderId, totalBid: number) => {
+        this.currentBid = totalBid;
+        this.recordBid(bidderId, totalBid);
+      },
+      onShowAuctioneerBark: (trigger: string) => {
+        this.currentBid = context.currentBid;
+        this.showAuctioneerBark(trigger as any);
+      },
       onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) =>
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
-      onSetupUI: () => this.setupUI(),
+      onSetupUI: () => {
+        this.currentBid = context.currentBid;
+        this.setupUI();
+      },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
       onScheduleEnablePlayerTurn: (delayMs?: number) => this.scheduleEnablePlayerTurn(delayMs),
-      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) =>
-        this.endAuction(winner, message, rivalFinalBarkTrigger),
+      onEndAuction: (winner: BidderId, message: string, rivalFinalBarkTrigger?: BarkTrigger) => {
+        this.currentBid = context.currentBid;
+        this.endAuction(winner, message, rivalFinalBarkTrigger);
+      },
     };
 
     const updatedContext = rivalTurnImmediateInternal(context, callbacks);

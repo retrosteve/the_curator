@@ -47,6 +47,8 @@ export interface BiddingContext {
   locationId?: string;
   /** IDs of rivals still active in the auction (haven't folded/quit). */
   activeRivalIds: string[];
+  /** Optional cap used by rival-only flows to prevent extreme overpaying. */
+  maxBid?: number;
 }
 
 export interface BiddingCallbacks {
@@ -506,6 +508,12 @@ export function rivalOnlyTurnImmediate(
 
     if (!decision.shouldBid) {
       context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+      continue;
+    }
+
+    const proposedBid = context.currentBid + decision.bidAmount;
+    if (context.maxBid !== undefined && proposedBid > context.maxBid) {
+      // Refuse to bid above the cap (but don't force-drop immediately).
       continue;
     }
 

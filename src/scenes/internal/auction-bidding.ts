@@ -14,8 +14,17 @@ import { GAME_CONFIG } from '@/config/game-config';
 
 export type BidderId = 'player' | `rival:${string}`;
 
+type RivalTurnDecision = ReturnType<RivalAI['decideBid']>;
+
 export function makeRivalBidderId(rivalId: string): BidderId {
   return `rival:${rivalId}`;
+}
+
+function parseRivalIdFromBidderId(bidderId: BidderId | undefined): string | null {
+  if (!bidderId) return null;
+  if (bidderId === 'player') return null;
+  if (bidderId.startsWith('rival:')) return bidderId.slice('rival:'.length);
+  return null;
 }
 
 function pickSpokespersonRivalId(context: BiddingContext): string | null {
@@ -49,12 +58,25 @@ export interface BiddingContext {
   activeRivalIds: string[];
   /** Optional cap used by rival-only flows to prevent extreme overpaying. */
   maxBid?: number;
+
+  /**
+   * Optional deterministic per-turn order for rival evaluation (primarily for UI sequencing).
+   * If omitted, the bidding engine shuffles active rivals internally.
+   */
+  rivalTurnOrder?: string[];
+
+  /**
+   * Optional precomputed per-turn decisions keyed by rivalId.
+   * When provided, the bidding engine will not call `ai.decideBid()` again.
+   */
+  rivalTurnDecisions?: Record<string, RivalTurnDecision>;
 }
 
 export interface BiddingCallbacks {
   gameManager: GameManager;
   uiManager: UIManager;
   onShowToastAndLog: (toast: string, options?: { backgroundColor?: string }, log?: string, logKind?: string) => void;
+  onRivalDroppedOut?: (rivalId: string, reason: 'patience' | 'budget') => void;
   onRecordBid: (bidderId: BidderId, totalBid: number) => void;
   onShowAuctioneerBark: (trigger: string) => void;
   onShowRivalBarkAfterAuctioneer: (rivalId: string, trigger: BarkTrigger, delayMs?: number) => void;
@@ -131,6 +153,7 @@ export function playerBid(
           if (rival) {
             callbacks.onShowToastAndLog(`${rival.name} loses patience and quits!`, { backgroundColor: '#ff9800' });
           }
+          callbacks.onRivalDroppedOut?.(rivalId, 'patience');
           context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
         }
       }
@@ -201,6 +224,7 @@ export function playerBid(
         if (rival) {
           callbacks.onShowToastAndLog(`${rival.name} loses patience and quits!`, { backgroundColor: '#ff9800' });
         }
+        callbacks.onRivalDroppedOut?.(rivalId, 'patience');
         context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
       }
     }
@@ -272,6 +296,7 @@ export function playerKickTires(
       if (rival) {
         callbacks.onShowToastAndLog(`${rival.name} is out of budget and quits!`, { backgroundColor: '#ff9800' });
       }
+      callbacks.onRivalDroppedOut?.(rivalId, 'budget');
       context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
     }
   }
@@ -343,6 +368,7 @@ export function playerStall(
       if (rival) {
         callbacks.onShowToastAndLog(`${rival.name} loses patience and quits!`, { backgroundColor: '#ff9800' });
       }
+      callbacks.onRivalDroppedOut?.(rivalId, 'patience');
       context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
     }
   }
@@ -378,33 +404,61 @@ export function rivalTurnImmediate(
   context: BiddingContext,
   callbacks: BiddingCallbacks
 ): BiddingContext {
-  // If the player didn't raise the bid and a rival is already the high bidder,
-  // close out the auction in the rival's favor.
-  if (context.lastBidder && context.lastBidder !== 'player') {
-    callbacks.onEndAuction(context.lastBidder, 'You did not outbid the current high bidder.');
-    return context;
-  }
-
   if (context.activeRivalIds.length === 0) {
     callbacks.onEndAuction('player', 'No rival bidders remain.');
     return context;
   }
 
-  const shuffled = context.activeRivalIds.slice();
-  shuffleInPlace(shuffled);
+  const shuffled = (context.rivalTurnOrder?.slice() ?? context.activeRivalIds.slice()).filter((id) =>
+    context.activeRivalIds.includes(id)
+  );
+  if (!context.rivalTurnOrder) {
+    shuffleInPlace(shuffled);
+  }
+
+  const currentHighRivalId = parseRivalIdFromBidderId(context.lastBidder);
+
+  // Each rival should consider bidding every turn. We evaluate decisions first (which updates
+  // their internal state like patience), then select at most one bidder to actually place a bid.
+  const decisionsByRivalId: Record<string, RivalTurnDecision> = { ...(context.rivalTurnDecisions ?? {}) };
 
   for (const rivalId of shuffled) {
     const ai = context.rivalAIsById[rivalId];
     const rival = findRivalById(context.rivals, rivalId);
     if (!ai || !rival) continue;
 
-    const decision = ai.decideBid(context.currentBid);
+    const decision = decisionsByRivalId[rivalId] ?? ai.decideBid(context.currentBid);
+    decisionsByRivalId[rivalId] = decision;
 
     if (!decision.shouldBid) {
-      // Rival drops out of this auction.
-      context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
-      continue;
+      // Passing is allowed: only drop out if they are genuinely unable to continue.
+      // Do not force-drop the current high bidder; they can still win at the current price.
+      if (currentHighRivalId && rivalId === currentHighRivalId) continue;
+
+      const outOfPatience = ai.getPatience() <= 0;
+      const outOfBudget = context.currentBid > ai.getBudget();
+      if (outOfPatience || outOfBudget) {
+        context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+      }
     }
+  }
+
+  if (context.activeRivalIds.length === 0) {
+    const winner: BidderId = context.lastBidder ?? 'player';
+    callbacks.onEndAuction(winner, 'No rival bidders remain.');
+    return context;
+  }
+
+  for (const rivalId of shuffled) {
+    // The current high bidder doesn't bid again unless outbid.
+    if (currentHighRivalId && rivalId === currentHighRivalId) continue;
+
+    const ai = context.rivalAIsById[rivalId];
+    const rival = findRivalById(context.rivals, rivalId);
+    if (!ai || !rival) continue;
+
+    const decision = decisionsByRivalId[rivalId];
+    if (!decision || !decision.shouldBid) continue;
 
     const isFirstBid = !context.hasAnyBids;
     if (isFirstBid) {
@@ -431,8 +485,9 @@ export function rivalTurnImmediate(
     return context;
   }
 
-  // Nobody bid.
-  callbacks.onEndAuction('player', 'No further bids.');
+  // Nobody bid this round. End the auction; if a rival is already high bidder, they win.
+  const winner: BidderId = context.lastBidder ?? 'player';
+  callbacks.onEndAuction(winner, 'No further bids.');
 
   return context;
 }
@@ -496,20 +551,56 @@ export function rivalOnlyTurnImmediate(
     return context;
   }
 
-  const shuffled = context.activeRivalIds.slice();
-  shuffleInPlace(shuffled);
+  const shuffled = (context.rivalTurnOrder?.slice() ?? context.activeRivalIds.slice()).filter((id) =>
+    context.activeRivalIds.includes(id)
+  );
+  if (!context.rivalTurnOrder) {
+    shuffleInPlace(shuffled);
+  }
+
+  const currentHighRivalId = parseRivalIdFromBidderId(context.lastBidder);
+
+  // Each rival should consider bidding every turn. Evaluate all decisions first (mutates AI state),
+  // then pick at most one bidder to place an actual bid.
+  const decisionsByRivalId: Record<string, RivalTurnDecision> = { ...(context.rivalTurnDecisions ?? {}) };
 
   for (const rivalId of shuffled) {
     const ai = context.rivalAIsById[rivalId];
     const rival = findRivalById(context.rivals, rivalId);
     if (!ai || !rival) continue;
 
-    const decision = ai.decideBid(context.currentBid);
+    const decision = decisionsByRivalId[rivalId] ?? ai.decideBid(context.currentBid);
+    decisionsByRivalId[rivalId] = decision;
 
     if (!decision.shouldBid) {
-      context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
-      continue;
+      // Passing is allowed: only drop out if they are genuinely unable to continue.
+      // Do not force-drop the current high bidder; they can still win at the current price.
+      if (currentHighRivalId && rivalId === currentHighRivalId) continue;
+
+      const outOfPatience = ai.getPatience() <= 0;
+      const outOfBudget = context.currentBid > ai.getBudget();
+      if (outOfPatience || outOfBudget) {
+        context.activeRivalIds = context.activeRivalIds.filter((id) => id !== rivalId);
+      }
     }
+  }
+
+  if (context.activeRivalIds.length === 0) {
+    const winner: BidderId = context.lastBidder ?? 'player';
+    callbacks.onEndAuction(winner, 'No rival bidders remain.');
+    return context;
+  }
+
+  for (const rivalId of shuffled) {
+    // The current high bidder doesn't bid against themselves.
+    if (currentHighRivalId && rivalId === currentHighRivalId) continue;
+
+    const ai = context.rivalAIsById[rivalId];
+    const rival = findRivalById(context.rivals, rivalId);
+    if (!ai || !rival) continue;
+
+    const decision = decisionsByRivalId[rivalId];
+    if (!decision || !decision.shouldBid) continue;
 
     const proposedBid = context.currentBid + decision.bidAmount;
     if (context.maxBid !== undefined && proposedBid > context.maxBid) {
@@ -529,11 +620,8 @@ export function rivalOnlyTurnImmediate(
   }
 
   // Nobody bid this round.
-  if (context.lastBidder && context.lastBidder !== 'player') {
-    callbacks.onEndAuction(context.lastBidder, 'No further bids.');
-  } else {
-    callbacks.onEndAuction('player', 'No further bids.');
-  }
+  const winner: BidderId = context.lastBidder ?? 'player';
+  callbacks.onEndAuction(winner, 'No further bids.');
 
   return context;
 }

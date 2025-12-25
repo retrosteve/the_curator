@@ -40,6 +40,12 @@ type ParticipantFlashState = {
   clearTimeoutIds: Partial<Record<AuctionParticipantKey, number>>;
 };
 
+type ParticipantBarkState = {
+  active: Partial<Record<AuctionParticipantKey, { text: string; tone: 'bid' | 'comment' | 'drop'; expiresAtMs: number; durationMs: number }>>;
+  bubbles: Partial<Record<AuctionParticipantKey, HTMLDivElement>>;
+  clearTimeoutIds: Partial<Record<AuctionParticipantKey, number>>;
+};
+
 const AUCTIONEER_NAMES = [
   '"Fast Talkin\'" Fred Harvey',
   'Victoria "The Gavel" St Clair',
@@ -76,6 +82,7 @@ export class AuctionScene extends BaseGameScene {
 
   // Participant portrait anchors + flash timers.
   private participantFlash: ParticipantFlashState = { anchors: {}, clearTimeoutIds: {} };
+  private participantBark: ParticipantBarkState = { active: {}, bubbles: {}, clearTimeoutIds: {} };
 
   private pendingUIRefreshTimeoutId?: number;
   private pendingRivalBarkTimeoutId?: number;
@@ -90,6 +97,8 @@ export class AuctionScene extends BaseGameScene {
   private lastAuctioneerLine: string = '';
   private auctioneerQuoteEl?: HTMLElement;
   private hasAnyBids: boolean = false;
+
+  private pendingRivalConsiderationStepTimeoutId?: number;
 
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
   private static readonly BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
@@ -216,6 +225,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.clearPendingPlayerTurnEnable();
       this.clearPendingEndAuction();
       this.clearAllParticipantFlashTimeouts();
+      this.clearAllParticipantBarkTimeouts();
     });
   }
 
@@ -224,6 +234,174 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (id !== undefined) window.clearTimeout(id);
     }
     this.participantFlash.clearTimeoutIds = {};
+  }
+
+  private clearAllParticipantBarkTimeouts(): void {
+    for (const id of Object.values(this.participantBark.clearTimeoutIds)) {
+      if (id !== undefined) window.clearTimeout(id);
+    }
+    this.participantBark.clearTimeoutIds = {};
+    this.participantBark.bubbles = {};
+    this.participantBark.active = {};
+  }
+
+  private attachParticipantBarkBubble(participant: AuctionParticipantKey): void {
+    const active = this.participantBark.active[participant];
+    if (!active) return;
+    if (Date.now() >= active.expiresAtMs) {
+      this.participantBark.active[participant] = undefined;
+      const existing = this.participantBark.bubbles[participant];
+      if (existing && existing.isConnected) existing.remove();
+      this.participantBark.bubbles[participant] = undefined;
+      return;
+    }
+
+    const anchor = this.participantFlash.anchors[participant];
+    if (!anchor || !anchor.isConnected) return;
+
+    const pixelUI = isPixelUIEnabled();
+
+    const toneColors = (() => {
+      switch (active.tone) {
+        case 'bid':
+          return {
+            border: 'rgba(76, 175, 80, 0.65)',
+            bg: 'rgba(10, 30, 14, 0.92)',
+          };
+        case 'drop':
+          return {
+            border: 'rgba(244, 67, 54, 0.70)',
+            bg: 'rgba(36, 10, 10, 0.92)',
+          };
+        case 'comment':
+        default:
+          return {
+            border: 'rgba(33, 150, 243, 0.65)',
+            bg: 'rgba(8, 16, 34, 0.92)',
+          };
+      }
+    })();
+
+    let bubble = this.participantBark.bubbles[participant];
+    if (!bubble || !bubble.isConnected) {
+      bubble = document.createElement('div');
+      this.participantBark.bubbles[participant] = bubble;
+
+      Object.assign(bubble.style, {
+        position: 'absolute',
+        left: '50%',
+        bottom: '100%',
+        transform: 'translate(-50%, -12px)',
+        maxWidth: '320px',
+        padding: '8px 10px',
+        fontSize: '12px',
+        lineHeight: '1.25',
+        backgroundColor: toneColors.bg,
+        border: `1px solid ${toneColors.border}`,
+        borderRadius: pixelUI ? '0px' : '14px',
+        color: '#f0f0f0',
+        whiteSpace: 'normal',
+        zIndex: '30',
+        pointerEvents: 'none',
+        boxSizing: 'border-box',
+        textAlign: 'center',
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const textEl = document.createElement('div');
+      textEl.dataset['role'] = 'bark-text';
+      bubble.appendChild(textEl);
+
+      // Tail with an outline: border triangle + inner fill triangle.
+      const tailBorder = document.createElement('div');
+      tailBorder.dataset['role'] = 'bark-tail-border';
+      Object.assign(tailBorder.style, {
+        position: 'absolute',
+        left: '50%',
+        top: '100%',
+        transform: 'translateX(-50%)',
+        width: '0',
+        height: '0',
+        borderLeft: '8px solid transparent',
+        borderRight: '8px solid transparent',
+        borderTop: `8px solid ${toneColors.border}`,
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      const tailFill = document.createElement('div');
+      tailFill.dataset['role'] = 'bark-tail-fill';
+      Object.assign(tailFill.style, {
+        position: 'absolute',
+        left: '50%',
+        top: '100%',
+        transform: 'translateX(-50%) translateY(-1px)',
+        width: '0',
+        height: '0',
+        borderLeft: '7px solid transparent',
+        borderRight: '7px solid transparent',
+        borderTop: `7px solid ${toneColors.bg}`,
+      } satisfies Partial<CSSStyleDeclaration>);
+
+      bubble.appendChild(tailBorder);
+      bubble.appendChild(tailFill);
+
+      anchor.appendChild(bubble);
+    }
+
+    const textEl = bubble.querySelector<HTMLDivElement>('div[data-role="bark-text"]');
+    if (textEl) textEl.textContent = `"${active.text}"`;
+
+    // Keep tone styling in sync if the bubble was reused.
+    bubble.style.backgroundColor = toneColors.bg;
+    bubble.style.border = `1px solid ${toneColors.border}`;
+    const tailBorder = bubble.querySelector<HTMLDivElement>('div[data-role="bark-tail-border"]');
+    if (tailBorder) tailBorder.style.borderTopColor = toneColors.border;
+    const tailFill = bubble.querySelector<HTMLDivElement>('div[data-role="bark-tail-fill"]');
+    if (tailFill) tailFill.style.borderTopColor = toneColors.bg;
+  }
+
+  private renderActiveParticipantBarkBubbles(): void {
+    const now = Date.now();
+    for (const key of Object.keys(this.participantBark.active) as AuctionParticipantKey[]) {
+      const active = this.participantBark.active[key];
+      if (!active) continue;
+      if (now >= active.expiresAtMs) {
+        this.participantBark.active[key] = undefined;
+        continue;
+      }
+      this.attachParticipantBarkBubble(key);
+    }
+  }
+
+  private showParticipantBarkBubble(
+    participant: AuctionParticipantKey,
+    text: string,
+    options?: { durationMs?: number; tone?: 'bid' | 'comment' | 'drop' }
+  ): void {
+    const durationMs = options?.durationMs ?? 2400;
+
+    const now = Date.now();
+    this.participantBark.active[participant] = {
+      text,
+      tone: options?.tone ?? 'comment',
+      durationMs,
+      expiresAtMs: now + durationMs,
+    };
+
+    const existingTimeout = this.participantBark.clearTimeoutIds[participant];
+    if (existingTimeout !== undefined) {
+      window.clearTimeout(existingTimeout);
+      this.participantBark.clearTimeoutIds[participant] = undefined;
+    }
+
+    // Render immediately if we have an anchor; otherwise it will render on the next setupUI.
+    this.attachParticipantBarkBubble(participant);
+
+    this.participantBark.clearTimeoutIds[participant] = window.setTimeout(() => {
+      this.participantBark.clearTimeoutIds[participant] = undefined;
+      this.participantBark.active[participant] = undefined;
+      const bubble = this.participantBark.bubbles[participant];
+      if (bubble && bubble.isConnected) bubble.remove();
+      this.participantBark.bubbles[participant] = undefined;
+    }, durationMs);
   }
 
   private flashParticipant(participant: AuctionParticipantKey): void {
@@ -343,6 +521,97 @@ Tip: Visit the Garage to sell something, then come back.`,
       window.clearTimeout(this.pendingRivalTurnTimeoutId);
       this.pendingRivalTurnTimeoutId = undefined;
     }
+    if (this.pendingRivalConsiderationStepTimeoutId !== undefined) {
+      window.clearTimeout(this.pendingRivalConsiderationStepTimeoutId);
+      this.pendingRivalConsiderationStepTimeoutId = undefined;
+    }
+  }
+
+  private shuffleInPlace<T>(arr: T[]): void {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  }
+
+  private runRivalTurnWithConsideration(isRivalOnly: boolean): void {
+    if (!this.scene.isActive()) return;
+
+    const active = this.activeRivalIds.slice();
+    if (active.length === 0) {
+      this.endAuction('player', 'No rival bidders remain.');
+      return;
+    }
+
+    const order = active.slice();
+    this.shuffleInPlace(order);
+
+    // Provide a visible "thinking" cadence.
+    // Cap total delay so auctions don't feel sluggish with many rivals.
+    const maxTotalMs = 1700;
+    const minStepMs = 220;
+    const maxStepMs = 420;
+    const stepMs = Math.min(maxStepMs, Math.max(minStepMs, Math.floor(maxTotalMs / Math.max(1, order.length))));
+
+    type RivalTurnDecision = ReturnType<RivalAI['decideBid']>;
+    const decisions: Record<string, RivalTurnDecision> = {};
+
+    let idx = 0;
+    const step = (): void => {
+      if (!this.scene.isActive()) return;
+
+      // If the auction state changed mid-chain (e.g., someone quit), skip missing ids.
+      while (idx < order.length && !this.activeRivalIds.includes(order[idx]!)) {
+        idx++;
+      }
+
+      if (idx >= order.length) {
+        // Execute the actual rival turn using the precomputed decisions.
+        if (isRivalOnly) {
+          this.rivalOnlyTurnImmediate(order, decisions);
+        } else {
+          this.rivalTurnImmediate(order, decisions);
+        }
+        return;
+      }
+
+      const rivalId = order[idx]!;
+      idx++;
+
+      // Highlight the rival portrait so the player sees who is "thinking".
+      this.flashParticipant(makeRivalBidderId(rivalId));
+
+      const ai = this.rivalAIsById[rivalId];
+      if (ai) {
+        const decision = ai.decideBid(this.currentBid);
+        decisions[rivalId] = decision;
+
+        if (!decision.shouldBid) {
+          const currentHigh = this.lastBidder && this.lastBidder.startsWith('rival:')
+            ? this.lastBidder.slice('rival:'.length)
+            : null;
+
+          const outOfPatience = ai.getPatience() <= 0;
+          const outOfBudget = this.currentBid > ai.getBudget();
+          const willDrop = (outOfPatience || outOfBudget) && (!currentHigh || rivalId !== currentHigh);
+
+          const message = outOfPatience ? "I'm out." : outOfBudget ? "Can't afford it." : 'Pass.';
+
+          const bubbleMs = Math.min(1200, Math.max(650, stepMs + 250));
+          this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, {
+            durationMs: bubbleMs,
+            tone: willDrop ? 'drop' : 'comment',
+          });
+        }
+      }
+
+      this.pendingRivalConsiderationStepTimeoutId = window.setTimeout(() => {
+        this.pendingRivalConsiderationStepTimeoutId = undefined;
+        step();
+      }, stepMs);
+    };
+
+    step();
   }
 
   private scheduleRivalTurn(delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBid): void {
@@ -350,15 +619,14 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.pendingRivalTurnTimeoutId = window.setTimeout(() => {
       this.pendingRivalTurnTimeoutId = undefined;
       if (!this.scene.isActive()) return;
-      if (this.playerHasWithdrawn) {
-        this.rivalOnlyTurnImmediate();
-      } else {
-        this.rivalTurnImmediate();
-      }
+      this.runRivalTurnWithConsideration(this.playerHasWithdrawn);
     }, delayMs);
   }
 
-  private rivalOnlyTurnImmediate(): void {
+  private rivalOnlyTurnImmediate(
+    rivalTurnOrder?: string[],
+    rivalTurnDecisions?: Record<string, ReturnType<RivalAI['decideBid']>>
+  ): void {
     // Cap rival-vs-rival bidding after the player withdraws to avoid extreme overpaying.
     // Allow a modest premium over the estimate so outcomes still feel competitive.
     const rivalOnlyMaxBid = Math.floor(this.auctionMarketEstimateValue * 1.05);
@@ -377,6 +645,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       locationId: this.locationId,
       activeRivalIds: this.activeRivalIds,
       maxBid: rivalOnlyMaxBid,
+      rivalTurnOrder,
+      rivalTurnDecisions,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -384,6 +654,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) =>
         this.showToastAndLog(toast, opts, log, logKind),
+      onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
+        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
+      },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
         this.currentBid = totalBid;
         this.recordBid(bidderId, totalBid);
@@ -462,6 +736,9 @@ Tip: Visit the Garage to sell something, then come back.`,
   private setupUI(): void {
     // resetUIWithHUD() clears the entire overlay. Clear anchor refs and pending flash cleanup timers.
     this.clearAllParticipantFlashTimeouts();
+    // Do not clear active bark timers here: setupUI is called frequently (e.g., enabling player turn).
+    // Instead, drop only DOM refs; we will re-attach active bubbles after the new UI mounts.
+    this.participantBark.bubbles = {};
     this.participantFlash.anchors = {};
     this.auctioneerQuoteEl = undefined;
 
@@ -1227,6 +1504,9 @@ Tip: Visit the Garage to sell something, then come back.`,
     layoutRoot.appendChild(mainGrid);
 
     this.uiManager.append(layoutRoot);
+
+    // Re-attach any active speech bubbles to the newly created portrait anchors.
+    this.renderActiveParticipantBarkBubbles();
   }
 
   private showToastAndLog(
@@ -1267,7 +1547,10 @@ Tip: Visit the Garage to sell something, then come back.`,
     const bark = getRivalBark(mood, trigger).trim();
     if (!bark) return;
     this.flashParticipant(makeRivalBidderId(rivalId));
-    this.uiManager.showToast(`"${bark}"`, { durationMs: 2600 });
+    this.showParticipantBarkBubble(makeRivalBidderId(rivalId), bark, {
+      durationMs: 2600,
+      tone: trigger === 'bid' ? 'bid' : 'comment',
+    });
   }
 
   private showAuctioneerBark(
@@ -1369,6 +1652,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
+      onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
+        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
+      },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
         this.currentBid = totalBid;
         this.recordBid(bidderId, totalBid);
@@ -1425,6 +1712,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
+      onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
+        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
+      },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
         this.currentBid = totalBid;
         this.recordBid(bidderId, totalBid);
@@ -1481,6 +1772,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
+      onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
+        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
+      },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
         this.currentBid = totalBid;
         this.recordBid(bidderId, totalBid);
@@ -1525,7 +1820,10 @@ Tip: Visit the Garage to sell something, then come back.`,
     }
   }
 
-  private rivalTurnImmediate(): void {
+  private rivalTurnImmediate(
+    rivalTurnOrder?: string[],
+    rivalTurnDecisions?: Record<string, ReturnType<RivalAI['decideBid']>>
+  ): void {
     const context: BiddingContext = {
       car: this.car,
       rivals: this.rivals,
@@ -1539,6 +1837,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       isPlayerTurn: this.isPlayerTurn,
       locationId: this.locationId,
       activeRivalIds: this.activeRivalIds,
+      rivalTurnOrder,
+      rivalTurnDecisions,
     };
 
     const callbacks: BiddingCallbacks = {
@@ -1546,6 +1846,10 @@ Tip: Visit the Garage to sell something, then come back.`,
       uiManager: this.uiManager,
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
+      onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
+        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
+      },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
         this.currentBid = totalBid;
         this.recordBid(bidderId, totalBid);

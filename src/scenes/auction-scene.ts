@@ -1014,10 +1014,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       gap: '10px',
       minWidth: '0',
       minHeight: '0',
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      paddingRight: '6px',
-      boxSizing: 'border-box',
+      overflow: 'hidden',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const rightCol = document.createElement('div');
@@ -1027,10 +1024,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       gap: '10px',
       minWidth: '0',
       minHeight: '0',
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      paddingRight: '6px',
-      boxSizing: 'border-box',
+      overflow: 'hidden',
     } satisfies Partial<CSSStyleDeclaration>);
 
     // LEFT: status strip (reference: countdown + current bid)
@@ -1427,152 +1421,86 @@ Tip: Visit the Garage to sell something, then come back.`,
     );
     leftCol.appendChild(biddingPanel);
 
-    // RIGHT: bidders list (reference: rival bidders)
-    const biddersPanel = this.uiManager.createPanel({ padding: '14px 16px' });
-    Object.assign(biddersPanel.style, {
-      padding: '10px 12px',
-    } satisfies Partial<CSSStyleDeclaration>);
-    biddersPanel.appendChild(
-      this.uiManager.createHeading('BIDDERS', 3, { margin: '0 0 8px 0', textAlign: 'left' })
-    );
-
-    const biddersList = document.createElement('div');
-    Object.assign(biddersList.style, {
+    // RIGHT: combined panel (bidder portrait grid + bid history)
+    const rightPanel = this.uiManager.createPanel({ padding: '10px 12px' });
+    Object.assign(rightPanel.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
+      gap: '10px',
+      flex: '1 1 auto',
+      minHeight: '0',
+      overflow: 'hidden',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const biddersGrid = document.createElement('div');
+    Object.assign(biddersGrid.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(44px, 1fr))',
+      gap: '6px',
+      alignItems: 'center',
+      flex: '0 0 auto',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const activeRivalIdSet = new Set(this.activeRivalIds);
-    const makeBidderRow = (params: {
+    const makeBidderCell = (params: {
       bidderId: BidderId;
       name: string;
       portraitUrl: string;
       isLeader: boolean;
-      statusLabel: string;
+      isActive: boolean;
     }): HTMLDivElement => {
-      const row = document.createElement('div');
-      row.classList.add('auction-bidder-row');
-      Object.assign(row.style, {
+      const cell = document.createElement('div');
+      cell.classList.add('auction-bidder-row');
+      Object.assign(cell.style, {
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '8px 8px',
-        border: `1px solid ${params.isLeader ? 'rgba(255,215,0,0.45)' : 'rgba(255,255,255,0.12)'}`,
+        justifyContent: 'center',
+        padding: '6px',
+        border: `1px solid ${params.isLeader ? 'rgba(255,215,0,0.55)' : 'rgba(255,255,255,0.12)'}`,
         borderRadius: pixelUI ? '0px' : '12px',
         backgroundColor: 'rgba(0,0,0,0.14)',
+        boxSizing: 'border-box',
+        minWidth: '0',
+        opacity: params.isActive ? '1' : '0.45',
+        filter: params.isActive ? 'none' : 'grayscale(0.9)',
       } satisfies Partial<CSSStyleDeclaration>);
 
-      this.participantTurnFocus.rows[params.bidderId] = row;
+      cell.title = params.name;
+
+      this.participantTurnFocus.rows[params.bidderId] = cell;
 
       const anchor = makePortraitAnchor(params.portraitUrl, `${params.name} portrait`, 34);
       this.participantFlash.anchors[params.bidderId] = anchor;
 
-      const meta = document.createElement('div');
-      Object.assign(meta.style, {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '2px',
-        minWidth: '0',
-        flex: '1 1 auto',
-      } satisfies Partial<CSSStyleDeclaration>);
-
-      meta.appendChild(
-        this.uiManager.createText(params.name, {
-          margin: '0',
-          fontWeight: '900',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        })
-      );
-      meta.appendChild(
-        this.uiManager.createText(params.statusLabel, {
-          margin: '0',
-          fontSize: '11px',
-          opacity: '0.75',
-        })
-      );
-
-      const amount = this.uiManager.createText(params.isLeader ? formatCurrency(this.currentBid) : '', {
-        margin: '0',
-        fontWeight: '900',
-        color: params.isLeader ? '#ffd700' : '#ccc',
-        whiteSpace: 'nowrap',
-      });
-
-      row.appendChild(anchor);
-      row.appendChild(meta);
-      row.appendChild(amount);
-      return row;
+      cell.appendChild(anchor);
+      return cell;
     };
 
-    biddersList.appendChild(
-      makeBidderRow({
+    biddersGrid.appendChild(
+      makeBidderCell({
         bidderId: 'player',
         name: 'You',
         portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
         isLeader: this.lastBidder === 'player',
-        statusLabel: this.auctionResolved
-          ? this.lastBidder === 'player'
-            ? 'Won Auction'
-            : this.playerHasWithdrawn
-              ? 'Dropped Out'
-              : this.hasAnyBids
-                ? 'Outbid'
-                : 'Ready'
-          : this.playerHasWithdrawn
-            ? 'Dropped Out'
-            : this.hasAnyBids
-              ? this.lastBidder === 'player'
-                ? 'Current high bidder'
-                : 'Outbid'
-              : 'Awaiting opening bid',
+        isActive: !this.playerHasWithdrawn,
       })
     );
     for (const rival of this.rivals) {
       const bidderId = makeRivalBidderId(rival.id);
       const isActive = activeRivalIdSet.has(rival.id);
-      const isLeader = this.lastBidder === bidderId;
-      const statusLabel = this.auctionResolved
-        ? isLeader
-          ? 'Won Auction'
-          : isActive
-            ? 'Outbid'
-            : 'Dropped Out'
-        : this.hasAnyBids
-          ? isLeader
-            ? 'Current high bidder'
-            : isActive
-              ? 'Outbid'
-              : 'Dropped Out'
-          : 'Ready';
-
-      biddersList.appendChild(
-        makeBidderRow({
+      biddersGrid.appendChild(
+        makeBidderCell({
           bidderId,
           name: rival.name,
           portraitUrl: getCharacterPortraitUrlOrPlaceholder(rival.name),
-          isLeader,
-          statusLabel,
+          isLeader: this.lastBidder === bidderId,
+          isActive,
         })
       );
     }
 
-    biddersPanel.appendChild(biddersList);
-    rightCol.appendChild(biddersPanel);
-
-    // RIGHT: bid history (no narrative log)
-    const bidHistoryPanel = this.uiManager.createPanel({ padding: '14px 16px' });
-    Object.assign(bidHistoryPanel.style, {
-      padding: '10px 12px',
-      flex: '1 1 auto',
-      minHeight: '0',
-      overflow: 'hidden',
-    } satisfies Partial<CSSStyleDeclaration>);
-    bidHistoryPanel.appendChild(
-      this.uiManager.createHeading('BID HISTORY', 3, { margin: '0 0 8px 0', textAlign: 'left' })
-    );
+    rightPanel.appendChild(biddersGrid);
+    rightPanel.appendChild(this.uiManager.createHeading('BID HISTORY', 3, { margin: '0', textAlign: 'left' }));
 
     const bidHistoryScroll = document.createElement('div');
     Object.assign(bidHistoryScroll.style, {
@@ -1606,8 +1534,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       avatar.src = portraitUrl;
       avatar.alt = this.getBidderDisplayName(entry.bidderId);
       Object.assign(avatar.style, {
-        width: '24px',
-        height: '24px',
+        width: '32px',
+        height: '32px',
         objectFit: 'cover',
         borderRadius: pixelUI ? '0px' : '6px',
         border: '2px solid rgba(255,255,255,0.18)',
@@ -1669,8 +1597,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       bidHistoryScroll.appendChild(makeHistoryRow(entry));
     }
 
-    bidHistoryPanel.appendChild(bidHistoryScroll);
-    rightCol.appendChild(bidHistoryPanel);
+    rightPanel.appendChild(bidHistoryScroll);
+    rightCol.appendChild(rightPanel);
 
     mainGrid.appendChild(leftCol);
     mainGrid.appendChild(rightCol);

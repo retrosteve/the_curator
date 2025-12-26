@@ -68,7 +68,7 @@ export function ensureEncounterLayoutStyles(params: {
   const style = document.createElement('style');
   style.id = styleId;
   style.textContent = `
-    .${rootClass} { width: min(94vw, 1100px); }
+    .${rootClass} { width: min(1100px, calc(100% - 60px)); }
     @media (max-width: 860px) {
       .${topClass} { grid-template-columns: 1fr !important; }
       .${bottomClass} { grid-template-columns: 1fr !important; }
@@ -84,7 +84,7 @@ export function createEncounterCenteredLayoutRoot(rootClass: string): HTMLDivEle
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    maxHeight: 'calc(100vh - 140px)',
+    maxHeight: 'calc(100% - 140px)',
     overflowY: 'auto',
     boxSizing: 'border-box',
     display: 'grid',

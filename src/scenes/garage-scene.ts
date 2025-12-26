@@ -193,7 +193,7 @@ export class GarageScene extends BaseGameScene {
       transform: 'translate(-50%, -50%)',
       width: 'min(980px, calc(100% - 40px))',
       minWidth: '0',
-      maxHeight: '82vh',
+      maxHeight: '82%',
       overflowY: 'auto',
       padding: '18px',
     });
@@ -590,7 +590,7 @@ export class GarageScene extends BaseGameScene {
       transform: 'translate(-50%, -50%)',
       width: 'min(960px, calc(100% - 40px))',
       minWidth: '0',
-      maxHeight: '80vh',
+      maxHeight: '80%',
       overflowY: 'auto',
       padding: '18px',
     });
@@ -1379,7 +1379,7 @@ export class GarageScene extends BaseGameScene {
       left: '50%',
       transform: 'translate(-50%, -50%)',
       minWidth: '700px',
-      maxHeight: '80vh',
+      maxHeight: '80%',
       overflowY: 'auto',
     });
 
@@ -1530,7 +1530,7 @@ export class GarageScene extends BaseGameScene {
       left: '50%',
       transform: 'translate(-50%, -50%)',
       minWidth: '700px',
-      maxHeight: '80vh',
+      maxHeight: '80%',
       overflowY: 'auto',
     });
 

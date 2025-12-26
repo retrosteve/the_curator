@@ -4,6 +4,7 @@ import { Car, calculateCarValue, getCarById } from '@/data/car-database';
 import { Rival, getRivalById, calculateRivalInterest, BarkTrigger, getRivalBark } from '@/data/rival-database';
 import { BASE_LOCATIONS } from '@/data/location-database';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
+import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
@@ -848,7 +849,20 @@ Tip: Visit the Garage to sell something, then come back.`,
     });
 
     const layoutRoot = createEncounterCenteredLayoutRoot('auction-layout');
-    layoutRoot.style.gap = '12px';
+    Object.assign(layoutRoot.style, {
+      top: '64px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: 'min(1180px, calc(100% - 40px))',
+      height: 'calc(100% - 76px)',
+      maxHeight: 'none',
+      overflowY: 'hidden',
+      overflowX: 'hidden',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      boxSizing: 'border-box',
+    } satisfies Partial<CSSStyleDeclaration>);
 
     const pixelUI = isPixelUIEnabled();
 
@@ -889,11 +903,11 @@ Tip: Visit the Garage to sell something, then come back.`,
     };
 
     const header = this.uiManager.createPanel({
-      padding: '12px 16px',
+      padding: '10px 12px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      gap: '14px',
+      gap: '12px',
     });
 
     const headerLeft = document.createElement('div');
@@ -987,32 +1001,44 @@ Tip: Visit the Garage to sell something, then come back.`,
     Object.assign(mainGrid.style, {
       display: 'grid',
       gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
-      gap: '14px',
-      alignItems: 'start',
+      gap: '10px',
+      alignItems: 'stretch',
+      flex: '1 1 auto',
+      minHeight: '0',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const leftCol = document.createElement('div');
     Object.assign(leftCol.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '14px',
+      gap: '10px',
       minWidth: '0',
+      minHeight: '0',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      paddingRight: '6px',
+      boxSizing: 'border-box',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const rightCol = document.createElement('div');
     Object.assign(rightCol.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '14px',
+      gap: '10px',
       minWidth: '0',
+      minHeight: '0',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      paddingRight: '6px',
+      boxSizing: 'border-box',
     } satisfies Partial<CSSStyleDeclaration>);
 
     // LEFT: status strip (reference: countdown + current bid)
     const statusStrip = this.uiManager.createPanel({
-      padding: '14px 16px',
+      padding: '8px 10px',
       display: 'grid',
       gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-      gap: '12px',
+      gap: '10px',
       alignItems: 'center',
     });
 
@@ -1043,13 +1069,13 @@ Tip: Visit the Garage to sell something, then come back.`,
       this.uiManager.createText(`${patience}%`, {
         margin: '0',
         fontWeight: '900',
-        fontSize: '22px',
+        fontSize: '16px',
       })
     );
 
     const patienceBarOuter = document.createElement('div');
     Object.assign(patienceBarOuter.style, {
-      height: '10px',
+      height: '8px',
       borderRadius: pixelUI ? '0px' : '999px',
       backgroundColor: 'rgba(255,255,255,0.10)',
       overflow: 'hidden',
@@ -1081,53 +1107,111 @@ Tip: Visit the Garage to sell something, then come back.`,
         letterSpacing: '0.06em',
       })
     );
-    bidBox.appendChild(
+    const bidAmountsRow = document.createElement('div');
+    Object.assign(bidAmountsRow.style, {
+      display: 'flex',
+      alignItems: 'baseline',
+      justifyContent: 'flex-end',
+      gap: '10px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    bidAmountsRow.appendChild(
       this.uiManager.createText(formatCurrency(this.currentBid), {
         margin: '0',
         fontWeight: '900',
-        fontSize: '22px',
+        fontSize: '16px',
         color: '#ffd700',
         textAlign: 'right',
+        whiteSpace: 'nowrap',
       })
     );
+
+    bidAmountsRow.appendChild(
+      this.uiManager.createText(`Next: ${formatCurrency(normalBidTotal)}`, {
+        margin: '0',
+        fontWeight: '800',
+        fontSize: '12px',
+        opacity: '0.8',
+        textAlign: 'right',
+        whiteSpace: 'nowrap',
+      })
+    );
+
+    bidBox.appendChild(bidAmountsRow);
 
     statusStrip.appendChild(patienceBox);
     statusStrip.appendChild(bidBox);
     leftCol.appendChild(statusStrip);
 
-    // LEFT: car showcase
+    // LEFT: car + quick stats (compact; uses width instead of height)
     const marketValue = this.auctionMarketEstimateValue;
-    const carPanel = this.uiManager.createCarInfoPanel(this.car, {
-      showValue: false,
-      showTags: false,
-      showCondition: false,
-      imageHeightPx: 240,
-      titleColor: '#ecf0f1',
-      style: { margin: '0' },
+    const carStatsPanel = this.uiManager.createPanel({
+      margin: '0',
+      padding: '8px 10px',
     });
-    leftCol.appendChild(carPanel);
 
-    // LEFT: quick stats row (reference: chips)
-    const chips = this.uiManager.createPanel({
-      padding: '12px 16px',
-      display: 'grid',
-      gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    const carStatsTitle = this.uiManager.createHeading(this.car.name, 3, {
+      margin: '0 0 6px 0',
+      color: '#ecf0f1',
+      textAlign: 'left',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    });
+    carStatsPanel.appendChild(carStatsTitle);
+
+    const carStatsRow = document.createElement('div');
+    Object.assign(carStatsRow.style, {
+      display: 'flex',
+      alignItems: 'stretch',
       gap: '10px',
-    });
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
 
-    const makeChip = (label: string, value: string, valueColor?: string): HTMLDivElement => {
+    const templateId = this.car.templateId ?? this.car.id;
+    const imageUrl = getCarImageUrlOrPlaceholder(templateId);
+    const carImg = document.createElement('img');
+    carImg.src = imageUrl;
+    carImg.alt = this.car.name;
+    carImg.loading = 'lazy';
+    carImg.className = 'car-info-image';
+    Object.assign(carImg.style, {
+      width: '220px',
+      height: '120px',
+      objectFit: 'cover',
+      flex: '0 0 auto',
+      borderRadius: pixelUI ? '0px' : '12px',
+      border: '2px solid rgba(255,255,255,0.16)',
+      backgroundColor: 'rgba(0,0,0,0.18)',
+      imageRendering: pixelUI ? 'pixelated' : 'auto',
+      boxSizing: 'border-box',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const statsGrid = document.createElement('div');
+    Object.assign(statsGrid.style, {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: '6px',
+      flex: '1 1 auto',
+      minWidth: '0',
+      alignContent: 'start',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const makeStatChip = (label: string, value: string, valueColor?: string): HTMLDivElement => {
       const chip = document.createElement('div');
       Object.assign(chip.style, {
         border: '1px solid rgba(255,255,255,0.12)',
         borderRadius: pixelUI ? '0px' : '12px',
-        padding: '10px 10px',
+        padding: '6px 6px',
         backgroundColor: 'rgba(0,0,0,0.14)',
         minWidth: '0',
       } satisfies Partial<CSSStyleDeclaration>);
+
       chip.appendChild(
         this.uiManager.createText(label, {
-          margin: '0 0 4px 0',
-          fontSize: '11px',
+          margin: '0 0 3px 0',
+          fontSize: '10px',
           opacity: '0.75',
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
@@ -1137,38 +1221,46 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.uiManager.createText(value, {
           margin: '0',
           fontWeight: '800',
+          fontSize: '13px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
           color: valueColor ?? '#e0e6ed',
         })
       );
+
       return chip;
     };
 
-    chips.appendChild(makeChip('Estimate', formatCurrency(marketValue), '#FFC107'));
-    chips.appendChild(makeChip('Condition', `${Math.round(this.car.condition)}/100`, '#4CAF50'));
-    chips.appendChild(makeChip('Increment', formatCurrency(AuctionScene.BID_INCREMENT)));
-    chips.appendChild(makeChip('Active rivals', `${this.activeRivalIds.length}/${this.rivals.length}`, '#ffd700'));
-    leftCol.appendChild(chips);
+    statsGrid.appendChild(makeStatChip('Estimate', formatCurrency(marketValue), '#FFC107'));
+    statsGrid.appendChild(makeStatChip('Condition', `${Math.round(this.car.condition)}/100`, '#4CAF50'));
+    statsGrid.appendChild(makeStatChip('Increment', formatCurrency(AuctionScene.BID_INCREMENT)));
+    statsGrid.appendChild(
+      makeStatChip('Active rivals', `${this.activeRivalIds.length}/${this.rivals.length}`, '#ffd700')
+    );
+
+    carStatsRow.appendChild(carImg);
+    carStatsRow.appendChild(statsGrid);
+    carStatsPanel.appendChild(carStatsRow);
+    leftCol.appendChild(carStatsPanel);
 
     // LEFT: auctioneer callout (reference: auctioneer dialogue card)
     const auctioneerPanel = this.uiManager.createPanel({
-      padding: '14px 16px',
+      padding: '8px 10px',
     });
     const auctioneerRow = document.createElement('div');
     Object.assign(auctioneerRow.style, {
       display: 'flex',
       alignItems: 'center',
-      gap: '12px',
-      margin: '0 0 10px 0',
+      gap: '10px',
+      margin: '0 0 8px 0',
       minWidth: '0',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const auctioneerPortrait = makePortraitAnchor(
       getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
       `${this.auctioneerName} portrait`,
-      44
+      34
     );
     this.participantFlash.anchors.auctioneer = auctioneerPortrait;
 
@@ -1204,6 +1296,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       fontStyle: pixelUI ? 'normal' : 'italic',
       opacity: '0.95',
       lineHeight: '1.25',
+      fontSize: '12px',
     });
     this.auctioneerQuoteEl = quote;
     auctioneerPanel.appendChild(quote);
@@ -1211,11 +1304,11 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     // LEFT: bidding controls (reference: quick increments + place bid)
     const biddingPanel = this.uiManager.createPanel({
-      padding: '16px',
+      padding: '10px',
     });
     biddingPanel.appendChild(
       this.uiManager.createHeading('PLACE YOUR BID', 3, {
-        margin: '0 0 12px 0',
+        margin: '0 0 6px 0',
         textAlign: 'left',
       })
     );
@@ -1224,13 +1317,13 @@ Tip: Visit the Garage to sell something, then come back.`,
     Object.assign(quickRow.style, {
       display: 'grid',
       gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-      gap: '10px',
-      margin: '0 0 12px 0',
+      gap: '6px',
+      margin: '0 0 6px 0',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const quickBtnStyle: Partial<CSSStyleDeclaration> = {
-      padding: '12px 10px',
-      fontSize: '14px',
+      padding: '9px 8px',
+      fontSize: '12px',
     };
 
     const normalQuickText = openingBidMode
@@ -1270,54 +1363,6 @@ Tip: Visit the Garage to sell something, then come back.`,
     quickRow.appendChild(endBtn);
     biddingPanel.appendChild(quickRow);
 
-    const bidDisplayRow = document.createElement('div');
-    Object.assign(bidDisplayRow.style, {
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) auto',
-      gap: '10px',
-      alignItems: 'center',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const bidDisplay = document.createElement('div');
-    bidDisplay.classList.add('auction-bid-display');
-    Object.assign(bidDisplay.style, {
-      border: '1px solid rgba(255,255,255,0.14)',
-      borderRadius: pixelUI ? '0px' : '12px',
-      padding: '12px 12px',
-      backgroundColor: 'rgba(0,0,0,0.18)',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-    bidDisplay.appendChild(
-      this.uiManager.createText('Next bid', {
-        margin: '0 0 2px 0',
-        fontSize: '11px',
-        opacity: '0.75',
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      })
-    );
-    bidDisplay.appendChild(
-      this.uiManager.createText(formatCurrency(normalBidTotal), {
-        margin: '0',
-        fontWeight: '900',
-        fontSize: '20px',
-      })
-    );
-
-    const placeBtn = this.uiManager.createButton('PLACE BID', () => this.playerBid(AuctionScene.BID_INCREMENT), {
-      variant: 'success',
-      style: {
-        padding: '14px 16px',
-        fontSize: '15px',
-        whiteSpace: 'nowrap',
-      },
-    });
-
-    // Mirror the same gating as normal bid.
-    if (player.money < normalBidTotal) {
-      disableEncounterActionButton(placeBtn, formatEncounterNeedLabel('Place', formatCurrency(normalBidTotal)));
-    }
-
     // Turn gating: only allow actions on the player's turn.
     if (!this.isPlayerTurn) {
       disableEncounterActionButton(normalBtn, 'Bid\nWaiting');
@@ -1325,25 +1370,20 @@ Tip: Visit the Garage to sell something, then come back.`,
       if (!this.auctionResolved) {
         disableEncounterActionButton(endBtn, 'Drop\nWaiting');
       }
-      disableEncounterActionButton(placeBtn, 'Waiting');
     }
-
-    bidDisplayRow.appendChild(bidDisplay);
-    bidDisplayRow.appendChild(placeBtn);
-    biddingPanel.appendChild(bidDisplayRow);
 
     const tacticsRow = document.createElement('div');
     Object.assign(tacticsRow.style, {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '10px',
-      margin: '12px 0 0 0',
+      gap: '6px',
+      margin: '6px 0 0 0',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const kickTiresBtn = this.uiManager.createButton(
       `Kick Tires\nEye ${AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES}+ · Budget -${formatCurrency(AuctionScene.KICK_TIRES_BUDGET_REDUCTION)}`,
       () => this.playerKickTires(),
-      { variant: 'info', style: { padding: '12px 10px', fontSize: '14px' } }
+      { variant: 'info', style: { padding: '9px 8px', fontSize: '12px' } }
     );
     if (player.skills.eye < AuctionScene.REQUIRED_EYE_LEVEL_FOR_KICK_TIRES) {
       disableEncounterActionButton(
@@ -1357,7 +1397,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     const stallBtn = this.uiManager.createButton(
       `Stall\nUses left: ${stallsRemaining}`,
       () => this.playerStall(),
-      { variant: 'special', style: { padding: '12px 10px', fontSize: '14px' } }
+      { variant: 'special', style: { padding: '9px 8px', fontSize: '12px' } }
     );
     if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL || stallsRemaining <= 0) {
       if (player.skills.tongue < AuctionScene.REQUIRED_TONGUE_LEVEL_FOR_STALL) {
@@ -1382,22 +1422,25 @@ Tip: Visit the Garage to sell something, then come back.`,
     biddingPanel.appendChild(
       this.uiManager.createText(
         `Minimum increment: ${formatCurrency(AuctionScene.BID_INCREMENT)} · Power bids reduce rival patience`,
-        { margin: '12px 0 0 0', fontSize: '12px', opacity: '0.75' }
+        { margin: '10px 0 0 0', fontSize: '11px', opacity: '0.75' }
       )
     );
     leftCol.appendChild(biddingPanel);
 
     // RIGHT: bidders list (reference: rival bidders)
     const biddersPanel = this.uiManager.createPanel({ padding: '14px 16px' });
+    Object.assign(biddersPanel.style, {
+      padding: '10px 12px',
+    } satisfies Partial<CSSStyleDeclaration>);
     biddersPanel.appendChild(
-      this.uiManager.createHeading('BIDDERS', 3, { margin: '0 0 12px 0', textAlign: 'left' })
+      this.uiManager.createHeading('BIDDERS', 3, { margin: '0 0 8px 0', textAlign: 'left' })
     );
 
     const biddersList = document.createElement('div');
     Object.assign(biddersList.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '10px',
+      gap: '8px',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const activeRivalIdSet = new Set(this.activeRivalIds);
@@ -1413,8 +1456,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       Object.assign(row.style, {
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
-        padding: '10px 10px',
+        gap: '8px',
+        padding: '8px 8px',
         border: `1px solid ${params.isLeader ? 'rgba(255,215,0,0.45)' : 'rgba(255,255,255,0.12)'}`,
         borderRadius: pixelUI ? '0px' : '12px',
         backgroundColor: 'rgba(0,0,0,0.14)',
@@ -1422,7 +1465,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
       this.participantTurnFocus.rows[params.bidderId] = row;
 
-      const anchor = makePortraitAnchor(params.portraitUrl, `${params.name} portrait`, 38);
+      const anchor = makePortraitAnchor(params.portraitUrl, `${params.name} portrait`, 34);
       this.participantFlash.anchors[params.bidderId] = anchor;
 
       const meta = document.createElement('div');
@@ -1446,7 +1489,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       meta.appendChild(
         this.uiManager.createText(params.statusLabel, {
           margin: '0',
-          fontSize: '12px',
+          fontSize: '11px',
           opacity: '0.75',
         })
       );
@@ -1521,19 +1564,26 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     // RIGHT: bid history (no narrative log)
     const bidHistoryPanel = this.uiManager.createPanel({ padding: '14px 16px' });
+    Object.assign(bidHistoryPanel.style, {
+      padding: '10px 12px',
+      flex: '1 1 auto',
+      minHeight: '0',
+      overflow: 'hidden',
+    } satisfies Partial<CSSStyleDeclaration>);
     bidHistoryPanel.appendChild(
-      this.uiManager.createHeading('BID HISTORY', 3, { margin: '0 0 12px 0', textAlign: 'left' })
+      this.uiManager.createHeading('BID HISTORY', 3, { margin: '0 0 8px 0', textAlign: 'left' })
     );
 
     const bidHistoryScroll = document.createElement('div');
     Object.assign(bidHistoryScroll.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '10px',
+      gap: '8px',
       overflowY: 'auto',
       overflowX: 'hidden',
-      maxHeight: '520px',
-      paddingRight: '6px',
+      flex: '1 1 auto',
+      minHeight: '0',
+      paddingRight: '4px',
       boxSizing: 'border-box',
     } satisfies Partial<CSSStyleDeclaration>);
 
@@ -1545,7 +1595,7 @@ Tip: Visit the Garage to sell something, then come back.`,
         gridTemplateColumns: 'auto minmax(0, 1fr) auto',
         gap: '10px',
         alignItems: 'center',
-        padding: '10px 10px',
+        padding: '8px 8px',
         border: `1px solid ${isPlayer ? 'rgba(76,175,80,0.35)' : 'rgba(255,255,255,0.12)'}`,
         borderRadius: pixelUI ? '0px' : '12px',
         backgroundColor: 'rgba(0,0,0,0.14)',
@@ -1556,8 +1606,8 @@ Tip: Visit the Garage to sell something, then come back.`,
       avatar.src = portraitUrl;
       avatar.alt = this.getBidderDisplayName(entry.bidderId);
       Object.assign(avatar.style, {
-        width: '28px',
-        height: '28px',
+        width: '24px',
+        height: '24px',
         objectFit: 'cover',
         borderRadius: pixelUI ? '0px' : '6px',
         border: '2px solid rgba(255,255,255,0.18)',

@@ -48,14 +48,18 @@ export class MainMenuScene extends Phaser.Scene {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      minWidth: '500px',
+      width: 'min(560px, calc(100% - 40px))',
+      maxHeight: 'calc(100% - 40px)',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      padding: '12px',
       textAlign: 'center',
       backgroundColor: 'transparent',
     });
 
     // Game title
     const title = this.uiManager.createHeading('THE CURATOR', 1, {
-      fontSize: '64px',
+      fontSize: '48px',
       color: '#f39c12',
       textAlign: 'center',
       marginBottom: '10px',
@@ -68,10 +72,10 @@ export class MainMenuScene extends Phaser.Scene {
     const subtitle = this.uiManager.createText(
       'Master the Art of Car Curation',
       {
-        fontSize: '20px',
+        fontSize: '18px',
         color: '#ecf0f1',
         textAlign: 'center',
-        marginBottom: '60px',
+        marginBottom: '24px',
         fontStyle: 'italic',
       }
     );
@@ -80,7 +84,7 @@ export class MainMenuScene extends Phaser.Scene {
     // Button container
     const buttonContainer = this.uiManager.createButtonContainer({
       alignItems: 'center',
-      marginTop: '40px',
+      marginTop: '16px',
     });
 
     // New Game button
@@ -90,8 +94,8 @@ export class MainMenuScene extends Phaser.Scene {
       {
         style: {
           width: '300px',
-          fontSize: '20px',
-          padding: '15px',
+          fontSize: '18px',
+          padding: '12px',
           backgroundColor: '#27ae60',
         }
       }
@@ -106,8 +110,8 @@ export class MainMenuScene extends Phaser.Scene {
         {
           style: {
             width: '300px',
-            fontSize: '20px',
-            padding: '15px',
+            fontSize: '18px',
+            padding: '12px',
             backgroundColor: '#3498db',
           }
         }
@@ -122,7 +126,7 @@ export class MainMenuScene extends Phaser.Scene {
           style: {
             width: '300px',
             fontSize: '16px',
-            padding: '12px',
+            padding: '10px',
             backgroundColor: '#2c3e50',
           }
         }
@@ -138,7 +142,7 @@ export class MainMenuScene extends Phaser.Scene {
         style: {
           width: '300px',
           fontSize: '16px',
-          padding: '12px',
+          padding: '10px',
           backgroundColor: '#34495e',
         }
       }
@@ -154,7 +158,7 @@ export class MainMenuScene extends Phaser.Scene {
         fontSize: '12px',
         color: '#7f8c8d',
         textAlign: 'center',
-        marginTop: '60px',
+        marginTop: '24px',
       }
     );
     container.appendChild(footer);

@@ -127,6 +127,7 @@ body {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 100;
   padding: 8px 10px;
   border-radius: 12px;
   font-size: 14px;
@@ -490,15 +491,19 @@ p {
 /* Map dashboard + cards (used by ui-map.ts) */
 .map-dashboard {
   position: absolute;
-  top: 120px;
+  top: 88px;
   left: 50%;
   transform: translateX(-50%);
-  width: 90%;
+  width: calc(100% - 40px);
   max-width: 1200px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-  padding: 20px;
+  gap: 12px;
+  padding: 12px;
+  max-height: calc(100% - 104px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: start;
   z-index: 10;
   pointer-events: auto;
 }
@@ -781,7 +786,7 @@ p {
 /* Restoration modal */
 .restoration-modal {
   min-width: 500px;
-  max-height: 80vh;
+  max-height: calc(100% - 24px);
   overflow-y: auto;
 }
 

@@ -114,11 +114,44 @@ export class AuctionScene extends BaseGameScene {
     super({ key: 'AuctionScene' });
   }
 
-  init(data: { car: Car; rivals: AuctionRivalEntry[]; locationId?: string }): void {
+  init(
+    data:
+      | { car: Car; rivals: AuctionRivalEntry[]; locationId?: string }
+      | { car: Car; rival: Rival; interest: number; locationId?: string }
+  ): void {
+    // This scene instance is reused across runs; aggressively reset any transient state
+    // so a previous auction attempt (e.g., player withdrawal) can't leak into a retry.
+    this.clearPendingUIRefresh();
+    this.clearPendingRivalTurn();
+    this.clearPendingRivalBark();
+    this.clearPendingPlayerTurnEnable();
+    this.clearPendingEndAuction();
+    this.clearAllParticipantFlashTimeouts();
+    this.clearAllParticipantBarkTimeouts();
+
     this.car = data.car;
-    this.rivals = data.rivals.map((e) => e.rival);
+
+    const rivalEntries: AuctionRivalEntry[] =
+      'rivals' in data && Array.isArray(data.rivals)
+        ? data.rivals
+        : 'rival' in data && data.rival
+          ? [
+              {
+                rival: data.rival,
+                interest: Number.isFinite(data.interest)
+                  ? data.interest
+                  : calculateRivalInterest(data.rival, data.car.tags),
+              },
+            ]
+          : [];
+
+    if (rivalEntries.length === 0) {
+      errorLog('AuctionScene.init: missing rivals in scene start data', data);
+    }
+
+    this.rivals = rivalEntries.map((e) => e.rival);
     this.rivalAIsById = {};
-    for (const entry of data.rivals) {
+    for (const entry of rivalEntries) {
       this.rivalAIsById[entry.rival.id] = new RivalAI(entry.rival, entry.interest);
     }
     this.activeRivalIds = this.rivals.map((r) => r.id);
@@ -126,6 +159,7 @@ export class AuctionScene extends BaseGameScene {
     this.auctioneerName = AUCTIONEER_NAMES[Math.floor(Math.random() * AUCTIONEER_NAMES.length)];
     this.encounterStarted = false;
     this.auctionResolved = false;
+    this.playerHasWithdrawn = false;
     this.isPlayerTurn = false;
     this.lastBidder = undefined;
     // Initialize with non-market value; we'll re-evaluate once managers are ready.
@@ -138,6 +172,7 @@ export class AuctionScene extends BaseGameScene {
     this.auctionMarketEstimateValue = 0;
 
     this.participantFlash = { anchors: {}, clearTimeoutIds: {} };
+    this.participantBark = { active: {}, bubbles: {}, clearTimeoutIds: {} };
     this.pendingUIRefreshTimeoutId = undefined;
     this.pendingRivalBarkTimeoutId = undefined;
     this.pendingRivalTurnTimeoutId = undefined;
@@ -1169,7 +1204,7 @@ Tip: Visit the Garage to sell something, then come back.`,
           variant: 'danger',
           style: quickBtnStyle,
         })
-      : this.uiManager.createButton('End\nAuction', () => this.playerEndAuctionEarly(), {
+      : this.uiManager.createButton('Drop\nOut', () => this.playerEndAuctionEarly(), {
           variant: 'danger',
           style: quickBtnStyle,
         });
@@ -1240,7 +1275,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       disableEncounterActionButton(normalBtn, 'Bid\nWaiting');
       disableEncounterActionButton(powerBtn, 'Power\nWaiting');
       if (!this.auctionResolved) {
-        disableEncounterActionButton(endBtn, 'End\nWaiting');
+        disableEncounterActionButton(endBtn, 'Drop\nWaiting');
       }
       disableEncounterActionButton(placeBtn, 'Waiting');
     }
@@ -1384,20 +1419,40 @@ Tip: Visit the Garage to sell something, then come back.`,
         name: 'You',
         portraitUrl: PLAYER_PORTRAIT_PLACEHOLDER_URL,
         isLeader: this.lastBidder === 'player',
-        statusLabel: this.hasAnyBids ? (this.lastBidder === 'player' ? 'Current high bidder' : 'Outbid') : 'Awaiting opening bid',
+        statusLabel: this.auctionResolved
+          ? this.lastBidder === 'player'
+            ? 'Won Auction'
+            : this.playerHasWithdrawn
+              ? 'Dropped Out'
+              : this.hasAnyBids
+                ? 'Outbid'
+                : 'Ready'
+          : this.playerHasWithdrawn
+            ? 'Dropped Out'
+            : this.hasAnyBids
+              ? this.lastBidder === 'player'
+                ? 'Current high bidder'
+                : 'Outbid'
+              : 'Awaiting opening bid',
       })
     );
     for (const rival of this.rivals) {
       const bidderId = makeRivalBidderId(rival.id);
       const isActive = activeRivalIdSet.has(rival.id);
       const isLeader = this.lastBidder === bidderId;
-      const statusLabel = this.hasAnyBids
+      const statusLabel = this.auctionResolved
         ? isLeader
-          ? 'Current high bidder'
+          ? 'Won Auction'
           : isActive
             ? 'Outbid'
-            : 'Dropped'
-        : 'Ready';
+            : 'Dropped Out'
+        : this.hasAnyBids
+          ? isLeader
+            ? 'Current high bidder'
+            : isActive
+              ? 'Outbid'
+              : 'Dropped Out'
+          : 'Ready';
 
       biddersList.appendChild(
         makeBidderRow({
@@ -1943,6 +1998,17 @@ Tip: Visit the Garage to sell something, then come back.`,
     this.isPlayerTurn = false;
     this.auctionResolved = true;
 
+    // Final-state normalization for the bidders panel.
+    // It's possible for a rival to be the last recorded bidder and then drop out via tactics.
+    // Once the auction is resolved, the winner should always be shown as the leader and all
+    // non-winning rivals should appear as dropped (inactive).
+    this.lastBidder = winnerBidderId;
+    if (winnerBidderId === 'player') {
+      this.activeRivalIds = [];
+    } else if (typeof winnerBidderId === 'string' && winnerBidderId.startsWith('rival:')) {
+      this.activeRivalIds = [winnerBidderId.slice('rival:'.length)];
+    }
+
     // Rebuild UI so action buttons are visibly disabled post-auction.
     if (this.scene.isActive()) {
       this.setupUI();
@@ -2079,7 +2145,15 @@ Tip: Visit the Garage to sell something, then come back.`,
                 'Redemption Auction',
                 'Uncle Ray found another car in the same sale. Want to jump straight into the next auction?',
                 [
-                  { text: 'Stay', onClick: () => {} },
+                  {
+                    text: 'Back to Map',
+                    onClick: () => {
+                      // If the player doesn't jump straight in, still advance the tutorial so
+                      // returning to the Auction House node reliably offers the redemption auction.
+                      this.tutorialManager.onRedemptionPromptAccepted();
+                      this.scene.start('MapScene');
+                    },
+                  },
                   {
                     text: 'Start Next Auction',
                     onClick: () => {
@@ -2087,6 +2161,19 @@ Tip: Visit the Garage to sell something, then come back.`,
                       const boxywagon = getCarById('car_tutorial_boxy_wagon');
                       const scrappyJoe = getRivalById('scrapyard_joe');
                       if (boxywagon && scrappyJoe) {
+                        const baseValue = calculateCarValue(boxywagon);
+                        const marketInfo = this.gameManager.getCarMarketInfo(boxywagon.tags);
+                        const estimate = Math.floor(baseValue * marketInfo.modifier);
+                        const openingBid = Math.floor(estimate * GAME_CONFIG.auction.startingBidMultiplier);
+                        const minMoneyToParticipate = openingBid + GAME_CONFIG.auction.powerBidIncrement;
+
+                        const beforeTopUp = this.gameManager.getPlayerState();
+                        if (beforeTopUp.money < minMoneyToParticipate) {
+                          const delta = minMoneyToParticipate - beforeTopUp.money;
+                          this.gameManager.addMoney(delta);
+                          this.uiManager.showToast('Tutorial: Uncle Ray covers your first power bid.');
+                        }
+
                         const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
                         const rivals: AuctionRivalEntry[] = [{ rival: scrappyJoe, interest }];
                         this.scene.start('AuctionScene', { car: boxywagon, rivals });

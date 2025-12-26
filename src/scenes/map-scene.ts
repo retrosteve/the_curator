@@ -375,7 +375,7 @@ export class MapScene extends BaseGameScene {
               this.applyArrivalEffects(node);
               this.scene.stop('MapScene');
               // Intentionally omit locationId so retrying doesn't consume the daily offer.
-              this.scene.start('AuctionScene', { car, rival, interest });
+              this.scene.start('AuctionScene', { car, rivals: [{ rival, interest }] });
             }
           );
           return;
@@ -423,7 +423,7 @@ export class MapScene extends BaseGameScene {
               this.applyArrivalEffects(node);
               // Use scene.switch to properly transition - this stops current scene and starts new one
               this.scene.stop('MapScene');
-              this.scene.start('AuctionScene', { car, rival: sterlingVance, interest, locationId: node.id });
+              this.scene.start('AuctionScene', { car, rivals: [{ rival: sterlingVance, interest }], locationId: node.id });
             }
           );
           return;
@@ -457,11 +457,28 @@ export class MapScene extends BaseGameScene {
                 return;
               }
 
+              const openingBid = this.getAuctionOpeningBid(boxywagon);
+              const minMoneyToParticipate = openingBid + GAME_CONFIG.auction.powerBidIncrement;
+              const beforeTopUp = this.gameManager.getPlayerState();
+
+              // Tutorial safety: ensure the player can actually follow the prompt and use Power Bid.
+              if (beforeTopUp.money < minMoneyToParticipate) {
+                const delta = minMoneyToParticipate - beforeTopUp.money;
+                this.gameManager.addMoney(delta);
+                this.uiManager.showToast('Tutorial: Uncle Ray covers your first power bid.');
+              }
+
+              const afterTopUp = this.gameManager.getPlayerState();
+              if (afterTopUp.money < minMoneyToParticipate) {
+                this.showCannotAffordAuctionModal(openingBid);
+                return;
+              }
+
               this.applyArrivalEffects(node);
               this.scene.stop('MapScene');
               const interest = calculateRivalInterest(scrappyJoe, boxywagon.tags);
               // Intentionally omit locationId so quitting doesn't consume the daily offer.
-              this.scene.start('AuctionScene', { car: boxywagon, rival: scrappyJoe, interest });
+              this.scene.start('AuctionScene', { car: boxywagon, rivals: [{ rival: scrappyJoe, interest }] });
             }
           );
           return;

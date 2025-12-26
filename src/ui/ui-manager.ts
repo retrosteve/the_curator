@@ -30,6 +30,7 @@ import type { ButtonVariant, HUDData, HUDUpdate } from '@/ui/internal/ui-types';
 export class UIManager {
   private static instance: UIManager;
   private container: HTMLElement;
+  private overlay: HTMLElement;
   private readonly toastManager: ToastManager;
   private readonly modalManager: ModalManager;
   private readonly tutorialUI: TutorialUI;
@@ -96,11 +97,29 @@ export class UIManager {
     if (!overlay) {
       throw new Error('UI overlay container not found');
     }
-    this.container = overlay;
+    this.overlay = overlay;
+
+    const rootId = 'ui-root';
+    let root = this.overlay.querySelector<HTMLElement>(`#${rootId}`);
+    if (!root) {
+      root = document.createElement('div');
+      root.id = rootId;
+      this.overlay.appendChild(root);
+    }
+
+    const scaleId = 'ui-scale';
+    let scaledRoot = root.querySelector<HTMLElement>(`#${scaleId}`);
+    if (!scaledRoot) {
+      scaledRoot = document.createElement('div');
+      scaledRoot.id = scaleId;
+      root.appendChild(scaledRoot);
+    }
+
+    this.container = scaledRoot;
 
     // Pixel UI theme: keep gameplay visuals as-is, but style the DOM overlay with
     // a crisp, low-frills look (square corners, minimal gradients).
-    this.container.classList.add('ui-pixel');
+    this.overlay.classList.add('ui-pixel');
 
     this.toastManager = new ToastManager((el) => this.appendToOverlay(el));
     this.modalManager = new ModalManager({

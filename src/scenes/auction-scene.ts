@@ -46,6 +46,12 @@ type ParticipantBarkState = {
   clearTimeoutIds: Partial<Record<AuctionParticipantKey, number>>;
 };
 
+type ParticipantTurnFocusState = {
+  rows: Partial<Record<BidderId, HTMLDivElement>>;
+  appliedBidderId?: BidderId;
+  desiredBidderId?: BidderId;
+};
+
 const AUCTIONEER_NAMES = [
   '"Fast Talkin\'" Fred Harvey',
   'Victoria "The Gavel" St Clair',
@@ -84,6 +90,7 @@ export class AuctionScene extends BaseGameScene {
   // Participant portrait anchors + flash timers.
   private participantFlash: ParticipantFlashState = { anchors: {}, clearTimeoutIds: {} };
   private participantBark: ParticipantBarkState = { active: {}, bubbles: {}, clearTimeoutIds: {} };
+  private participantTurnFocus: ParticipantTurnFocusState = { rows: {}, appliedBidderId: undefined, desiredBidderId: undefined };
 
   private pendingUIRefreshTimeoutId?: number;
   private pendingRivalBarkTimeoutId?: number;
@@ -104,6 +111,11 @@ export class AuctionScene extends BaseGameScene {
   private static readonly STARTING_BID_MULTIPLIER = GAME_CONFIG.auction.startingBidMultiplier;
   private static readonly BID_INCREMENT = GAME_CONFIG.auction.bidIncrement;
   private static readonly POWER_BID_INCREMENT = GAME_CONFIG.auction.powerBidIncrement;
+
+  // Pacing controls (AuctionScene-only).
+  // Increase these to make auctions feel less "snappy".
+  private static readonly TURN_DELAY_MULTIPLIER = 1.6;
+  private static readonly RIVAL_CONSIDERATION_MULTIPLIER = 1.35;
 
   private static readonly KICK_TIRES_BUDGET_REDUCTION = GAME_CONFIG.auction.kickTires.rivalBudgetReduction;
   private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = GAME_CONFIG.auction.kickTires.requiredEyeLevel;
@@ -475,12 +487,36 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private scheduleEnablePlayerTurn(delayMs: number = GAME_CONFIG.ui.modalDelays.nextTurnAfterAuctioneer): void {
     this.clearPendingPlayerTurnEnable();
+    const scaledDelayMs = Math.max(0, Math.round(delayMs * AuctionScene.TURN_DELAY_MULTIPLIER));
     this.pendingPlayerTurnEnableTimeoutId = window.setTimeout(() => {
       this.pendingPlayerTurnEnableTimeoutId = undefined;
       if (!this.scene.isActive()) return;
       this.isPlayerTurn = true;
+      this.setTurnFocusBidder('player');
       this.setupUI();
-    }, delayMs);
+    }, scaledDelayMs);
+  }
+
+  private setTurnFocusBidder(bidderId?: BidderId): void {
+    this.participantTurnFocus.desiredBidderId = bidderId;
+    this.applyTurnFocusBidder();
+  }
+
+  private applyTurnFocusBidder(): void {
+    const next = this.participantTurnFocus.desiredBidderId;
+    const prev = this.participantTurnFocus.appliedBidderId;
+
+    if (prev && prev !== next) {
+      const prevRow = this.participantTurnFocus.rows[prev];
+      if (prevRow) prevRow.classList.remove('auction-bidder-row--turn');
+    }
+
+    if (next) {
+      const nextRow = this.participantTurnFocus.rows[next];
+      if (nextRow) nextRow.classList.add('auction-bidder-row--turn');
+    }
+
+    this.participantTurnFocus.appliedBidderId = next;
   }
 
   private clearPendingEndAuction(): void {
@@ -495,6 +531,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     // Lock out any remaining turns and play a quick closeout before resolving.
     this.isPlayerTurn = false;
+    this.setTurnFocusBidder(undefined);
     this.setupUI();
 
     this.clearPendingUIRefresh();
@@ -527,6 +564,7 @@ Tip: Visit the Garage to sell something, then come back.`,
     // From here on, the player is withdrawn: rivals should continue bidding until a winner.
     this.playerHasWithdrawn = true;
     this.isPlayerTurn = false;
+    this.setTurnFocusBidder(undefined);
     this.setupUI();
 
     // If there are no rivals left, the player wins by default (rare edge-case).
@@ -592,9 +630,9 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     // Provide a visible "thinking" cadence.
     // Cap total delay so auctions don't feel sluggish with many rivals.
-    const maxTotalMs = 2600;
-    const minStepMs = 340;
-    const maxStepMs = 650;
+    const maxTotalMs = Math.round(2600 * AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER);
+    const minStepMs = Math.round(340 * AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER);
+    const maxStepMs = Math.round(650 * AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER);
     const stepMs = Math.min(maxStepMs, Math.max(minStepMs, Math.floor(maxTotalMs / Math.max(1, order.length))));
 
     type RivalTurnDecision = ReturnType<RivalAI['decideBid']>;
@@ -623,6 +661,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       idx++;
 
       // Highlight the rival portrait so the player sees who is "thinking".
+      this.setTurnFocusBidder(makeRivalBidderId(rivalId));
       this.flashParticipant(makeRivalBidderId(rivalId));
 
       const ai = this.rivalAIsById[rivalId];
@@ -660,7 +699,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private scheduleRivalTurn(delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBid): void {
     this.clearPendingRivalTurn();
-    const scaledDelayMs = Math.max(0, Math.round(delayMs * 1.5));
+    const scaledDelayMs = Math.max(0, Math.round(delayMs * AuctionScene.TURN_DELAY_MULTIPLIER));
     this.pendingRivalTurnTimeoutId = window.setTimeout(() => {
       this.pendingRivalTurnTimeoutId = undefined;
       if (!this.scene.isActive()) return;
@@ -785,9 +824,18 @@ Tip: Visit the Garage to sell something, then come back.`,
     // Instead, drop only DOM refs; we will re-attach active bubbles after the new UI mounts.
     this.participantBark.bubbles = {};
     this.participantFlash.anchors = {};
+    this.participantTurnFocus.rows = {};
+    this.participantTurnFocus.appliedBidderId = undefined;
     this.auctioneerQuoteEl = undefined;
 
     this.resetUIWithHUD();
+
+    // Ensure we never show a stale "turn" outline on resolved encounters.
+    if (this.auctionResolved) {
+      this.setTurnFocusBidder(undefined);
+    } else if (this.isPlayerTurn) {
+      this.setTurnFocusBidder('player');
+    }
 
     const player = this.gameManager.getPlayerState();
 
@@ -1361,6 +1409,7 @@ Tip: Visit the Garage to sell something, then come back.`,
       statusLabel: string;
     }): HTMLDivElement => {
       const row = document.createElement('div');
+      row.classList.add('auction-bidder-row');
       Object.assign(row.style, {
         display: 'flex',
         alignItems: 'center',
@@ -1370,6 +1419,8 @@ Tip: Visit the Garage to sell something, then come back.`,
         borderRadius: pixelUI ? '0px' : '12px',
         backgroundColor: 'rgba(0,0,0,0.14)',
       } satisfies Partial<CSSStyleDeclaration>);
+
+      this.participantTurnFocus.rows[params.bidderId] = row;
 
       const anchor = makePortraitAnchor(params.portraitUrl, `${params.name} portrait`, 38);
       this.participantFlash.anchors[params.bidderId] = anchor;
@@ -1577,6 +1628,9 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     this.uiManager.append(layoutRoot);
 
+    // Re-apply current turn highlight to the newly created bidder row nodes.
+    this.applyTurnFocusBidder();
+
     // Re-attach any active speech bubbles to the newly created portrait anchors.
     this.renderActiveParticipantBarkBubbles();
   }
@@ -1740,6 +1794,8 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => {
         this.currentBid = context.currentBid;
+        this.isPlayerTurn = context.isPlayerTurn;
+        this.setTurnFocusBidder(context.isPlayerTurn ? 'player' : undefined);
         this.setupUI();
       },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
@@ -1800,6 +1856,8 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => {
         this.currentBid = context.currentBid;
+        this.isPlayerTurn = context.isPlayerTurn;
+        this.setTurnFocusBidder(context.isPlayerTurn ? 'player' : undefined);
         this.setupUI();
       },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),
@@ -1860,6 +1918,8 @@ Tip: Visit the Garage to sell something, then come back.`,
         this.showRivalBarkAfterAuctioneer(rivalId, trigger, delayMs),
       onSetupUI: () => {
         this.currentBid = context.currentBid;
+        this.isPlayerTurn = context.isPlayerTurn;
+        this.setTurnFocusBidder(context.isPlayerTurn ? 'player' : undefined);
         this.setupUI();
       },
       onScheduleRivalTurn: (delayMs: number) => this.scheduleRivalTurn(delayMs),

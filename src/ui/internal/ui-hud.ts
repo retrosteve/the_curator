@@ -7,7 +7,7 @@ export function createHUD(
 ): HTMLDivElement {
   const hud = document.createElement('div');
   hud.id = 'game-hud';
-  hud.className = 'game-panel game-hud';
+  hud.className = 'game-panel game-hud game-hud--collapsed';
 
   const formatLocationLabel = options?.formatLocationLabel;
   const locationLabel =
@@ -20,77 +20,127 @@ export function createHUD(
       ? `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`
       : undefined;
 
+  const barLocationText = data.location !== undefined ? (locationLabel ?? data.location) : undefined;
+  const barParts: string[] = [];
+  barParts.push(`💰 <span class="hud-bar__value" data-hud-value="money">${formatCurrency(data.money)}</span>`);
+  barParts.push(`📅 <span class="hud-bar__value" data-hud-value="day">${data.day}</span>`);
+  if (barLocationText) {
+    barParts.push(`📍 <span class="hud-bar__value" data-hud-value="location">${barLocationText}</span>`);
+  }
+  if (data.market !== undefined) {
+    barParts.push(`📈 <span class="hud-bar__value" data-hud-value="market">${data.market}</span>`);
+  }
+
   hud.innerHTML = `
-      <div class="hud-grid">
-        <div class="hud-item" data-hud="money">
-          <span class="hud-icon">💰</span>
-          <span class="hud-label">Money</span>
-          <span class="hud-value" data-hud-value="money">${formatCurrency(data.money)}</span>
+      <div class="hud-bar" role="button" tabindex="0" aria-expanded="false">
+        <div class="hud-bar__summary" title="Click to expand HUD">
+          ${barParts.join('<span class="hud-bar__sep">·</span>')}
         </div>
+        <button class="hud-bar__toggle" type="button" aria-label="Toggle HUD" title="Toggle HUD">▾</button>
+      </div>
 
-        ${data.prestige !== undefined ? `
-          <div class="hud-item" data-hud="prestige">
-            <span class="hud-icon">🏆</span>
-            <span class="hud-label">Prestige</span>
-            <span class="hud-value" data-hud-value="prestige">${data.prestige}</span>
+      <div class="hud-details">
+        <div class="hud-grid">
+          <div class="hud-item" data-hud="money">
+            <span class="hud-icon">💰</span>
+            <span class="hud-label">Money</span>
+            <span class="hud-value" data-hud-value="money">${formatCurrency(data.money)}</span>
           </div>
-        ` : ''}
 
-        <div class="hud-item" data-hud="day">
-          <span class="hud-icon">📅</span>
-          <span class="hud-label">Day</span>
-          <span class="hud-value" data-hud-value="day">${data.day}</span>
+          ${data.prestige !== undefined ? `
+            <div class="hud-item" data-hud="prestige">
+              <span class="hud-icon">🏆</span>
+              <span class="hud-label">Prestige</span>
+              <span class="hud-value" data-hud-value="prestige">${data.prestige}</span>
+            </div>
+          ` : ''}
+
+          <div class="hud-item" data-hud="day">
+            <span class="hud-icon">📅</span>
+            <span class="hud-label">Day</span>
+            <span class="hud-value" data-hud-value="day">${data.day}</span>
+          </div>
+
+          ${data.location !== undefined ? `
+            <div class="hud-item hud-item--wide" data-hud="location">
+              <span class="hud-icon">📍</span>
+              <span class="hud-label">Location</span>
+              <span class="hud-value" data-hud-value="location">${locationLabel}</span>
+            </div>
+          ` : ''}
+
+          ${data.market !== undefined ? `
+            <div class="hud-item" data-hud="market">
+              <span class="hud-icon">📈</span>
+              <span class="hud-label">Market</span>
+              <span class="hud-value" data-hud-value="market">${data.market}</span>
+            </div>
+          ` : ''}
+
+          ${data.garage !== undefined ? `
+            <div class="hud-item" data-hud="garage">
+              <span class="hud-icon">🏠</span>
+              <span class="hud-label">Garage</span>
+              <span class="hud-value" data-hud-value="garage">${data.garage.used}/${data.garage.total}</span>
+            </div>
+          ` : ''}
+
+          ${data.skills !== undefined ? `
+            <div class="hud-item hud-item--wide" data-hud="skills" title="Skills: Eye, Tongue, Network">
+              <span class="hud-icon">🧠</span>
+              <span class="hud-label">Skills</span>
+              <span class="hud-value" data-hud-value="skills">${skillsLabel}</span>
+            </div>
+          ` : ''}
+
+          ${data.dailyRent !== undefined ? `
+            <div class="hud-item hud-item--subtle hud-item--danger" data-hud="daily-rent" title="Rent increases as you upgrade your garage">
+              <span class="hud-icon">💸</span>
+              <span class="hud-label">Rent</span>
+              <span class="hud-value">${formatCurrency(data.dailyRent)}</span>
+            </div>
+          ` : ''}
+
+          ${data.collectionPrestige !== undefined && data.collectionPrestige.carCount > 0 ? `
+            <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="collection-prestige" title="Cars in your collection generate prestige daily based on condition quality">
+              <span class="hud-icon">🏛️</span>
+              <span class="hud-label">Collection</span>
+              <span class="hud-value" data-hud-value="collection-prestige">+${data.collectionPrestige.totalPerDay} prestige/day (${data.collectionPrestige.carCount} cars)</span>
+            </div>
+          ` : ''}
         </div>
-
-        ${data.location !== undefined ? `
-          <div class="hud-item hud-item--wide" data-hud="location">
-            <span class="hud-icon">📍</span>
-            <span class="hud-label">Location</span>
-            <span class="hud-value" data-hud-value="location">${locationLabel}</span>
-          </div>
-        ` : ''}
-
-        ${data.market !== undefined ? `
-          <div class="hud-item" data-hud="market">
-            <span class="hud-icon">📈</span>
-            <span class="hud-label">Market</span>
-            <span class="hud-value" data-hud-value="market">${data.market}</span>
-          </div>
-        ` : ''}
-
-        ${data.garage !== undefined ? `
-          <div class="hud-item" data-hud="garage">
-            <span class="hud-icon">🏠</span>
-            <span class="hud-label">Garage</span>
-            <span class="hud-value" data-hud-value="garage">${data.garage.used}/${data.garage.total}</span>
-          </div>
-        ` : ''}
-
-        ${data.skills !== undefined ? `
-          <div class="hud-item hud-item--wide" data-hud="skills" title="Skills: Eye, Tongue, Network">
-            <span class="hud-icon">🧠</span>
-            <span class="hud-label">Skills</span>
-            <span class="hud-value" data-hud-value="skills">${skillsLabel}</span>
-          </div>
-        ` : ''}
-
-        ${data.dailyRent !== undefined ? `
-          <div class="hud-item hud-item--subtle hud-item--danger" data-hud="daily-rent" title="Rent increases as you upgrade your garage">
-            <span class="hud-icon">💸</span>
-            <span class="hud-label">Rent</span>
-            <span class="hud-value">${formatCurrency(data.dailyRent)}</span>
-          </div>
-        ` : ''}
-
-        ${data.collectionPrestige !== undefined && data.collectionPrestige.carCount > 0 ? `
-          <div class="hud-item hud-item--subtle hud-item--warning hud-item--wide" data-hud="collection-prestige" title="Cars in your collection generate prestige daily based on condition quality">
-            <span class="hud-icon">🏛️</span>
-            <span class="hud-label">Collection</span>
-            <span class="hud-value" data-hud-value="collection-prestige">+${data.collectionPrestige.totalPerDay} prestige/day (${data.collectionPrestige.carCount} cars)</span>
-          </div>
-        ` : ''}
       </div>
     `;
+
+  const bar = hud.querySelector<HTMLDivElement>('.hud-bar');
+  const toggleBtn = hud.querySelector<HTMLButtonElement>('.hud-bar__toggle');
+  const setExpanded = (expanded: boolean): void => {
+    hud.classList.toggle('game-hud--collapsed', !expanded);
+    bar?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    if (toggleBtn) toggleBtn.textContent = expanded ? '▴' : '▾';
+  };
+
+  const onToggle = (): void => {
+    const isCollapsed = hud.classList.contains('game-hud--collapsed');
+    setExpanded(isCollapsed);
+  };
+
+  bar?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (target && (target.closest('button') || target.closest('a'))) return;
+    onToggle();
+  });
+  bar?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onToggle();
+    }
+  });
+  toggleBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggle();
+  });
 
   if (data.victoryProgress) {
     const progressDiv = document.createElement('div');
@@ -127,7 +177,7 @@ export function createHUD(
       progressDiv.addEventListener('click', data.victoryProgress.onClickProgress);
     }
 
-    hud.appendChild(progressDiv);
+    hud.querySelector('.hud-details')?.appendChild(progressDiv);
   }
 
   return hud;
@@ -140,36 +190,37 @@ export function updateHUD(
   const hud = document.getElementById('game-hud');
   if (!hud) return;
 
-  const moneyValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="money"]');
-  const prestigeValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="prestige"]');
-  const garageValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="garage"]');
-  const skillsValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="skills"]');
-  const dayValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="day"]');
-  const locationValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="location"]');
-  const marketValueEl = hud.querySelector<HTMLSpanElement>('[data-hud-value="market"]');
+  const setTextAll = (selector: string, value: string): void => {
+    const els = hud.querySelectorAll<HTMLElement>(selector);
+    for (const el of els) el.textContent = value;
+  };
+
   const hudGrid = hud.querySelector<HTMLDivElement>('.hud-grid');
 
-  if (data.money !== undefined && moneyValueEl) {
-    moneyValueEl.textContent = formatCurrency(data.money);
+  if (data.money !== undefined) {
+    setTextAll('[data-hud-value="money"]', formatCurrency(data.money));
   }
-  if (data.prestige !== undefined && prestigeValueEl) {
-    prestigeValueEl.textContent = `${data.prestige}`;
+  if (data.prestige !== undefined) {
+    setTextAll('[data-hud-value="prestige"]', `${data.prestige}`);
   }
-  if (data.garage !== undefined && garageValueEl) {
-    garageValueEl.textContent = `${data.garage.used}/${data.garage.total}`;
+  if (data.garage !== undefined) {
+    setTextAll('[data-hud-value="garage"]', `${data.garage.used}/${data.garage.total}`);
   }
-  if (data.skills !== undefined && skillsValueEl) {
-    skillsValueEl.textContent = `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`;
+  if (data.skills !== undefined) {
+    setTextAll(
+      '[data-hud-value="skills"]',
+      `Eye ${data.skills.eye} · Tongue ${data.skills.tongue} · Network ${data.skills.network}`
+    );
   }
-  if (data.day !== undefined && dayValueEl) {
-    dayValueEl.textContent = `${data.day}`;
+  if (data.day !== undefined) {
+    setTextAll('[data-hud-value="day"]', `${data.day}`);
   }
-  if (data.location !== undefined && locationValueEl) {
+  if (data.location !== undefined) {
     const formatLocationLabel = options?.formatLocationLabel;
-    locationValueEl.textContent = formatLocationLabel ? formatLocationLabel(data.location) : data.location;
+    setTextAll('[data-hud-value="location"]', formatLocationLabel ? formatLocationLabel(data.location) : data.location);
   }
-  if (data.market !== undefined && marketValueEl) {
-    marketValueEl.textContent = data.market;
+  if (data.market !== undefined) {
+    setTextAll('[data-hud-value="market"]', data.market);
   }
 
   if (data.collectionPrestige !== undefined && hudGrid) {

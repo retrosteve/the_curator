@@ -29,7 +29,7 @@ export class ToastManager {
     const toast = createDiv('');
 
     toast.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: ${topPosition}px;
       right: 20px;
       padding: 12px 20px;
@@ -114,7 +114,7 @@ export class ToastManager {
 
     floatingText.textContent = `${symbol}${formatCurrency(Math.abs(amount))}`;
     floatingText.style.cssText = `
-      position: fixed;
+      position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);

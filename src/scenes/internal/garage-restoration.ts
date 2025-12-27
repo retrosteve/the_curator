@@ -48,7 +48,10 @@ export function showRestorationChallenges(
     onClick: () => {
       if (gameManager.spendMoney(challenge.cost)) {
         const fixedCar = Economy.completeRestorationChallenge(car, challenge);
-        gameManager.updateCar(fixedCar);
+        gameManager.updateCar({
+          ...fixedCar,
+          restorationSpent: (car.restorationSpent ?? 0) + challenge.cost,
+        });
 
         uiManager.showModal(
           '✅ Challenge Complete!',
@@ -113,7 +116,10 @@ export function showRestorationOptions(
           // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
           const isTutorialFirstRestore = tutorialManager.shouldForceFirstRestorationSuccess();
           const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);
-          gameManager.updateCar(result.car);
+          gameManager.updateCar({
+            ...result.car,
+            restorationSpent: (car.restorationSpent ?? 0) + opt.cost,
+          });
 
           const specialistName = opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan';
           const backgroundColor = result.success

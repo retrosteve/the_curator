@@ -63,6 +63,24 @@ export function createCarCard(
     { margin: '0', fontSize: '13px', lineHeight: '1.35', opacity: '0.95' }
   );
 
+  const purchasePrice = car.purchasePrice;
+  const restorationSpent = car.restorationSpent ?? 0;
+  const profitText = (() => {
+    if (purchasePrice === undefined) {
+      return `Paid — · Spent ${formatCurrency(restorationSpent)} · Est. profit —`;
+    }
+
+    const profit = Economy.calculateProfit(purchasePrice, restorationSpent, salePrice);
+    return `Paid ${formatCurrency(purchasePrice)} · Spent ${formatCurrency(restorationSpent)} · Est. profit ${formatCurrency(profit)}`;
+  })();
+
+  const profitMetaText = uiManager.createText(profitText, {
+    margin: '4px 0 0 0',
+    fontSize: '12px',
+    lineHeight: '1.35',
+    opacity: '0.9',
+  });
+
   const templateId = car.templateId ?? (getCarById(car.id) ? car.id : undefined);
   const imageUrl = getCarImageUrlOrPlaceholder(templateId);
 
@@ -82,6 +100,9 @@ export function createCarCard(
 
   carPanel.appendChild(carName);
   carPanel.appendChild(metaText);
+  if (context === 'inventory') {
+    carPanel.appendChild(profitMetaText);
+  }
 
   if (context === 'collection') {
     const carTags = uiManager.createText(`Tags: ${car.tags.join(', ')}`, {

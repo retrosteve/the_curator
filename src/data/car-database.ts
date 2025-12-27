@@ -20,6 +20,17 @@ export interface Car {
   history: string[]; // e.g., "Flooded", "Rust", "Barn Find"
   tier: CarTier; // Car's rarity tier
   inCollection?: boolean; // Whether car is in the private collection (requires condition >= 80)
+
+  /**
+   * The price the player paid to acquire the car (e.g., winning auction bid).
+   * Optional for backwards compatibility with older saves.
+   */
+  purchasePrice?: number;
+  /**
+   * Total money spent restoring/repairing this specific car.
+   * Optional for backwards compatibility with older saves.
+   */
+  restorationSpent?: number;
 }
 
 /**

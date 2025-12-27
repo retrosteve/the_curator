@@ -157,7 +157,6 @@ export class AuctionScene extends BaseGameScene {
               },
             ]
           : [];
-
     if (rivalEntries.length === 0) {
       errorLog('AuctionScene.init: missing rivals in scene start data', data);
     }
@@ -2090,7 +2089,13 @@ Tip: Visit the Garage to sell something, then come back.`,
       }
 
       if (this.gameManager.spendMoney(this.currentBid)) {
-        if (!this.gameManager.addCar(this.car)) {
+        const purchasedCar: Car = {
+          ...this.car,
+          purchasePrice: this.currentBid,
+          restorationSpent: this.car.restorationSpent ?? 0,
+        };
+
+        if (!this.gameManager.addCar(purchasedCar)) {
           // Garage is full
           this.uiManager.showModal(
             'Garage Full!',

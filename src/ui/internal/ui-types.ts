@@ -43,6 +43,8 @@ export type HUDData = {
 	money: number;
 	prestige?: number;
 	day: number;
+	timeRemaining?: number;
+	timeTotal?: number;
 	location?: string;
 	skills?: HUDSkills;
 	garage?: HUDGarage;
@@ -64,6 +66,8 @@ export type HUDUpdate = {
 	prestige?: number;
 	skills?: HUDSkills;
 	day?: number;
+	timeRemaining?: number;
+	timeTotal?: number;
 	location?: string;
 	garage?: HUDGarage;
 	market?: string;

@@ -19,6 +19,7 @@ You are not alone: intelligent **NPC Rivals** actively hunt the same cars. You m
 1. **Morning Phase:** Start in Garage. Check news/intel.
 2. **Map Phase (The Day Loop):** Choose nodes to visit. There is no Action Point (AP) limiter; the day only advances when you choose **End Day** from the Garage.
   - **Daily Offers:** Each non-special location has a single car offer per day (locked in for the day). Once you resolve the encounter (buy/win/leave/lose), that location is exhausted until tomorrow.
+  - **Time Budget:** Each day has a small time budget. **Normal Auctions**, **Special Events**, and **Restoration** consume time; if you run out, you must End Day.
 3. **Encounter Phase:**
   - **Auction:** Turn-based bidding battle.
   - **Outcome:** Return to Map (continue day) or Return to Garage (if
@@ -44,7 +45,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 ## Persistence & Progression
 
 ### Save/Load System
-- **Persistence:** Game state is automatically saved to localStorage at the end of each day (end-of-day checkpoint).
+- **Persistence:** Game state is automatically saved to localStorage during play (debounced on state changes) and at the end of each day (end-of-day checkpoint).
 - **Manual Save/Load:** Players can manually save/load game state via buttons in the Garage scene.
 - **Saved Data:** Player money, prestige, inventory, garage slots, current day/time, and collection status.
 
@@ -119,8 +120,9 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Currencies:** Cash ($) and Prestige (Reputation).
 - **Concept (The Action Budget):** Time is the player’s primary resource.
 - **Day Cycle:**
-  - There is no Action Point (AP) limiter.
-  - The day advances when the player chooses **End Day** from the Garage.
+  - Each day starts with a fixed **Time Budget** (abstract units).
+  - The day still advances when the player chooses **End Day** from the Garage.
+  - If you run out of time, time-consuming actions are blocked until you End Day.
   - Daily expenses are applied at day end and the map rolls new daily offers.
 - **Daily Costs:**
   - **Daily Rent:** Scales with garage capacity (balanced to avoid mid-game bankruptcies):
@@ -141,6 +143,11 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - If you still can’t pay rent, you are **bankrupt** and it is **Game Over**.
   - Bank loan: a one-time emergency loan that adds cash immediately.
 - **Market Trends:** Periodic modifiers can shift prices by category (e.g., seasonal demand affecting convertibles).
+
+### Time Costs (Current)
+- **Normal Auctions (Base Locations):** Starting an auction from the map consumes **Travel** + **Auction Participation** time.
+- **Special Events:** Consume the event’s `timeCost` when you start the special auction.
+- **Restoration:** Restoration services and restoration challenges consume time.
 
 **Implementation Note:** Market fluctuations are active with seasonal trends and random events:
 - **Seasons:** Winter reduces convertible/sports prices, summer boosts sports/muscle prices, etc.

@@ -64,6 +64,7 @@ export class UIManager {
     isExhaustedToday: boolean;
     showRivalBadge: boolean;
     showSpecialBadge: boolean;
+    timeCost?: number;
     onVisit: () => void;
   }): HTMLElement {
     return createMapLocationCard({
@@ -467,8 +468,8 @@ export class UIManager {
 
   /**
    * Create HUD (Heads-Up Display) showing player stats.
-   * Displays money, prestige (optional), day, and time.
-   * @param data - HUD data object with money, prestige, day, and time
+   * Displays money, prestige (optional), day, and optional time.
+   * @param data - HUD data object (supports optional timeRemaining/timeTotal)
    * @returns Configured HUD element
    */
   public createHUD(data: HUDData): HTMLDivElement {

@@ -27,6 +27,17 @@ export type SkillKey = keyof typeof SKILL_METADATA;
 
 /** Central gameplay tuning configuration (economy, progression, encounters, etc.). */
 export const GAME_CONFIG = {
+  time: {
+    // Lightweight per-day time budget (in abstract units).
+    // Certain actions consume time; when you're out of time, you must End Day.
+    unitsPerDay: 8,
+
+    // Time costs for "normal" (non-special-event) gameplay loops.
+    // - Travel is charged when committing to start an encounter from the map.
+    // - Auction participation is charged on top of travel for base-location auctions.
+    travelCost: 1,
+    auctionParticipationCost: 1,
+  },
   save: {
     /**
      * Autosave policy:
@@ -153,10 +164,14 @@ export const GAME_CONFIG = {
     // Restoration challenge costs
     challenges: {
       rustRemoval: {
+        // Minimum cost; actual cost scales with car value.
         cost: 500,
+        costRateOfBaseValue: 0.05,
+        timeCost: 1,
       },
       engineRebuild: {
         cost: 1500,
+        timeCost: 2,
       },
     },
 
@@ -181,16 +196,19 @@ export const GAME_CONFIG = {
 
       charlieMinor: {
         availableBelowCondition: 100,
-        costRateOfBaseValue: 0.02,
-        conditionGain: 10,
-        failChance: 0.1,
-        failConditionPenalty: 5,
+        // Rebalanced: no longer a guaranteed-profit button.
+        costRateOfBaseValue: 0.08,
+        conditionGain: 6,
+        timeCost: 1,
+        failChance: 0.12,
+        failConditionPenalty: 6,
       },
 
       artisanMajor: {
         availableBelowCondition: 90,
         costRateOfBaseValue: 0.15,
         conditionGain: 30,
+        timeCost: 2,
       },
     },
 

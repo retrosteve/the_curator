@@ -4,6 +4,7 @@ import type { GameManager } from '@/core/game-manager';
 import type { UIManager } from '@/ui/ui-manager';
 import type { TimeSystem } from '@/systems/time-system';
 import type { TutorialManager } from '@/systems/tutorial-manager';
+import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 
@@ -37,6 +38,7 @@ export function showRestorationChallenges(
     message += `${challenge.name}\n`;
     message += `${challenge.description}\n\n`;
     message += `💰 Cost: ${formatCurrency(challenge.cost)}\n`;
+    message += `⏱️ Time: ${challenge.timeCost}\n`;
 
     if (index < challenges.length - 1) {
       message += '\n━━━━━━━━━━━━━━━━━━━━━━\n\n';
@@ -46,7 +48,17 @@ export function showRestorationChallenges(
   const buttons = challenges.map((challenge) => ({
     text: `Fix: ${challenge.name}`,
     onClick: () => {
+      if (!gameManager.canSpendTime(challenge.timeCost)) {
+        const remaining = gameManager.getTimeRemaining();
+        uiManager.showTimeBlockModal(
+          'Out of Time',
+          `You don't have enough time left today for this work.\n\nTime required: ${challenge.timeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
+        );
+        return;
+      }
+
       if (gameManager.spendMoney(challenge.cost)) {
+        gameManager.spendTime(challenge.timeCost);
         const fixedCar = Economy.completeRestorationChallenge(car, challenge);
         gameManager.updateCar({
           ...fixedCar,
@@ -102,7 +114,7 @@ export function showRestorationOptions(
     return {
       name: opt.name,
       cost: opt.cost,
-      description: opt.description,
+      description: `${opt.description} (Time: ${opt.timeCost})`,
       conditionGain: opt.conditionGain,
       valueIncrease,
       netProfit,
@@ -112,7 +124,17 @@ export function showRestorationOptions(
       ),
       portraitAlt: opt.specialist === 'Charlie' ? 'Cheap Charlie' : 'The Artisan',
       onClick: () => {
+        if (!gameManager.canSpendTime(opt.timeCost)) {
+          const remaining = gameManager.getTimeRemaining();
+          uiManager.showTimeBlockModal(
+            'Out of Time',
+            `You don't have enough time left today for this restoration.\n\nTime required: ${opt.timeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
+          );
+          return;
+        }
+
         if (gameManager.spendMoney(opt.cost)) {
+          gameManager.spendTime(opt.timeCost);
           // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
           const isTutorialFirstRestore = tutorialManager.shouldForceFirstRestorationSuccess();
           const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);

@@ -4,7 +4,7 @@ import { UIManager } from '@/ui/ui-manager';
 import { TimeSystem } from '@/systems/time-system';
 import { TutorialManager } from '@/systems/tutorial-manager';
 import { eventBus } from '@/core/event-bus';
-import type { SkillKey } from '@/config/game-config';
+import { GAME_CONFIG, type SkillKey } from '@/config/game-config';
 
 /**
  * BaseGameScene - Abstract base class for all gameplay scenes.
@@ -62,6 +62,10 @@ export abstract class BaseGameScene extends Phaser.Scene {
     this.uiManager.updateHUD({ day });
   };
 
+  protected readonly handleTimeChanged = (timeRemaining: number): void => {
+    this.uiManager.updateHUD({ timeRemaining });
+  };
+
   protected readonly handleLocationChanged = (location: string): void => {
     this.uiManager.updateHUD({ location });
   };
@@ -94,6 +98,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.on('money-changed', this.handleMoneyChanged);
     eventBus.on('prestige-changed', this.handlePrestigeChanged);
     eventBus.on('day-changed', this.handleDayChanged);
+    eventBus.on('time-changed', this.handleTimeChanged);
     eventBus.on('location-changed', this.handleLocationChanged);
     eventBus.on('inventory-changed', this.handleInventoryChanged);
     
@@ -204,6 +209,7 @@ export abstract class BaseGameScene extends Phaser.Scene {
     eventBus.off('money-changed', this.handleMoneyChanged);
     eventBus.off('prestige-changed', this.handlePrestigeChanged);
     eventBus.off('day-changed', this.handleDayChanged);
+    eventBus.off('time-changed', this.handleTimeChanged);
     eventBus.off('location-changed', this.handleLocationChanged);
     eventBus.off('xp-gained', this.handleXPGained);
     eventBus.off('skill-levelup', this.handleSkillLevelUp);
@@ -278,6 +284,8 @@ export abstract class BaseGameScene extends Phaser.Scene {
       prestige: player.prestige,
       skills: player.skills,
       day: world.day,
+      timeRemaining: this.gameManager.getTimeRemaining(),
+      timeTotal: GAME_CONFIG.time.unitsPerDay,
       location: world.currentLocation,
       garage: {
         used: this.gameManager.getGarageCarCount(),

@@ -11,6 +11,7 @@ export interface RestorationChallenge {
   id: string;
   name: string;
   cost: number;
+  timeCost: number;
   description: string;
   requiredFor: string[]; // History tags that require this challenge
 }
@@ -26,6 +27,7 @@ export interface RestorationOption {
   type: 'Minor' | 'Major';
   cost: number;
   conditionGain: number;
+  timeCost: number;
   description: string;
   risk?: string;
 }
@@ -46,10 +48,17 @@ export class Economy {
 
     // Check for Rust damage
     if (car.history.includes('Rust')) {
+      const rustConfig = GAME_CONFIG.economy.challenges.rustRemoval;
+      const minCost = rustConfig.cost;
+      const rate = rustConfig.costRateOfBaseValue ?? 0;
+      const scaledCost = Math.floor(car.baseValue * rate);
+      const cost = Math.max(minCost, scaledCost);
+
       challenges.push({
         id: 'rust_removal',
         name: 'Rust Removal Treatment',
-        cost: GAME_CONFIG.economy.challenges.rustRemoval.cost,
+        cost,
+        timeCost: rustConfig.timeCost ?? 1,
         description: 'Remove rust and treat metal surfaces before restoration.',
         requiredFor: ['Rust'],
       });
@@ -57,10 +66,12 @@ export class Economy {
 
     // Check for Flood damage
     if (car.history.includes('Flooded')) {
+      const engineConfig = GAME_CONFIG.economy.challenges.engineRebuild;
       challenges.push({
         id: 'engine_rebuild',
         name: 'Engine Rebuild',
-        cost: GAME_CONFIG.economy.challenges.engineRebuild.cost,
+        cost: engineConfig.cost,
+        timeCost: engineConfig.timeCost ?? 2,
         description: 'Rebuild engine to fix water damage before restoration.',
         requiredFor: ['Flooded'],
       });
@@ -107,6 +118,7 @@ export class Economy {
         type: 'Minor',
         cost: Math.floor(baseValue * charlie.costRateOfBaseValue),
         conditionGain: charlie.conditionGain,
+        timeCost: charlie.timeCost ?? 1,
         description: "Fast and cheap. Don't ask questions.",
         risk: `${Math.round(charlie.failChance * 100)}% chance to damage car`,
       });
@@ -122,6 +134,7 @@ export class Economy {
         type: 'Major',
         cost: Math.floor(baseValue * artisan.costRateOfBaseValue),
         conditionGain: artisan.conditionGain,
+        timeCost: artisan.timeCost ?? 2,
         description: 'Perfection takes time. Increases value significantly.',
       });
     }
@@ -222,7 +235,7 @@ export class Economy {
 
     let updatedCar = {
       ...car,
-      condition: Math.min(newCondition, conditionMax),
+      condition: Math.max(0, Math.min(newCondition, conditionMax)),
     };
 
     // Apply discovery value change if found

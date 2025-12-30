@@ -188,6 +188,15 @@ export class MapScene extends BaseGameScene {
       !isTutorialRedemptionAuction &&
       !isTutorialFirstAuctionLoop;
 
+    const timeCost = (() => {
+      if (isGarage) return 0;
+      if (node.specialEvent) return node.specialEvent.timeCost;
+      // Normal base-location auctions: charge travel + participation.
+      // Tutorial flow currently waives this cost to avoid soft-locks.
+      if (isTutorialActive) return 0;
+      return GAME_CONFIG.time.travelCost + GAME_CONFIG.time.auctionParticipationCost;
+    })();
+
     return this.uiManager.createMapLocationCard({
       locationId: node.id,
       name: node.name,
@@ -200,6 +209,7 @@ export class MapScene extends BaseGameScene {
       isExhaustedToday: effectiveIsExhaustedToday,
       showRivalBadge: false,
       showSpecialBadge: node.type === 'special',
+      timeCost,
       onVisit: () => this.visitNode(node),
     });
   }
@@ -307,7 +317,7 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
-    // Regular locations: no travel cost; encounter starts immediately.
+    // Regular locations: time is charged when committing to start the encounter.
     this.generateEncounter(node);
   }
 
@@ -534,11 +544,31 @@ export class MapScene extends BaseGameScene {
               return;
             }
 
+            // Time gating: only applies to normal gameplay (not tutorial, not special events).
+            // For base-location auctions, charge travel + auction participation.
+            const isTutorialActive = this.tutorialManager.isTutorialActive();
+            const travelCost = isTutorialActive ? 0 : GAME_CONFIG.time.travelCost;
+            const auctionCost = isTutorialActive ? 0 : GAME_CONFIG.time.auctionParticipationCost;
+            const totalTimeCost = travelCost + auctionCost;
+
+            if (totalTimeCost > 0 && !this.gameManager.canSpendTime(totalTimeCost)) {
+              const remaining = this.gameManager.getTimeRemaining();
+              this.uiManager.showTimeBlockModal(
+                'Out of Time',
+                `You don't have enough time left today to go out and bid.\n\nTime required: ${totalTimeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
+              );
+              return;
+            }
+
             const player = this.gameManager.getPlayerState();
             const openingBid = this.getAuctionOpeningBid(car);
             if (player.money < openingBid) {
               this.showCannotAffordAuctionModal(openingBid);
               return;
+            }
+
+            if (totalTimeCost > 0) {
+              this.gameManager.spendTime(totalTimeCost);
             }
             this.applyArrivalEffects(node);
             this.scene.start(routed.sceneKey, routed.sceneData);
@@ -578,6 +608,15 @@ export class MapScene extends BaseGameScene {
               return;
             }
 
+            if (!this.gameManager.canSpendTime(specialEvent.timeCost)) {
+              const remaining = this.gameManager.getTimeRemaining();
+              this.uiManager.showTimeBlockModal(
+                'Out of Time',
+                `You don't have enough time left today to attend this event.\n\nTime required: ${specialEvent.timeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
+              );
+              return;
+            }
+
             const player = this.gameManager.getPlayerState();
             const openingBid = this.getAuctionOpeningBid(car);
             if (player.money < openingBid) {
@@ -587,6 +626,7 @@ export class MapScene extends BaseGameScene {
 
             // Remove the event since it's been started/completed.
             this.gameManager.removeSpecialEvent(specialEvent.id);
+            this.gameManager.spendTime(specialEvent.timeCost);
             this.scene.start('AuctionScene', { ...routed.sceneData, specialEvent });
           },
         },

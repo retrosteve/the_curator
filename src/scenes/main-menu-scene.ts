@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GameManager } from '@/core/game-manager';
 import { UIManager } from '@/ui/ui-manager';
+import { SAVE_KEY } from '@/core/game-persistence';
 import { debugLog } from '@/utils/log';
 
 /**
@@ -22,6 +23,11 @@ export class MainMenuScene extends Phaser.Scene {
 
     this.gameManager = GameManager.getInstance();
     this.uiManager = UIManager.getInstance();
+
+    // Ensure the menu never stacks on top of existing DOM UI.
+    this.uiManager.clear();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.uiManager.clear());
+
     this.hasSavedGame = this.checkForSavedGame();
 
     this.setupBackground();
@@ -168,7 +174,7 @@ export class MainMenuScene extends Phaser.Scene {
 
   private checkForSavedGame(): boolean {
     try {
-      const saved = localStorage.getItem('theCuratorSave');
+      const saved = localStorage.getItem(SAVE_KEY);
       return saved !== null;
     } catch {
       return false;

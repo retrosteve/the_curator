@@ -15,6 +15,7 @@ export type GameEvents = {
   'prestige-changed': number;
   'inventory-changed': Car[];
   'day-changed': number;
+  'time-changed': number;
   'location-changed': string;
   'victory': VictoryResult;
   'tutorial-complete': void;

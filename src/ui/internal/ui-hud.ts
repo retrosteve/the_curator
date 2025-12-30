@@ -24,6 +24,11 @@ export function createHUD(
   const barParts: string[] = [];
   barParts.push(`💰 <span class="hud-bar__value" data-hud-value="money">${formatCurrency(data.money)}</span>`);
   barParts.push(`📅 <span class="hud-bar__value" data-hud-value="day">${data.day}</span>`);
+  if (data.timeRemaining !== undefined && data.timeTotal !== undefined) {
+    barParts.push(
+      `⏳ <span class="hud-bar__value" data-hud-value="timeRemaining">${data.timeRemaining}</span>/<span class="hud-bar__value" data-hud-value="timeTotal">${data.timeTotal}</span>`
+    );
+  }
   if (barLocationText) {
     barParts.push(`📍 <span class="hud-bar__value" data-hud-value="location">${barLocationText}</span>`);
   }
@@ -60,6 +65,14 @@ export function createHUD(
             <span class="hud-label">Day</span>
             <span class="hud-value" data-hud-value="day">${data.day}</span>
           </div>
+
+          ${data.timeRemaining !== undefined && data.timeTotal !== undefined ? `
+            <div class="hud-item" data-hud="time">
+              <span class="hud-icon">⏳</span>
+              <span class="hud-label">Time</span>
+              <span class="hud-value"><span data-hud-value="timeRemaining">${data.timeRemaining}</span>/<span data-hud-value="timeTotal">${data.timeTotal}</span></span>
+            </div>
+          ` : ''}
 
           ${data.location !== undefined ? `
             <div class="hud-item hud-item--wide" data-hud="location">
@@ -214,6 +227,12 @@ export function updateHUD(
   }
   if (data.day !== undefined) {
     setTextAll('[data-hud-value="day"]', `${data.day}`);
+  }
+  if (data.timeRemaining !== undefined) {
+    setTextAll('[data-hud-value="timeRemaining"]', `${data.timeRemaining}`);
+  }
+  if (data.timeTotal !== undefined) {
+    setTextAll('[data-hud-value="timeTotal"]', `${data.timeTotal}`);
   }
   if (data.location !== undefined) {
     const formatLocationLabel = options?.formatLocationLabel;

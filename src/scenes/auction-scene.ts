@@ -9,6 +9,7 @@ import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
 import type { AuctionRivalEntry } from '@/systems/map-encounter-router';
+import type { SpecialEvent } from '@/systems/special-events-system';
 import {
   createEncounterCenteredLayoutRoot,
   disableEncounterActionButton,
@@ -79,6 +80,8 @@ export class AuctionScene extends BaseGameScene {
   private rivalAIsById: Record<string, RivalAI> = {};
   private activeRivalIds: string[] = [];
   private locationId?: string;
+  private specialEvent?: SpecialEvent;
+  private specialEventBonusesApplied: boolean = false;
   private auctioneerName!: string;
   private encounterStarted: boolean = false;
   private auctionResolved: boolean = false;
@@ -129,8 +132,8 @@ export class AuctionScene extends BaseGameScene {
 
   init(
     data:
-      | { car: Car; rivals: AuctionRivalEntry[]; locationId?: string }
-      | { car: Car; rival: Rival; interest: number; locationId?: string }
+      | { car: Car; rivals: AuctionRivalEntry[]; locationId?: string; specialEvent?: SpecialEvent }
+      | { car: Car; rival: Rival; interest: number; locationId?: string; specialEvent?: SpecialEvent }
   ): void {
     // This scene instance is reused across runs; aggressively reset any transient state
     // so a previous auction attempt (e.g., player withdrawal) can't leak into a retry.
@@ -168,6 +171,8 @@ export class AuctionScene extends BaseGameScene {
     }
     this.activeRivalIds = this.rivals.map((r) => r.id);
     this.locationId = data.locationId;
+    this.specialEvent = data.specialEvent;
+    this.specialEventBonusesApplied = false;
     this.auctioneerName = AUCTIONEER_NAMES[Math.floor(Math.random() * AUCTIONEER_NAMES.length)];
     this.encounterStarted = false;
     this.auctionResolved = false;
@@ -928,6 +933,10 @@ Tip: Visit the Garage to sell something, then come back.`,
 
     const locationName = (() => {
       if (!this.locationId) return null;
+
+      // Special event encounters remove the event from the active list when started,
+      // so keep the name around from the scene start payload.
+      if (this.specialEvent && this.specialEvent.id === this.locationId) return this.specialEvent.name;
 
       const base = BASE_LOCATIONS.find((loc) => loc.id === this.locationId);
       if (base) return base.name;
@@ -1922,11 +1931,16 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private consumeOfferIfNeeded(): void {
     if (!this.encounterStarted) return;
-    if (this.locationId) {
-      this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
-      // Prevent accidental double-consumption across multiple resolution paths.
-      this.locationId = undefined;
-    }
+    if (!this.locationId) return;
+
+    // Only base locations participate in the per-day offer system.
+    // Special events reuse AuctionScene but are tracked separately.
+    const isBaseLocation = BASE_LOCATIONS.some((loc) => loc.id === this.locationId);
+    if (!isBaseLocation) return;
+
+    this.gameManager.consumeDailyCarOfferForLocation(this.locationId);
+    // Prevent accidental double-consumption across multiple resolution paths.
+    this.locationId = undefined;
   }
 
   private rivalTurnImmediate(
@@ -2121,6 +2135,25 @@ Tip: Visit the Garage to sell something, then come back.`,
 
         // Winning (and acquiring) exhausts the location's daily offer.
         this.consumeOfferIfNeeded();
+
+        // Apply special event bonuses only if the player successfully acquires the car.
+        if (this.specialEvent && !this.specialEventBonusesApplied) {
+          const moneyBonus = this.specialEvent.reward.moneyBonus ?? 0;
+          const prestigeBonus = this.specialEvent.reward.prestigeBonus ?? 0;
+
+          if (moneyBonus > 0) {
+            this.gameManager.addMoney(moneyBonus);
+            this.uiManager.showToast(`Special event bonus: +${formatCurrency(moneyBonus)}`, { durationMs: 2500 });
+          }
+
+          if (prestigeBonus > 0) {
+            this.gameManager.addPrestige(prestigeBonus);
+            this.uiManager.showToast(`Special event bonus: +${prestigeBonus} prestige`, { durationMs: 2500 });
+          }
+
+          // One-shot application guard.
+          this.specialEventBonusesApplied = true;
+        }
 
         // Tutorial: after the first (tutorial) auction win, advance to the restore beat.
         try {

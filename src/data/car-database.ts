@@ -593,7 +593,14 @@ export function getRandomCarWithPreferences(params?: {
  * @returns Calculated market value as an integer
  */
 export function calculateCarValue(car: { baseValue: number; condition: number; history?: readonly string[] }): number {
-  const conditionMultiplier = car.condition / 100;
+  // Condition-to-value curve: linear up to 80, then diminishing returns.
+  // This keeps early restorations meaningful while making 90→100 less of a pure money printer.
+  const rawCondition = Math.max(0, Math.min(100, car.condition));
+  const effectiveCondition =
+    rawCondition <= 80
+      ? rawCondition
+      : 80 + (rawCondition - 80) * 0.5;
+  const conditionMultiplier = effectiveCondition / 100;
   
   // Calculate history multiplier (worst tag wins)
   let historyMultiplier: number = GAME_CONFIG.valuation.historyMultipliers.standard;

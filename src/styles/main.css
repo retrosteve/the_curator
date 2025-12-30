@@ -521,6 +521,12 @@ p {
   box-shadow: 0 4px 15px rgba(0,0,0,0.3);
   position: relative;
   overflow: hidden;
+
+  /* Ensure consistent vertical alignment across cards:
+     header + description at top, status + button pinned to bottom. */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .map-location-card.is-exhausted {
@@ -565,10 +571,16 @@ p {
   gap: 10px;
   margin-bottom: 12px;
   padding-left: 8px;
+  min-height: 32px;
 }
 
 .map-location-card__icon {
   font-size: 28px;
+  width: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .map-location-card__name {
@@ -584,6 +596,8 @@ p {
   margin-bottom: 12px;
   padding-left: 8px;
   line-height: 1.4;
+  /* Keep baseline layout stable even when copy varies. */
+  min-height: 3.9em;
 }
 
 .map-location-card__status {
@@ -592,6 +606,8 @@ p {
   flex-wrap: wrap;
   margin-bottom: 12px;
   padding-left: 8px;
+  /* Pin status near the bottom so badges and button align across cards. */
+  margin-top: auto;
 }
 
 .map-badge {

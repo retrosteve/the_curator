@@ -16,6 +16,7 @@ export function createMapLocationCard(options: {
   isExhaustedToday: boolean;
   showRivalBadge: boolean;
   showSpecialBadge: boolean;
+  timeCost?: number;
   onVisit: () => void;
   onShowLockedModal: (title: string, message: string) => void;
 }): HTMLElement {
@@ -31,6 +32,7 @@ export function createMapLocationCard(options: {
     isExhaustedToday,
     showRivalBadge,
     showSpecialBadge,
+    timeCost,
     onVisit,
     onShowLockedModal,
   } = options;
@@ -78,6 +80,16 @@ export function createMapLocationCard(options: {
   card.appendChild(desc);
 
   const statusBar = createDiv('map-location-card__status');
+
+  // Time badge: show the cost to take the action from the map.
+  // Reuse existing badge styles to keep the UI consistent.
+  if (!isGarage) {
+    const timeBadge = document.createElement('span');
+    const effectiveCost = Number.isFinite(timeCost) ? Math.max(0, Math.floor(timeCost as number)) : 0;
+    timeBadge.textContent = effectiveCost > 0 ? `\u23F1 ${effectiveCost} TIME` : 'FREE';
+    timeBadge.className = `map-badge ${effectiveCost > 0 ? 'map-badge--ap' : 'map-badge--free'}`;
+    statusBar.appendChild(timeBadge);
+  }
 
   if (isLocked) {
     const lockBadge = document.createElement('span');

@@ -298,7 +298,7 @@ export class TutorialManager {
       case 'first_visit_auction':
         this.showDialogue(
           "Uncle Ray",
-          "Now click \"Explore Map\", then select the Auction House to bid on your first car. You can take as many actions as you want during a day—use \"End Day\" when you're ready to advance time."
+          "Now click \"Explore Map\", then select the Auction House to bid on your first car. Some actions cost Time—watch your Time in the HUD. If you run out, use \"End Day\" to reset your time budget and advance the day."
         );
         break;
       

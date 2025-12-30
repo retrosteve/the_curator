@@ -71,6 +71,7 @@ const DAILY_RENT = GAME_CONFIG.economy.dailyRent;
 const BANK_LOAN_AMOUNT = GAME_CONFIG.economy.bankLoan.amount;
 const PRESTON_LOAN_AMOUNT = GAME_CONFIG.economy.finance.prestonLoan.amount;
 const PRESTON_LOAN_FEE_RATE = GAME_CONFIG.economy.finance.prestonLoan.feeRate;
+const TIME_UNITS_PER_DAY = GAME_CONFIG.time.unitsPerDay;
 
 const SAVE_DEBOUNCE_MS = 1000; // Debounce save calls by 1 second (only used for on-change autosave)
 
@@ -110,6 +111,16 @@ export class GameManager {
     this.player.claimedSets ??= new Set<string>();
   }
 
+  private ensureSaveCompatWorldState(): void {
+    // Backwards compatibility: older saves won't have timeRemaining.
+    const raw = (this.world as Partial<WorldState>).timeRemaining;
+    if (!Number.isFinite(raw)) {
+      (this.world as WorldState).timeRemaining = TIME_UNITS_PER_DAY;
+    }
+
+    this.world.timeRemaining = Math.max(0, Math.min(TIME_UNITS_PER_DAY, Math.floor(this.world.timeRemaining)));
+  }
+
   private emitMoneyChanged(): void {
     eventBus.emit('money-changed', this.player.money);
   }
@@ -124,6 +135,10 @@ export class GameManager {
 
   private emitDayChanged(): void {
     eventBus.emit('day-changed', this.world.day);
+  }
+
+  private emitTimeChanged(): void {
+    eventBus.emit('time-changed', this.getTimeRemaining());
   }
 
   private emitLocationChanged(location: string): void {
@@ -150,6 +165,7 @@ export class GameManager {
     this.world = {
       day: 1,
       currentLocation: 'garage',
+      timeRemaining: TIME_UNITS_PER_DAY,
       carOfferByLocation: {},
       rivalPresenceByLocation: {},
       dayStats: {
@@ -175,6 +191,32 @@ export class GameManager {
 
   private resetDailyRivalPresence(): void {
     this.world.rivalPresenceByLocation = resetDailyRivalPresenceInternal();
+  }
+
+  /** Remaining time units for the current day. */
+  public getTimeRemaining(): number {
+    return Math.max(0, Math.floor(this.world.timeRemaining));
+  }
+
+  /** Returns true if the player can spend the requested time units today. */
+  public canSpendTime(units: number): boolean {
+    if (!Number.isFinite(units)) return false;
+    const cost = Math.max(0, Math.floor(units));
+    return this.getTimeRemaining() >= cost;
+  }
+
+  /** Spend time units from the current day. Returns false if insufficient time. */
+  public spendTime(units: number): boolean {
+    if (!Number.isFinite(units)) return false;
+    const cost = Math.max(0, Math.floor(units));
+    if (cost === 0) return true;
+    if (!this.canSpendTime(cost)) return false;
+
+    this.world.timeRemaining = Math.max(0, this.getTimeRemaining() - cost);
+    this.emitTimeChanged();
+    // Time is a primary resource; persist immediately to prevent reload exploits.
+    this.debouncedSave({ critical: true });
+    return true;
   }
 
   /**
@@ -224,7 +266,8 @@ export class GameManager {
       offerMap: this.world.carOfferByLocation,
       locationId,
     });
-    this.debouncedSave();
+    // Offer exhaustion is an anti-fishing invariant; persist immediately to prevent reload exploits.
+    this.debouncedSave({ critical: true });
   }
 
   /**
@@ -797,6 +840,7 @@ export class GameManager {
     }
 
     this.world.day += 1;
+    this.world.timeRemaining = TIME_UNITS_PER_DAY;
 
     // New day: re-roll daily rival presence (but keep it stable within the day).
     this.resetDailyRivalPresence();
@@ -825,6 +869,7 @@ export class GameManager {
     }
 
     this.emitDayChanged();
+    this.emitTimeChanged();
 
     this.save(); // Immediate save on day end (critical checkpoint)
     return { bankrupt: false, rentPaid };
@@ -1085,6 +1130,7 @@ export class GameManager {
       this.world = loaded.world;
 
       this.ensureSaveCompatPlayerState();
+      this.ensureSaveCompatWorldState();
 
       // Save hygiene: strip invalid or corrupted entries so the day can safely reroll them.
       this.sanitizeDailyRivalPresenceMap();
@@ -1133,6 +1179,7 @@ export class GameManager {
     this.emitPrestigeChanged();
     this.emitInventoryChanged();
     this.emitDayChanged();
+    this.emitTimeChanged();
     this.emitLocationChanged(this.world.currentLocation);
   }
 }

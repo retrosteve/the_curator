@@ -32,6 +32,8 @@ export interface PlayerState {
 export interface WorldState {
   day: number;
   currentLocation: string;
+  /** Remaining time units in the current day. */
+  timeRemaining: number;
   /**
    * Per-day car offer for each location id.
    * - Missing key: not yet rolled for the day.

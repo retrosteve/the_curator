@@ -2,6 +2,7 @@ import type { PlayerState, WorldState } from '@/core/game-manager';
 import type { MarketFluctuationState } from '@/systems/market-fluctuation-system';
 import type { SpecialEventsState } from '@/systems/special-events-system';
 import type { TutorialStep } from '@/systems/tutorial-manager';
+import { GAME_CONFIG } from '@/config/game-config';
 import { isRecord } from '@/utils/types';
 import { warnLog } from '@/utils/log';
 
@@ -246,6 +247,7 @@ export function hydrateLoadedState(saveData: SavedGameData): {
   const world: WorldState = {
     day: rawWorld.day ?? 1,
     currentLocation: rawWorld.currentLocation ?? 'garage',
+    timeRemaining: rawWorld.timeRemaining ?? GAME_CONFIG.time.unitsPerDay,
     carOfferByLocation: rawWorld.carOfferByLocation ?? {},
     rivalPresenceByLocation: rawWorld.rivalPresenceByLocation ?? {},
     dayStats:

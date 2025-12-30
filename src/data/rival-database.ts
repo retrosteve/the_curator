@@ -18,7 +18,15 @@ export type RivalMood = 'Desperate' | 'Cautious' | 'Confident' | 'Normal';
 /**
  * Rival Bark Triggers
  */
-export type BarkTrigger = 'bid' | 'outbid' | 'win' | 'lose' | 'patience_low';
+export type BarkTrigger =
+  | 'bid'
+  | 'outbid'
+  | 'win'
+  | 'win_value'
+  | 'win_overpay'
+  | 'lose'
+  | 'lose_overpay'
+  | 'patience_low';
 
 /**
  * Get a bark (dialogue line) for a rival based on their mood and the situation.
@@ -32,28 +40,40 @@ export function getRivalBark(mood: RivalMood, trigger: BarkTrigger): string {
       bid: ["I... I really need this win!", "Don't push me!", "I'm all in on this one!"],
       outbid: ["No! That's too much!", "You're ruining me!", "Please, just let me have it!", "This is killing me!"],
       win: ["Finally! A win!", "Thank goodness...", "I needed that."],
+      win_value: ["Finally—something went my way.", "Okay... that was actually a deal.", "Thank goodness... a fair price."],
+      win_overpay: ["I paid too much... but I had to.", "That was expensive—still worth it.", "Ugh. Over estimate, but it's mine."],
       lose: ["Disaster... absolute disaster.", "What am I going to do now?", "You'll regret this!"],
+      lose_overpay: ["You paid way too much!", "That's insane money!", "You overpaid—badly."],
       patience_low: ["I can't take this anymore!", "My nerves are shot!", "Just end it already!", "Stop dragging this out!", "Please—just call it!"]
     },
     Cautious: {
       bid: ["Let's be reasonable here.", "A calculated offer.", "I'm watching the margins."],
       outbid: ["That's getting expensive.", "Is it really worth that much?", "I might have to fold.", "That's near my limit."],
-      win: ["A sensible acquisition.", "Good value for money.", "Glad we didn't overpay."],
-      lose: ["Too rich for my blood.", "I'll find a better deal elsewhere.", "You overpaid."],
+      win: ["A sensible acquisition.", "Good value for money."],
+      win_value: ["Glad we didn't overpay.", "That's a clean buy.", "The numbers actually make sense."],
+      win_overpay: ["Paid a premium... but acceptable.", "Over estimate, but I can live with it.", "Not my favorite price, but it'll do."],
+      lose: ["Too rich for my blood.", "I'll find a better deal elsewhere."],
+      lose_overpay: ["You overpaid.", "That was above estimate—good luck.", "Enjoy paying a premium."],
       patience_low: ["This is taking too long.", "I'm losing interest.", "Time is money.", "Let's wrap this up.", "I don't have all day."]
     },
     Confident: {
       bid: ["Is that all you've got?", "Top that!", "I'm just getting started."],
       outbid: ["Cute.", "You're playing with the big dogs now.", "Pocket change.", "Still not enough."],
       win: ["Too easy!", "Another trophy for the collection.", "Knew I'd win."],
+      win_value: ["Too easy—and I got a deal.", "They practically gave it away.", "Deal of the day."],
+      win_overpay: ["Worth every dollar.", "Price doesn't matter—winning does.", "I paid up. Still mine."],
       lose: ["Whatever, I didn't want it anyway.", "Enjoy it.", "I have better cars at home."],
+      lose_overpay: ["You overpaid.", "Ha—paid a premium for that?", "Enjoy your expensive mistake."],
       patience_low: ["You're boring me.", "Are we done yet?", "Stop wasting my time.", "Say the number or walk away.", "Last chance—make it count."]
     },
     Normal: {
       bid: ["Still in.", "Beat that.", "Let's keep it moving."],
       outbid: ["Higher, huh.", "I might match that.", "Alright then.", "Not bad—try again."],
       win: ["Good auction.", "I'll take it.", "Nice doing business."],
+      win_value: ["That's a good price.", "I'll take it—nice and clean.", "Solid value."],
+      win_overpay: ["Paid more than I wanted, but okay.", "Not cheap—still a win.", "Price stings, trophy doesn't."],
       lose: ["Fair play.", "It's yours.", "All yours."],
+      lose_overpay: ["You overpaid.", "Over estimate—yikes.", "That's a pricey win."],
       patience_low: ["Getting tired of this.", "Make up your mind.", "Last chance.", "Call it already.", "Let's finish this."]
     }
   };

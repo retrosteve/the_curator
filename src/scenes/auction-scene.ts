@@ -106,7 +106,6 @@ export class AuctionScene extends BaseGameScene {
   private lastBidder?: BidderId;
 
   private bidHistory: BidHistoryEntry[] = [];
-  private lastAuctioneerLine: string = '';
   private auctioneerQuoteEl?: HTMLElement;
   private hasAnyBids: boolean = false;
 
@@ -190,7 +189,6 @@ export class AuctionScene extends BaseGameScene {
     this.stallUsesThisAuction = 0;
     this.powerBidStreak = 0;
     this.bidHistory = [];
-    this.lastAuctioneerLine = '';
     this.auctioneerQuoteEl = undefined;
     this.auctionMarketEstimateValue = 0;
 
@@ -1058,15 +1056,30 @@ export class AuctionScene extends BaseGameScene {
       alignItems: 'center',
     });
 
-    const patienceBox = document.createElement('div');
-    Object.assign(patienceBox.style, {
+    const auctioneerBox = document.createElement('div');
+    Object.assign(auctioneerBox.style, {
       display: 'flex',
-      flexDirection: 'column',
-      gap: '6px',
+      alignItems: 'center',
+      gap: '10px',
       minWidth: '0',
     } satisfies Partial<CSSStyleDeclaration>);
-    patienceBox.appendChild(
-      this.uiManager.createText('Lowest rival patience', {
+
+    const statusAuctioneerPortrait = makePortraitAnchor(
+      getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
+      `${this.auctioneerName} portrait`,
+      30
+    );
+    this.participantFlash.anchors.auctioneer = statusAuctioneerPortrait;
+
+    const statusAuctioneerMeta = document.createElement('div');
+    Object.assign(statusAuctioneerMeta.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    statusAuctioneerMeta.appendChild(
+      this.uiManager.createText('Auctioneer', {
         margin: '0',
         fontSize: '11px',
         opacity: '0.75',
@@ -1074,37 +1087,19 @@ export class AuctionScene extends BaseGameScene {
         letterSpacing: '0.06em',
       })
     );
-
-    const activePatienceValues = this.activeRivalIds
-      .map((id) => this.rivalAIsById[id])
-      .filter(Boolean)
-      .map((ai) => Math.floor(ai.getPatience()));
-    const lowestPatience = activePatienceValues.length > 0 ? Math.min(...activePatienceValues) : 0;
-    const patience = Math.max(0, Math.min(100, lowestPatience));
-    patienceBox.appendChild(
-      this.uiManager.createText(`${patience}%`, {
+    statusAuctioneerMeta.appendChild(
+      this.uiManager.createText(this.auctioneerName, {
         margin: '0',
         fontWeight: '900',
-        fontSize: '16px',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        color: '#ffd700',
       })
     );
 
-    const patienceBarOuter = document.createElement('div');
-    Object.assign(patienceBarOuter.style, {
-      height: '8px',
-      borderRadius: pixelUI ? '0px' : '999px',
-      backgroundColor: 'rgba(255,255,255,0.10)',
-      overflow: 'hidden',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const patienceBarInner = document.createElement('div');
-    Object.assign(patienceBarInner.style, {
-      height: '100%',
-      width: `${patience}%`,
-      background: 'linear-gradient(135deg, #27ae60, #229954)',
-    } satisfies Partial<CSSStyleDeclaration>);
-    patienceBarOuter.appendChild(patienceBarInner);
-    patienceBox.appendChild(patienceBarOuter);
+    auctioneerBox.appendChild(statusAuctioneerPortrait);
+    auctioneerBox.appendChild(statusAuctioneerMeta);
 
     const bidBox = document.createElement('div');
     Object.assign(bidBox.style, {
@@ -1156,7 +1151,7 @@ export class AuctionScene extends BaseGameScene {
 
     bidBox.appendChild(bidAmountsRow);
 
-    statusStrip.appendChild(patienceBox);
+    statusStrip.appendChild(auctioneerBox);
     statusStrip.appendChild(bidBox);
     leftCol.appendChild(statusStrip);
 
@@ -1259,64 +1254,6 @@ export class AuctionScene extends BaseGameScene {
     carStatsRow.appendChild(statsGrid);
     carStatsPanel.appendChild(carStatsRow);
     leftCol.appendChild(carStatsPanel);
-
-    // LEFT: auctioneer callout (reference: auctioneer dialogue card)
-    const auctioneerPanel = this.uiManager.createPanel({
-      padding: '8px 10px',
-    });
-    const auctioneerRow = document.createElement('div');
-    Object.assign(auctioneerRow.style, {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      margin: '0 0 8px 0',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const auctioneerPortrait = makePortraitAnchor(
-      getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
-      `${this.auctioneerName} portrait`,
-      34
-    );
-    this.participantFlash.anchors.auctioneer = auctioneerPortrait;
-
-    const auctioneerMeta = document.createElement('div');
-    Object.assign(auctioneerMeta.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '2px',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-    auctioneerMeta.appendChild(
-      this.uiManager.createText(this.auctioneerName, {
-        margin: '0',
-        fontWeight: '900',
-        color: '#ffd700',
-      })
-    );
-    auctioneerMeta.appendChild(
-      this.uiManager.createText('Auctioneer', {
-        margin: '0',
-        fontSize: '12px',
-        opacity: '0.75',
-      })
-    );
-
-    auctioneerRow.appendChild(auctioneerPortrait);
-    auctioneerRow.appendChild(auctioneerMeta);
-    auctioneerPanel.appendChild(auctioneerRow);
-
-    const auctioneerText = this.lastAuctioneerLine || 'Opening bid—who wants it?';
-    const quote = this.uiManager.createText(`"${auctioneerText}"`, {
-      margin: '0',
-      fontStyle: pixelUI ? 'normal' : 'italic',
-      opacity: '0.95',
-      lineHeight: '1.25',
-      fontSize: '12px',
-    });
-    this.auctioneerQuoteEl = quote;
-    auctioneerPanel.appendChild(quote);
-    leftCol.appendChild(auctioneerPanel);
 
     // LEFT: bidding controls (reference: quick increments + place bid)
     const biddingPanel = this.uiManager.createPanel({
@@ -1804,10 +1741,10 @@ export class AuctionScene extends BaseGameScene {
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    this.lastAuctioneerLine = trimmed;
     if (this.auctioneerQuoteEl) {
       this.auctioneerQuoteEl.textContent = `"${trimmed}"`;
     }
+    this.showParticipantBarkBubble('auctioneer', trimmed, { durationMs: 2400, tone: 'comment' });
     this.flashParticipant('auctioneer');
   }
 
@@ -2150,18 +2087,36 @@ export class AuctionScene extends BaseGameScene {
     }
 
     // Show final bark
+    const estimate = Math.max(0, Math.floor(this.auctionMarketEstimateValue ?? 0));
+    const finalBid = Math.max(0, Math.floor(this.currentBid));
+    const isMeaningfulOverpay =
+      estimate > 0 && finalBid >= estimate * 1.05 && finalBid - estimate >= 2000;
+    const isMeaningfulValue =
+      estimate > 0 && finalBid <= estimate * 0.95 && estimate - finalBid >= 2000;
+
     if (playerWon) {
       this.showAuctioneerBark('end_player_win');
       const anyRivalId = this.getAnyRivalId();
       if (anyRivalId) {
-        this.showRivalBarkAfterAuctioneer(anyRivalId, rivalFinalBarkTrigger ?? 'lose');
+        const effectiveLoserTrigger =
+          rivalFinalBarkTrigger && rivalFinalBarkTrigger !== 'lose'
+            ? rivalFinalBarkTrigger
+            : isMeaningfulOverpay
+              ? 'lose_overpay'
+              : 'lose';
+        this.showRivalBarkAfterAuctioneer(anyRivalId, effectiveLoserTrigger);
       }
     } else {
       this.showAuctioneerBark('end_player_lose', { winnerBidderId });
       const winnerRivalId = typeof winnerBidderId === 'string' && winnerBidderId.startsWith('rival:') ? winnerBidderId.slice('rival:'.length) : undefined;
       const barkRivalId = winnerRivalId ?? this.getAnyRivalId();
       if (barkRivalId) {
-        this.showRivalBarkAfterAuctioneer(barkRivalId, 'win');
+        const winnerTrigger: BarkTrigger = isMeaningfulOverpay
+          ? 'win_overpay'
+          : isMeaningfulValue
+            ? 'win_value'
+            : 'win';
+        this.showRivalBarkAfterAuctioneer(barkRivalId, winnerTrigger);
       }
     }
 

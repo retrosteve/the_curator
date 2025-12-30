@@ -35,6 +35,10 @@ export class UIManager {
   private readonly modalManager: ModalManager;
   private readonly tutorialUI: TutorialUI;
   private readonly tutorialHighlighter: TutorialHighlighter;
+  private readonly handleTutorialHighlightChanged = (payload: { targets: string[] }): void => {
+    this.tutorialHighlighter.setTargets(payload.targets);
+    this.tutorialHighlighter.refresh();
+  };
 
   /**
    * Append an element to the UI overlay root (#ui-overlay).
@@ -136,10 +140,16 @@ export class UIManager {
     );
     this.tutorialHighlighter = new TutorialHighlighter(this.container);
 
-    eventBus.on('tutorial-highlight-changed', (payload) => {
-      this.tutorialHighlighter.setTargets(payload.targets);
-      this.tutorialHighlighter.refresh();
-    });
+    eventBus.on('tutorial-highlight-changed', this.handleTutorialHighlightChanged);
+  }
+
+  /**
+   * Release global subscriptions.
+   * Primarily used for Vite HMR so the singleton doesn't accumulate listeners.
+   */
+  public dispose(): void {
+    eventBus.off('tutorial-highlight-changed', this.handleTutorialHighlightChanged);
+    this.toastManager.reset();
   }
 
   public refreshTutorialHighlight(): void {
@@ -151,6 +161,16 @@ export class UIManager {
       UIManager.instance = new UIManager();
     }
     return UIManager.instance;
+  }
+
+  /** @internal Vite HMR support */
+  public static __resetForHMR(): void {
+    if (UIManager.instance) {
+      UIManager.instance.dispose();
+    }
+    // Clear the singleton so the next import recreates a clean instance.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (UIManager as any).instance = undefined;
   }
 
   /**
@@ -241,6 +261,10 @@ export class UIManager {
   public clear(): void {
     const { backdrop: tutorialBackdrop, dialogue: tutorialDialogue } =
       this.tutorialUI.getElements();
+
+    // Clearing the overlay removes toast DOM nodes; reset toast bookkeeping so
+    // new toasts don't stack as if old ones still existed.
+    this.toastManager.reset();
 
     clearOverlayPreserving(this.container, [tutorialBackdrop, tutorialDialogue]);
 
@@ -563,4 +587,11 @@ export class UIManager {
   public hideTutorialDialogue(): void {
     this.tutorialUI.hideTutorialDialogue();
   }
+}
+
+// Vite HMR: when this module is replaced, detach global listeners to avoid duplicates.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    UIManager.__resetForHMR();
+  });
 }

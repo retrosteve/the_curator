@@ -12,6 +12,24 @@ export class ToastManager {
 
   constructor(private readonly appendToOverlay: (element: HTMLElement) => void) {}
 
+  private pruneStaleToasts(): void {
+    if (this.activeToasts.length === 0) return;
+    this.activeToasts = this.activeToasts.filter((toast) => toast.isConnected);
+  }
+
+  /**
+   * Clears all toast bookkeeping and removes any active toast elements.
+   * Useful when the UI overlay is hard-cleared between scenes.
+   */
+  public reset(): void {
+    for (const toast of this.activeToasts) {
+      if (toast.isConnected) {
+        toast.remove();
+      }
+    }
+    this.activeToasts = [];
+  }
+
   private createTopRightToastElement(options: {
     text: string;
     background: string;
@@ -24,6 +42,7 @@ export class ToastManager {
   }): HTMLDivElement {
     const pixelUI = isPixelUIEnabled();
     const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
+    this.pruneStaleToasts();
     const topPosition = baseTopPosition + (this.activeToasts.length * heightWithMargin);
 
     const toast = createDiv('');
@@ -88,6 +107,7 @@ export class ToastManager {
   }
 
   private enqueueToast(toast: HTMLElement, durationMs: number): void {
+    this.pruneStaleToasts();
     this.activeToasts.push(toast);
     this.appendToOverlay(toast);
 
@@ -269,6 +289,7 @@ export class ToastManager {
   }
 
   private repositionToasts(): void {
+    this.pruneStaleToasts();
     const { baseTopPosition, heightWithMargin } = GAME_CONFIG.ui.toast;
     this.activeToasts.forEach((toast, index) => {
       toast.style.top = `${baseTopPosition + (index * heightWithMargin)}px`;

@@ -16,7 +16,7 @@ import {
   formatEncounterNeedLabel,
   ensureEncounterLayoutStyles,
 } from '@/ui/internal/ui-encounter';
-import { isPixelUIEnabled } from '@/ui/internal/ui-style';
+import { ensureStyleElement, isPixelUIEnabled } from '@/ui/internal/ui-style';
 import {
   type BiddingContext,
   type BiddingCallbacks,
@@ -108,6 +108,8 @@ export class AuctionScene extends BaseGameScene {
   private bidHistory: BidHistoryEntry[] = [];
   private auctioneerQuoteEl?: HTMLElement;
   private hasAnyBids: boolean = false;
+
+  private lastRenderedCurrentBid?: number;
 
   private pendingRivalConsiderationStepTimeoutId?: number;
 
@@ -861,6 +863,22 @@ export class AuctionScene extends BaseGameScene {
       bottomClass: 'auction-layout__main',
     });
 
+    ensureStyleElement(
+      'auctionBidPopStyles',
+      `
+        @keyframes auctionBidPop {
+          0% { transform: scale(1); }
+          45% { transform: scale(1.18); }
+          100% { transform: scale(1); }
+        }
+        .auction-bid-pop {
+          animation: auctionBidPop 180ms ease-out;
+          transform-origin: center center;
+          will-change: transform;
+        }
+      `
+    );
+
     const layoutRoot = createEncounterCenteredLayoutRoot('auction-layout');
     Object.assign(layoutRoot.style, {
       top: '64px',
@@ -1061,6 +1079,8 @@ export class AuctionScene extends BaseGameScene {
       })
     );
 
+    const currentBidValueEl = currentBidBox.lastElementChild as HTMLElement | null;
+
     const nextBidBox = document.createElement('div');
     Object.assign(nextBidBox.style, {
       display: 'flex',
@@ -1095,6 +1115,15 @@ export class AuctionScene extends BaseGameScene {
     bidBar.appendChild(currentBidBox);
     bidBar.appendChild(nextBidBox);
     layoutRoot.appendChild(bidBar);
+
+    const shouldPopCurrentBid =
+      this.lastRenderedCurrentBid !== undefined && this.currentBid > this.lastRenderedCurrentBid;
+    if (shouldPopCurrentBid && currentBidValueEl) {
+      currentBidValueEl.classList.remove('auction-bid-pop');
+      // Force reflow so the animation reliably restarts.
+      void currentBidValueEl.offsetWidth;
+      currentBidValueEl.classList.add('auction-bid-pop');
+    }
 
     const mainGrid = document.createElement('div');
     mainGrid.classList.add('auction-layout__main');
@@ -1594,6 +1623,8 @@ export class AuctionScene extends BaseGameScene {
     layoutRoot.appendChild(mainGrid);
 
     this.uiManager.append(layoutRoot);
+
+    this.lastRenderedCurrentBid = this.currentBid;
 
     // Re-apply current turn highlight to the newly created bidder row nodes.
     this.applyTurnFocusBidder();

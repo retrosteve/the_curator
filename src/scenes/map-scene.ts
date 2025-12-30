@@ -1,7 +1,7 @@
 import { debugLog, errorLog } from '@/utils/log';
 import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
-import { calculateCarValue, getCarById, getRandomCar, type Car } from '@/data/car-database';
+import { calculateCarValue, getCarById, getRandomCarForPrestige, type Car } from '@/data/car-database';
 import { calculateRivalInterest, getRivalById } from '@/data/rival-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { BASE_LOCATIONS, getBaseLocationDefinitionById, type LocationType } from '@/data/location-database';
@@ -288,12 +288,15 @@ export class MapScene extends BaseGameScene {
       return;
     }
 
+    const player = this.gameManager.getPlayerState();
+
     // Tutorial-specific encounters with specific cars
     try {
       if (this.tutorialManager && this.tutorialManager.isTutorialActive()) {
         // Force Rusty Sedan for the first tutorial auction (first car acquisition)
         if (node.id === 'auction_1' && this.tutorialManager.isOnFirstVisitAuctionStep()) {
-          const car = getCarById('car_tutorial_rusty_sedan') || getRandomCar();
+          const car =
+            getCarById('car_tutorial_rusty_sedan') || getRandomCarForPrestige(player.prestige);
           const rival = getRivalById('scrapyard_joe');
           const interest = calculateRivalInterest(rival, car.tags);
 
@@ -349,7 +352,8 @@ export class MapScene extends BaseGameScene {
         
         // First loss: Force Sterling Vance encounter with Muscle Car
         if (node.id === 'auction_1' && this.tutorialManager.isInSterlingAuctionIntroBeat()) {
-          const car = getCarById('car_tutorial_muscle_car') || getRandomCar();
+          const car =
+            getCarById('car_tutorial_muscle_car') || getRandomCarForPrestige(player.prestige);
           const sterlingVance = getRivalById('sterling_vance');
           const interest = calculateRivalInterest(sterlingVance, car.tags);
 
@@ -597,7 +601,8 @@ export class MapScene extends BaseGameScene {
   }
 
   private generateSpecialEncounter(specialEvent: SpecialEvent): void {
-    const car = buildSpecialEventCar(specialEvent);
+    const player = this.gameManager.getPlayerState();
+    const car = buildSpecialEventCar(specialEvent, player.prestige);
 
     // Special events are also auctions.
     if (!this.hasGarageSpace()) {

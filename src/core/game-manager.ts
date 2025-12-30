@@ -1,4 +1,4 @@
-import { Car, getRandomCar, getRandomCarWithPreferences } from '@/data/car-database';
+import { Car, getRandomCarForPrestige, getRandomCarWithPreferences } from '@/data/car-database';
 import { eventBus } from './event-bus';
 import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
 import { SpecialEventsSystem } from '@/systems/special-events-system';
@@ -244,12 +244,14 @@ export class GameManager {
 
   private rollDailyOfferCarForLocation(locationId: string): Car {
     const baseLocation = getBaseLocationDefinitionById(locationId);
-    const focusTags = baseLocation?.focusTags ?? null;
-    if (focusTags && focusTags.length > 0) {
-      return getRandomCarWithPreferences({ preferredTags: focusTags });
-    }
+    if (!baseLocation) return getRandomCarForPrestige(this.player.prestige);
 
-    return getRandomCar();
+    return getRandomCarWithPreferences({
+      preferredTags: baseLocation.focusTags,
+      tierWeightMultipliers: baseLocation.tierWeightMultipliers,
+      requirePreferredTagMatch: Boolean(baseLocation.focusTags && baseLocation.focusTags.length > 0),
+      playerPrestige: this.player.prestige,
+    });
   }
 
   /**

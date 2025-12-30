@@ -1,4 +1,5 @@
-import { getRandomCar, type Car } from '@/data/car-database';
+import { getRandomCarWithPreferences, type Car, type CarTier } from '@/data/car-database';
+import { getBaseLocationDefinitionById } from '@/data/location-database';
 import { calculateRivalInterest, getRivalByTierProgression, type Rival } from '@/data/rival-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
 
@@ -102,13 +103,22 @@ export function routeRegularEncounter(params: {
  * Builds the car reward for a special event by starting from a random car
  * and applying any event-specific tag guarantees and value multipliers.
  */
-export function buildSpecialEventCar(specialEvent: SpecialEvent): Car {
-  let car = getRandomCar();
+export function buildSpecialEventCar(specialEvent: SpecialEvent, playerPrestige?: number): Car {
+  const guaranteedTags = specialEvent.reward.guaranteedTags ?? [];
 
-  if (specialEvent.reward.guaranteedTags && specialEvent.reward.guaranteedTags.length > 0) {
+  const tierWeightMultipliers = inferTierBiasFromSpecialEventTags(guaranteedTags);
+
+  let car = getRandomCarWithPreferences({
+    preferredTags: guaranteedTags,
+    tierWeightMultipliers,
+    requirePreferredTagMatch: guaranteedTags.length > 0,
+    playerPrestige,
+  });
+
+  if (guaranteedTags.length > 0) {
     car = {
       ...car,
-      tags: [...new Set([...car.tags, ...specialEvent.reward.guaranteedTags])],
+      tags: [...new Set([...car.tags, ...guaranteedTags])],
     };
   }
 
@@ -120,4 +130,27 @@ export function buildSpecialEventCar(specialEvent: SpecialEvent): Car {
   }
 
   return car;
+}
+
+function inferTierBiasFromSpecialEventTags(
+  guaranteedTags: readonly string[]
+): Partial<Record<CarTier, number>> | undefined {
+  if (guaranteedTags.length === 0) return undefined;
+
+  // Map special events onto an existing auction “flavor” using the same biases
+  // as the corresponding base auction location.
+  const hasAny = (needles: readonly string[]): boolean => needles.some((t) => guaranteedTags.includes(t));
+
+  const auctionId = hasAny(['Exotic', 'European'])
+    ? 'auction_exotics'
+    : hasAny(['Classic', 'Muscle'])
+      ? 'auction_classics'
+      : hasAny(['JDM'])
+        ? 'auction_jdm'
+        : null;
+
+  if (!auctionId) return undefined;
+
+  const location = getBaseLocationDefinitionById(auctionId);
+  return location?.tierWeightMultipliers;
 }

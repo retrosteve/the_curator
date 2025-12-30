@@ -59,6 +59,41 @@ export const GAME_CONFIG = {
       'Icon': 15,           // Uncommon
       'Unicorn': 5,         // Rare
     },
+
+    /**
+     * Progression-aware tier weights.
+     * Keeps early-game offers affordable and reduces extreme windfalls,
+     * while preserving the late-game distribution.
+     */
+    tierWeightsByPrestige: {
+      early: {
+        maxPrestigeExclusive: 50,
+        weights: {
+          'Daily Driver': 70,
+          'Cult Classic': 27,
+          'Icon': 3,
+          'Unicorn': 0,
+        },
+      },
+      mid: {
+        maxPrestigeExclusive: 150,
+        weights: {
+          'Daily Driver': 55,
+          'Cult Classic': 30,
+          'Icon': 15,
+          'Unicorn': 0,
+        },
+      },
+      lateMid: {
+        maxPrestigeExclusive: 300,
+        weights: {
+          'Daily Driver': 45,
+          'Cult Classic': 30,
+          'Icon': 23,
+          'Unicorn': 2,
+        },
+      },
+    },
   },
 
   progression: {
@@ -247,9 +282,9 @@ export const GAME_CONFIG = {
   },
 
   auction: {
-    startingBidMultiplier: 0.5,
+    startingBidMultiplier: 0.65,
 
-    bidIncrement: 100,
+    bidIncrement: 200,
     powerBidIncrement: 500,
 
     powerBidPatiencePenalty: 20,

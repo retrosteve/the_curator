@@ -33,6 +33,27 @@ export interface Car {
   restorationSpent?: number;
 }
 
+function getTierWeightsForPrestige(playerPrestige?: number): Record<CarTier, number> {
+  const baseWeights = GAME_CONFIG.cars.tierWeights as Record<CarTier, number>;
+  const prestige = Number.isFinite(playerPrestige) ? Math.max(0, Math.floor(playerPrestige as number)) : undefined;
+  if (prestige === undefined) return baseWeights;
+
+  const progression = GAME_CONFIG.cars.tierWeightsByPrestige;
+  if (prestige < progression.early.maxPrestigeExclusive) {
+    return progression.early.weights as Record<CarTier, number>;
+  }
+
+  if (prestige < progression.mid.maxPrestigeExclusive) {
+    return progression.mid.weights as Record<CarTier, number>;
+  }
+
+  if (prestige < progression.lateMid.maxPrestigeExclusive) {
+    return progression.lateMid.weights as Record<CarTier, number>;
+  }
+
+  return baseWeights;
+}
+
 /**
  * Static car database - sample cars for the game.
  * These are template cars used to generate random encounters.
@@ -516,22 +537,68 @@ export function getRandomCar(): Car {
   return getRandomCarWithPreferences();
 }
 
+export function getRandomCarForPrestige(playerPrestige?: number): Car {
+  return getRandomCarWithPreferences({ playerPrestige });
+}
+
 export function getRandomCarWithPreferences(params?: {
   /** Tags that should be more likely to appear in the rolled car. */
   preferredTags?: readonly string[];
   /** Multiplier applied when a car matches any preferred tag. */
   preferredTagBoost?: number;
+  /** Player prestige used to bias tier distribution for progression. */
+  playerPrestige?: number;
+  /** Optional tier multipliers applied after prestige-based tier weights. */
+  tierWeightMultipliers?: Partial<Record<CarTier, number>>;
+  /** If true, require at least one preferred tag match when possible. */
+  requirePreferredTagMatch?: boolean;
 }): Car {
   const preferredTags = (params?.preferredTags ?? []).filter(Boolean);
   const preferredTagBoost = Math.max(1, params?.preferredTagBoost ?? 4);
+  const hasPreferences = preferredTags.length > 0;
+  const requirePreferredTagMatch = Boolean(params?.requirePreferredTagMatch);
 
   // Use weighted random selection based on tier
-  const weights = GAME_CONFIG.cars.tierWeights;
-  const totalWeight = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  const baseTierWeights = getTierWeightsForPrestige(params?.playerPrestige);
+  let weights: Record<CarTier, number> = { ...baseTierWeights };
+
+  const multipliers = params?.tierWeightMultipliers;
+  if (multipliers) {
+    const multiplied: Record<CarTier, number> = { ...baseTierWeights };
+    for (const tier of Object.keys(multiplied) as CarTier[]) {
+      const multiplier = multipliers[tier];
+      if (typeof multiplier === 'number' && Number.isFinite(multiplier) && multiplier >= 0) {
+        multiplied[tier] = multiplied[tier] * multiplier;
+      }
+    }
+
+    const multipliedTotal = Object.values(multiplied).reduce((sum, weight) => sum + weight, 0);
+    if (multipliedTotal > 0) {
+      weights = multiplied;
+    }
+  }
+
+  let effectiveTierWeights = weights;
+  if (requirePreferredTagMatch && hasPreferences) {
+    const constrained: Record<CarTier, number> = { ...weights };
+    for (const tier of Object.keys(constrained) as CarTier[]) {
+      const hasMatchInTier = CarDatabase.some(
+        (car) => car.tier === tier && car.tags.some((t) => preferredTags.includes(t))
+      );
+      if (!hasMatchInTier) constrained[tier] = 0;
+    }
+
+    const constrainedTotal = Object.values(constrained).reduce((sum, weight) => sum + weight, 0);
+    if (constrainedTotal > 0) {
+      effectiveTierWeights = constrained;
+    }
+  }
+
+  const totalWeight = Object.values(effectiveTierWeights).reduce((sum, weight) => sum + weight, 0);
   let random = Math.random() * totalWeight;
 
   let selectedTier: CarTier = 'Daily Driver';
-  for (const [tier, weight] of Object.entries(weights)) {
+  for (const [tier, weight] of Object.entries(effectiveTierWeights)) {
     random -= weight;
     if (random <= 0) {
       selectedTier = tier as CarTier;
@@ -545,18 +612,27 @@ export function getRandomCarWithPreferences(params?: {
   // Fallback to all cars if no cars in tier (shouldn't happen)
   const pool = tierCars.length > 0 ? tierCars : CarDatabase;
 
-  // Optional tag preference bias within the selected tier pool.
-  const hasPreferences = preferredTags.length > 0;
-  const poolWeights = pool.map((car) => {
+  const matchesPreferred = (car: Car): boolean => car.tags.some((t) => preferredTags.includes(t));
+
+  // Optional tag preference bias / enforcement within the selected tier pool.
+  const effectivePool =
+    requirePreferredTagMatch && hasPreferences
+      ? (() => {
+          const matching = pool.filter(matchesPreferred);
+          return matching.length > 0 ? matching : pool;
+        })()
+      : pool;
+
+  const poolWeights = effectivePool.map((car) => {
     if (!hasPreferences) return 1;
-    const matchesAny = car.tags.some((t) => preferredTags.includes(t));
-    return matchesAny ? preferredTagBoost : 1;
+    if (requirePreferredTagMatch) return 1;
+    return matchesPreferred(car) ? preferredTagBoost : 1;
   });
 
   const poolTotal = poolWeights.reduce((sum, w) => sum + w, 0);
   let pick = Math.random() * poolTotal;
   let selectedIndex = 0;
-  for (let i = 0; i < pool.length; i++) {
+  for (let i = 0; i < effectivePool.length; i++) {
     pick -= poolWeights[i];
     if (pick <= 0) {
       selectedIndex = i;
@@ -564,7 +640,7 @@ export function getRandomCarWithPreferences(params?: {
     }
   }
 
-  const baseCar = pool[selectedIndex];
+  const baseCar = effectivePool[selectedIndex];
 
   const minCondition = GAME_CONFIG.cars.randomConditionMin;
   const maxCondition = GAME_CONFIG.cars.randomConditionMax;

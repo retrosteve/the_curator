@@ -1,3 +1,5 @@
+import type { CarTier } from './car-database';
+
 export type LocationType = 'garage' | 'auction';
 
 export type BaseLocationId =
@@ -21,6 +23,9 @@ export interface BaseLocationDefinition {
 
   /** Auction specialization: tags that are more likely to appear in daily offers. */
   focusTags?: readonly string[];
+
+  /** Optional tier bias applied on top of prestige-based tier weights. */
+  tierWeightMultipliers?: Partial<Record<CarTier, number>>;
 }
 
 export const BASE_LOCATIONS = [
@@ -44,6 +49,12 @@ export const BASE_LOCATIONS = [
     color: 0x00d1b2,
     focusTags: ['JDM'],
     description: 'Specialty night featuring Japanese performance and tuner culture.',
+    tierWeightMultipliers: {
+      'Daily Driver': 0.9,
+      'Cult Classic': 1.2,
+      Icon: 1.2,
+      Unicorn: 0.8,
+    },
   },
   {
     id: 'auction_classics',
@@ -52,14 +63,26 @@ export const BASE_LOCATIONS = [
     color: 0xe67e22,
     focusTags: ['Classic', 'Muscle'],
     description: 'Curated classics and muscle icons. Chrome, history, and big torque.',
+    tierWeightMultipliers: {
+      'Daily Driver': 0.8,
+      'Cult Classic': 1.3,
+      Icon: 1.3,
+      Unicorn: 1.0,
+    },
   },
   {
     id: 'auction_exotics',
     name: 'Exotic Showcase',
     type: 'auction',
     color: 0x9b59b6,
-    focusTags: ['Exotic', 'European'],
+    focusTags: ['Exotic'],
     description: 'High-end exotics and European legends. Expect higher stakes.',
+    tierWeightMultipliers: {
+      'Daily Driver': 0.5,
+      'Cult Classic': 0.9,
+      Icon: 1.5,
+      Unicorn: 1.6,
+    },
   },
 ] as const satisfies readonly BaseLocationDefinition[];
 

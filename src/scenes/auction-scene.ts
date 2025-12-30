@@ -867,8 +867,9 @@ export class AuctionScene extends BaseGameScene {
       width: 'min(1180px, calc(100% - 40px))',
       height: 'calc(100% - 76px)',
       maxHeight: 'none',
-      overflowY: 'hidden',
-      overflowX: 'hidden',
+      // Keep overflow visible so anchored bark bubbles aren't clipped.
+      overflowY: 'visible',
+      overflowX: 'visible',
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
@@ -1029,7 +1030,8 @@ export class AuctionScene extends BaseGameScene {
       gap: '10px',
       minWidth: '0',
       minHeight: '0',
-      overflow: 'hidden',
+      // Allow bark bubbles to extend beyond panels.
+      overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const rightCol = document.createElement('div');
@@ -1039,7 +1041,8 @@ export class AuctionScene extends BaseGameScene {
       gap: '10px',
       minWidth: '0',
       minHeight: '0',
-      overflow: 'hidden',
+      // Allow bark bubbles to extend beyond panels.
+      overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
 
     // LEFT: status strip (reference: countdown + current bid)
@@ -1444,7 +1447,8 @@ export class AuctionScene extends BaseGameScene {
       gap: '10px',
       flex: '1 1 auto',
       minHeight: '0',
-      overflow: 'hidden',
+      // Bubbles are positioned above portrait anchors; don't clip them.
+      overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
 
     const biddersGrid = document.createElement('div');

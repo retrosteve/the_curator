@@ -748,7 +748,11 @@ export class AuctionScene extends BaseGameScene {
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) =>
         this.showToastAndLog(toast, opts, log, logKind),
       onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
-        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        const message = this.getRivalQuickStatusBubbleText(rivalId, {
+          willDrop: true,
+          outOfPatience: reason === 'patience',
+          outOfBudget: reason === 'budget',
+        });
         this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
       },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
@@ -1663,6 +1667,59 @@ export class AuctionScene extends BaseGameScene {
     return this.activeRivalIds[0] ?? this.rivals[0]?.id ?? null;
   }
 
+  private getRivalQuickStatusBubbleText(
+    rivalId: string,
+    params: {
+      willDrop: boolean;
+      outOfPatience: boolean;
+      outOfBudget: boolean;
+    }
+  ): string {
+    const rival = this.getRivalByIdInAuction(rivalId);
+    const mood = rival?.mood ?? 'Normal';
+
+    if (!params.willDrop) {
+      switch (mood) {
+        case 'Desperate':
+          return 'Not yet…';
+        case 'Cautious':
+          return 'I’ll wait.';
+        case 'Confident':
+          return 'Pass.';
+        case 'Normal':
+        default:
+          return 'Pass.';
+      }
+    }
+
+    if (params.outOfBudget) {
+      switch (mood) {
+        case 'Desperate':
+          return "I can't afford it!";
+        case 'Cautious':
+          return 'Too expensive.';
+        case 'Confident':
+          return 'Not worth it.';
+        case 'Normal':
+        default:
+          return "Can't afford it.";
+      }
+    }
+
+    // Default: dropping due to patience.
+    switch (mood) {
+      case 'Desperate':
+        return "I can't take this!";
+      case 'Cautious':
+        return "I'm out.";
+      case 'Confident':
+        return 'I’m done.';
+      case 'Normal':
+      default:
+        return "I'm out.";
+    }
+  }
+
   private showRivalBark(rivalId: string, trigger: BarkTrigger): void {
     const rival = this.getRivalByIdInAuction(rivalId);
     if (!rival) return;
@@ -1776,7 +1833,11 @@ export class AuctionScene extends BaseGameScene {
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
       onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
-        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        const message = this.getRivalQuickStatusBubbleText(rivalId, {
+          willDrop: true,
+          outOfPatience: reason === 'patience',
+          outOfBudget: reason === 'budget',
+        });
         this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
       },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
@@ -1838,7 +1899,11 @@ export class AuctionScene extends BaseGameScene {
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
       onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
-        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        const message = this.getRivalQuickStatusBubbleText(rivalId, {
+          willDrop: true,
+          outOfPatience: reason === 'patience',
+          outOfBudget: reason === 'budget',
+        });
         this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
       },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
@@ -1900,7 +1965,11 @@ export class AuctionScene extends BaseGameScene {
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
       onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
-        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        const message = this.getRivalQuickStatusBubbleText(rivalId, {
+          willDrop: true,
+          outOfPatience: reason === 'patience',
+          outOfBudget: reason === 'budget',
+        });
         this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
       },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {
@@ -1981,7 +2050,11 @@ export class AuctionScene extends BaseGameScene {
       onShowToastAndLog: (toast: string, opts?: { backgroundColor?: string }, log?: string, logKind?: string) => 
         this.showToastAndLog(toast, opts, log, logKind),
       onRivalDroppedOut: (rivalId: string, reason: 'patience' | 'budget') => {
-        const message = reason === 'budget' ? "Can't afford it." : "I'm out.";
+        const message = this.getRivalQuickStatusBubbleText(rivalId, {
+          willDrop: true,
+          outOfPatience: reason === 'patience',
+          outOfBudget: reason === 'budget',
+        });
         this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, { durationMs: 1800, tone: 'drop' });
       },
       onRecordBid: (bidderId: BidderId, totalBid: number) => {

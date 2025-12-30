@@ -30,30 +30,30 @@ export function getRivalBark(mood: RivalMood, trigger: BarkTrigger): string {
   const barks: Record<RivalMood, Record<BarkTrigger, string[]>> = {
     Desperate: {
       bid: ["I... I really need this win!", "Don't push me!", "I'm all in on this one!"],
-      outbid: ["No! That's too much!", "You're ruining me!", "Please, just let me have it!", "I'm tapped out!"],
+      outbid: ["No! That's too much!", "You're ruining me!", "Please, just let me have it!", "This is killing me!"],
       win: ["Finally! A win!", "Thank goodness...", "I needed that."],
       lose: ["Disaster... absolute disaster.", "What am I going to do now?", "You'll regret this!"],
       patience_low: ["I can't take this anymore!", "My nerves are shot!", "Just end it already!", "Stop dragging this out!", "Please—just call it!"]
     },
     Cautious: {
       bid: ["Let's be reasonable here.", "A calculated offer.", "I'm watching the margins."],
-      outbid: ["That's getting expensive.", "Is it really worth that much?", "I might have to fold.", "That's my limit."],
+      outbid: ["That's getting expensive.", "Is it really worth that much?", "I might have to fold.", "That's near my limit."],
       win: ["A sensible acquisition.", "Good value for money.", "Glad we didn't overpay."],
       lose: ["Too rich for my blood.", "I'll find a better deal elsewhere.", "You overpaid."],
       patience_low: ["This is taking too long.", "I'm losing interest.", "Time is money.", "Let's wrap this up.", "I don't have all day."]
     },
     Confident: {
       bid: ["Is that all you've got?", "Top that!", "I'm just getting started."],
-      outbid: ["Cute. Watch this.", "You're playing with the big dogs now.", "Pocket change.", "Not worth my time—or my money."],
+      outbid: ["Cute.", "You're playing with the big dogs now.", "Pocket change.", "Still not enough."],
       win: ["Too easy!", "Another trophy for the collection.", "Knew I'd win."],
-      lose: ["Whatever, I didn't want it anyway.", "Keep your junk.", "I have better cars at home."],
+      lose: ["Whatever, I didn't want it anyway.", "Enjoy it.", "I have better cars at home."],
       patience_low: ["You're boring me.", "Are we done yet?", "Stop wasting my time.", "Say the number or walk away.", "Last chance—make it count."]
     },
     Normal: {
       bid: ["Still in.", "Beat that.", "Let's keep it moving."],
-      outbid: ["Higher? Fine.", "I can match that.", "Okay, let's go.", "Alright—I'm out."],
+      outbid: ["Higher, huh.", "I might match that.", "Alright then.", "Not bad—try again."],
       win: ["Good auction.", "I'll take it.", "Nice doing business."],
-      lose: ["Fair play.", "It's yours.", "I'm out."],
+      lose: ["Fair play.", "It's yours.", "All yours."],
       patience_low: ["Getting tired of this.", "Make up your mind.", "Last chance.", "Call it already.", "Let's finish this."]
     }
   };

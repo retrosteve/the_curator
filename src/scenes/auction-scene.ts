@@ -1047,59 +1047,18 @@ export class AuctionScene extends BaseGameScene {
       overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    // LEFT: status strip (reference: countdown + current bid)
+    // RIGHT: status strip (current/next bid + auctioneer)
     const statusStrip = this.uiManager.createPanel({
       padding: '8px 10px',
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+      display: 'flex',
       gap: '10px',
       alignItems: 'center',
+      justifyContent: 'space-between',
     });
-
-    const auctioneerBox = document.createElement('div');
-    Object.assign(auctioneerBox.style, {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      minWidth: '0',
+    Object.assign(statusStrip.style, {
+      // Bubbles are positioned above portrait anchors; don't clip them.
+      overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
-
-    const statusAuctioneerPortrait = makePortraitAnchor(
-      getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
-      `${this.auctioneerName} portrait`,
-      30
-    );
-    this.participantFlash.anchors.auctioneer = statusAuctioneerPortrait;
-
-    const statusAuctioneerMeta = document.createElement('div');
-    Object.assign(statusAuctioneerMeta.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '2px',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-    statusAuctioneerMeta.appendChild(
-      this.uiManager.createText('Auctioneer', {
-        margin: '0',
-        fontSize: '11px',
-        opacity: '0.75',
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      })
-    );
-    statusAuctioneerMeta.appendChild(
-      this.uiManager.createText(this.auctioneerName, {
-        margin: '0',
-        fontWeight: '900',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        color: '#ffd700',
-      })
-    );
-
-    auctioneerBox.appendChild(statusAuctioneerPortrait);
-    auctioneerBox.appendChild(statusAuctioneerMeta);
 
     const bidBox = document.createElement('div');
     Object.assign(bidBox.style, {
@@ -1151,9 +1110,58 @@ export class AuctionScene extends BaseGameScene {
 
     bidBox.appendChild(bidAmountsRow);
 
+    const auctioneerBox = document.createElement('div');
+    Object.assign(auctioneerBox.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      flex: '0 0 auto',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const statusAuctioneerPortrait = makePortraitAnchor(
+      getCharacterPortraitUrlOrPlaceholder(this.auctioneerName),
+      `${this.auctioneerName} portrait`,
+      34
+    );
+    this.participantFlash.anchors.auctioneer = statusAuctioneerPortrait;
+
+    const statusAuctioneerMeta = document.createElement('div');
+    Object.assign(statusAuctioneerMeta.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: '0',
+      alignItems: 'flex-start',
+    } satisfies Partial<CSSStyleDeclaration>);
+    statusAuctioneerMeta.appendChild(
+      this.uiManager.createText('Auctioneer', {
+        margin: '0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        textAlign: 'left',
+      })
+    );
+    statusAuctioneerMeta.appendChild(
+      this.uiManager.createText(this.auctioneerName, {
+        margin: '0',
+        fontWeight: '900',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        textAlign: 'left',
+        color: '#ffd700',
+      })
+    );
+
+    auctioneerBox.appendChild(statusAuctioneerPortrait);
+    auctioneerBox.appendChild(statusAuctioneerMeta);
+
     statusStrip.appendChild(auctioneerBox);
     statusStrip.appendChild(bidBox);
-    leftCol.appendChild(statusStrip);
+    rightCol.appendChild(statusStrip);
 
     // LEFT: car + quick stats (compact; uses width instead of height)
     const marketValue = this.auctionMarketEstimateValue;

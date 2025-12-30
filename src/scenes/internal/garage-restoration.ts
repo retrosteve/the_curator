@@ -4,7 +4,6 @@ import type { GameManager } from '@/core/game-manager';
 import type { UIManager } from '@/ui/ui-manager';
 import type { TimeSystem } from '@/systems/time-system';
 import type { TutorialManager } from '@/systems/tutorial-manager';
-import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
 
@@ -50,15 +49,26 @@ export function showRestorationChallenges(
     onClick: () => {
       if (!gameManager.canSpendTime(challenge.timeCost)) {
         const remaining = gameManager.getTimeRemaining();
-        uiManager.showTimeBlockModal(
-          'Out of Time',
-          `You don't have enough time left today for this work.\n\nTime required: ${challenge.timeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
-        );
+        uiManager.showOutOfTimeModal({
+          action: 'for this work',
+          timeRequired: challenge.timeCost,
+          timeRemaining: remaining,
+        });
         return;
       }
 
       if (gameManager.spendMoney(challenge.cost)) {
-        gameManager.spendTime(challenge.timeCost);
+        if (!gameManager.trySpendTime(challenge.timeCost)) {
+          // Safety: should be unreachable because we just validated canSpendTime.
+          gameManager.addMoney(challenge.cost);
+          const remaining = gameManager.getTimeRemaining();
+          uiManager.showOutOfTimeModal({
+            action: 'for this work',
+            timeRequired: challenge.timeCost,
+            timeRemaining: remaining,
+          });
+          return;
+        }
         const fixedCar = Economy.completeRestorationChallenge(car, challenge);
         gameManager.updateCar({
           ...fixedCar,
@@ -126,15 +136,26 @@ export function showRestorationOptions(
       onClick: () => {
         if (!gameManager.canSpendTime(opt.timeCost)) {
           const remaining = gameManager.getTimeRemaining();
-          uiManager.showTimeBlockModal(
-            'Out of Time',
-            `You don't have enough time left today for this restoration.\n\nTime required: ${opt.timeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
-          );
+          uiManager.showOutOfTimeModal({
+            action: 'for this restoration',
+            timeRequired: opt.timeCost,
+            timeRemaining: remaining,
+          });
           return;
         }
 
         if (gameManager.spendMoney(opt.cost)) {
-          gameManager.spendTime(opt.timeCost);
+          if (!gameManager.trySpendTime(opt.timeCost)) {
+            // Safety: should be unreachable because we just validated canSpendTime.
+            gameManager.addMoney(opt.cost);
+            const remaining = gameManager.getTimeRemaining();
+            uiManager.showOutOfTimeModal({
+              action: 'for this restoration',
+              timeRequired: opt.timeCost,
+              timeRemaining: remaining,
+            });
+            return;
+          }
           // Tutorial override: first restoration always succeeds (ignore Cheap Charlie risk)
           const isTutorialFirstRestore = tutorialManager.shouldForceFirstRestorationSuccess();
           const result = Economy.performRestoration(car, opt, isTutorialFirstRestore);

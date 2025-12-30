@@ -7,7 +7,7 @@ import { GAME_CONFIG } from '@/config/game-config';
 import { BASE_LOCATIONS, getBaseLocationDefinitionById, type LocationType } from '@/data/location-database';
 import type { SpecialEvent } from '@/systems/special-events-system';
 import { buildSpecialEventCar, routeRegularEncounter } from '@/systems/map-encounter-router';
-import { formatCurrency } from '@/utils/format';
+import { computeMapLocationCardState, computeMapLocationVisitGate } from './internal/map-location-card-state';
 
 /**
  * Map Node configuration.
@@ -40,31 +40,6 @@ export class MapScene extends BaseGameScene {
     const marketInfo = this.gameManager.getCarMarketInfo(car.tags);
     const estimate = Math.floor(baseValue * marketInfo.modifier);
     return Math.floor(estimate * GAME_CONFIG.auction.startingBidMultiplier);
-  }
-
-  private showCannotAffordAuctionModal(openingBid: number): void {
-    const player = this.gameManager.getPlayerState();
-    const isTutorialActive = this.tutorialManager.isTutorialActive();
-    const bidIncrement = GAME_CONFIG.auction.bidIncrement;
-    const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
-    this.uiManager.showModal(
-      'Not Enough Money',
-      isTutorialActive
-        ? `You can't afford to place a bid in this tutorial auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nBid increment: ${formatCurrency(bidIncrement)}\nMinimum to bid: ${formatCurrency(minMoneyToBid)}\nYour money: ${formatCurrency(player.money)}\n\nIf you're stuck, skip the tutorial to continue freely.`
-        : `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(openingBid)}\nYour money: ${formatCurrency(player.money)}`,
-      isTutorialActive
-        ? [
-            { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-            {
-              text: 'Skip Tutorial',
-              onClick: () => {
-                setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
-              },
-            },
-            { text: 'OK', onClick: () => {} },
-          ]
-        : [{ text: 'OK', onClick: () => {} }]
-    );
   }
 
   constructor() {
@@ -149,53 +124,27 @@ export class MapScene extends BaseGameScene {
 
   private createLocationCard(node: MapNode): HTMLElement {
     const player = this.gameManager.getPlayerState();
-    const isGarage = node.id === 'garage' || node.type === 'garage';
+    const world = this.gameManager.getWorldState();
 
     const isTutorialActive = this.tutorialManager.isTutorialActive();
     const allowedLocationIds = this.tutorialManager.getAllowedMapLocationIds();
-    const isTutorialRestricted = isTutorialActive && allowedLocationIds !== null;
-    const isDisallowedByTutorial = isTutorialRestricted && !allowedLocationIds.has(node.id);
-    const isTutorialRedemptionAuction =
-      isTutorialActive && node.id === 'auction_1' && this.tutorialManager.isOnRedemptionStep();
-    const isTutorialFirstAuctionLoop =
-      isTutorialActive && node.id === 'auction_1' && this.tutorialManager.isOnFirstVisitAuctionStep();
 
-    // Check for locks
-    let isLocked = false;
-    let lockReason = '';
-
-    if (isDisallowedByTutorial) {
-      isLocked = true;
-      lockReason = 'Tutorial: Follow the current step to continue.';
-    }
-
-    const unlockPrestige = node.unlockPrestige ?? 0;
-    if (unlockPrestige > 0 && player.prestige < unlockPrestige) {
-      isLocked = true;
-      lockReason = `Requires ${unlockPrestige} Prestige`;
-    }
-
-    const world = this.gameManager.getWorldState();
-    const offerMap = world.carOfferByLocation ?? {};
-    const isExhaustedToday =
-      node.type !== 'special' &&
-      node.id !== 'garage' &&
-      Object.prototype.hasOwnProperty.call(offerMap, node.id) &&
-      offerMap[node.id] === null;
-
-    const effectiveIsExhaustedToday =
-      isExhaustedToday &&
-      !isTutorialRedemptionAuction &&
-      !isTutorialFirstAuctionLoop;
-
-    const timeCost = (() => {
-      if (isGarage) return 0;
-      if (node.specialEvent) return node.specialEvent.timeCost;
-      // Normal base-location auctions: charge travel + participation.
-      // Tutorial flow currently waives this cost to avoid soft-locks.
-      if (isTutorialActive) return 0;
-      return GAME_CONFIG.time.travelCost + GAME_CONFIG.time.auctionParticipationCost;
-    })();
+    const state = computeMapLocationCardState({
+      node: {
+        id: node.id,
+        type: node.type === 'special' ? 'special' : node.type,
+        unlockPrestige: node.unlockPrestige,
+        specialEvent: node.specialEvent ? { timeCost: node.specialEvent.timeCost } : null,
+      },
+      playerPrestige: player.prestige,
+      isTutorialActive,
+      allowedLocationIds,
+      isOnRedemptionStep: this.tutorialManager.isOnRedemptionStep(),
+      isOnFirstVisitAuctionStep: this.tutorialManager.isOnFirstVisitAuctionStep(),
+      offerMap: world.carOfferByLocation ?? {},
+      travelCost: GAME_CONFIG.time.travelCost,
+      auctionParticipationCost: GAME_CONFIG.time.auctionParticipationCost,
+    });
 
     return this.uiManager.createMapLocationCard({
       locationId: node.id,
@@ -203,13 +152,13 @@ export class MapScene extends BaseGameScene {
       description: this.getLocationDescription(node),
       icon: this.getLocationIcon(node),
       color: node.color,
-      isGarage,
-      isLocked,
-      lockReason,
-      isExhaustedToday: effectiveIsExhaustedToday,
+      isGarage: state.isGarage,
+      isLocked: state.isLocked,
+      lockReason: state.lockReason,
+      isExhaustedToday: state.isExhaustedToday,
       showRivalBadge: false,
       showSpecialBadge: node.type === 'special',
-      timeCost,
+      timeCost: state.timeCost,
       onVisit: () => this.visitNode(node),
     });
   }
@@ -277,37 +226,27 @@ export class MapScene extends BaseGameScene {
     }
 
     const isTutorialActive = this.tutorialManager.isTutorialActive();
+    const world = this.gameManager.getWorldState();
 
-    const isTutorialFirstAuctionVisit =
-      node.id === 'auction_1' && isTutorialActive && this.tutorialManager.isOnFirstVisitAuctionStep();
-    const isTutorialRedemptionAuctionVisit =
-      node.id === 'auction_1' && isTutorialActive && this.tutorialManager.isOnRedemptionStep();
+    const gate = computeMapLocationVisitGate({
+      node: {
+        id: node.id,
+        type: node.type === 'special' ? 'special' : node.type,
+      },
+      isTutorialActive,
+      isOnRedemptionStep: this.tutorialManager.isOnRedemptionStep(),
+      isOnFirstVisitAuctionStep: this.tutorialManager.isOnFirstVisitAuctionStep(),
+      offerMap: world.carOfferByLocation ?? {},
+      nodeName: node.name,
+    });
 
-    // If the location's daily offer has already been consumed, block the visit.
-    // Tutorial exceptions:
-    // - allow the first tutorial auction to prevent a soft-lock
-    // - allow auction house visit during redemption to prevent a soft-lock
-    if (node.type !== 'special') {
-      const world = this.gameManager.getWorldState();
-      const offerMap = world.carOfferByLocation ?? {};
-      const isExhaustedToday =
-        Object.prototype.hasOwnProperty.call(offerMap, node.id) && offerMap[node.id] === null;
+    if (gate.kind === 'block') {
+      this.uiManager.showInfo(gate.title, gate.message);
+      return;
+    }
 
-      if (isExhaustedToday) {
-        if (isTutorialFirstAuctionVisit) {
-          // Allowed: tutorial loop protection.
-        } else if (isTutorialRedemptionAuctionVisit) {
-          // Allowed: redemption replays until the player wins.
-          this.uiManager.showToast('Tutorial: redemption auction is still running.');
-        } else {
-          this.uiManager.showModal(
-            'Exhausted Today',
-            `${node.name} has already been picked clean today. Check back tomorrow.`,
-            [{ text: 'OK', onClick: () => {} }]
-          );
-          return;
-        }
-      }
+    if (gate.kind === 'allow-with-toast') {
+      this.uiManager.showToast(gate.toastMessage);
     }
 
     // Special events can have custom metadata (e.g., special rewards).
@@ -363,7 +302,10 @@ export class MapScene extends BaseGameScene {
             'Auctions are how we acquire cars now. Place the opening bid and try to win your first car. Keep an eye on the rival’s patience and budget.',
             () => {
               if (!this.hasGarageSpace()) {
-                this.showGarageFullGate();
+                this.uiManager.showGarageFullGate({
+                  primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+                  secondary: { text: 'Stay Here', onClick: () => {} },
+                });
                 return;
               }
 
@@ -378,7 +320,21 @@ export class MapScene extends BaseGameScene {
 
               const afterTopUp = this.gameManager.getPlayerState();
               if (afterTopUp.money < openingBid) {
-                this.showCannotAffordAuctionModal(openingBid);
+                const isTutorialActive = this.tutorialManager.isTutorialActive();
+                const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+                const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
+                this.uiManager.showCannotAffordAuctionModal({
+                  context: 'map',
+                  openingBid,
+                  playerMoney: afterTopUp.money,
+                  isTutorialActive,
+                  bidIncrement,
+                  minMoneyToBid,
+                  onGoToGarage: () => this.scene.start('GarageScene'),
+                  onSkipTutorial: () => {
+                    setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+                  },
+                });
                 return;
               }
 
@@ -403,7 +359,10 @@ export class MapScene extends BaseGameScene {
             "*smirks* Sorry kid, but this Muscle Car is mine. Go ahead, place a bid if you want, but I've got deeper pockets. Watch and learn.",
             () => {
               if (!this.hasGarageSpace()) {
-                this.showGarageFullGate();
+                this.uiManager.showGarageFullGate({
+                  primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+                  secondary: { text: 'Stay Here', onClick: () => {} },
+                });
                 return;
               }
 
@@ -424,7 +383,21 @@ export class MapScene extends BaseGameScene {
               // Re-read after top-up (getPlayerState returns a snapshot clone).
               const afterTopUp = this.gameManager.getPlayerState();
               if (afterTopUp.money < minMoneyToParticipate) {
-                this.showCannotAffordAuctionModal(openingBid);
+                const isTutorialActive = this.tutorialManager.isTutorialActive();
+                const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+                const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
+                this.uiManager.showCannotAffordAuctionModal({
+                  context: 'map',
+                  openingBid,
+                  playerMoney: afterTopUp.money,
+                  isTutorialActive,
+                  bidIncrement,
+                  minMoneyToBid,
+                  onGoToGarage: () => this.scene.start('GarageScene'),
+                  onSkipTutorial: () => {
+                    setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+                  },
+                });
                 return;
               }
 
@@ -463,7 +436,10 @@ export class MapScene extends BaseGameScene {
             'Alright—back in. This time, use "Power Bid" early to rattle Scrapyard Joe and make him quit.',
             () => {
               if (!this.hasGarageSpace()) {
-                this.showGarageFullGate();
+                this.uiManager.showGarageFullGate({
+                  primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+                  secondary: { text: 'Stay Here', onClick: () => {} },
+                });
                 return;
               }
 
@@ -480,7 +456,21 @@ export class MapScene extends BaseGameScene {
 
               const afterTopUp = this.gameManager.getPlayerState();
               if (afterTopUp.money < minMoneyToParticipate) {
-                this.showCannotAffordAuctionModal(openingBid);
+                const isTutorialActive = this.tutorialManager.isTutorialActive();
+                const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+                const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
+                this.uiManager.showCannotAffordAuctionModal({
+                  context: 'map',
+                  openingBid,
+                  playerMoney: afterTopUp.money,
+                  isTutorialActive,
+                  bidIncrement,
+                  minMoneyToBid,
+                  onGoToGarage: () => this.scene.start('GarageScene'),
+                  onSkipTutorial: () => {
+                    setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+                  },
+                });
                 return;
               }
 
@@ -522,7 +512,10 @@ export class MapScene extends BaseGameScene {
     });
 
     if (!this.hasGarageSpace()) {
-      this.showGarageFullGate();
+      this.uiManager.showGarageFullGate({
+        primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+        secondary: { text: 'Stay Here', onClick: () => {} },
+      });
       return;
     }
 
@@ -540,7 +533,10 @@ export class MapScene extends BaseGameScene {
           text: 'Start Auction',
           onClick: () => {
             if (!this.hasGarageSpace()) {
-              this.showGarageFullGate();
+              this.uiManager.showGarageFullGate({
+                primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+                secondary: { text: 'Stay Here', onClick: () => {} },
+              });
               return;
             }
 
@@ -553,22 +549,44 @@ export class MapScene extends BaseGameScene {
 
             if (totalTimeCost > 0 && !this.gameManager.canSpendTime(totalTimeCost)) {
               const remaining = this.gameManager.getTimeRemaining();
-              this.uiManager.showTimeBlockModal(
-                'Out of Time',
-                `You don't have enough time left today to go out and bid.\n\nTime required: ${totalTimeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
-              );
+              this.uiManager.showOutOfTimeModal({
+                action: 'to go out and bid',
+                timeRequired: totalTimeCost,
+                timeRemaining: remaining,
+              });
               return;
             }
 
             const player = this.gameManager.getPlayerState();
             const openingBid = this.getAuctionOpeningBid(car);
             if (player.money < openingBid) {
-              this.showCannotAffordAuctionModal(openingBid);
+              const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+              const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
+              this.uiManager.showCannotAffordAuctionModal({
+                context: 'map',
+                openingBid,
+                playerMoney: player.money,
+                isTutorialActive,
+                bidIncrement,
+                minMoneyToBid,
+                onGoToGarage: () => this.scene.start('GarageScene'),
+                onSkipTutorial: () => {
+                  setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+                },
+              });
               return;
             }
 
             if (totalTimeCost > 0) {
-              this.gameManager.spendTime(totalTimeCost);
+              if (!this.gameManager.trySpendTime(totalTimeCost)) {
+                const remaining = this.gameManager.getTimeRemaining();
+                this.uiManager.showOutOfTimeModal({
+                  action: 'to go out and bid',
+                  timeRequired: totalTimeCost,
+                  timeRemaining: remaining,
+                });
+                return;
+              }
             }
             this.applyArrivalEffects(node);
             this.scene.start(routed.sceneKey, routed.sceneData);
@@ -583,7 +601,10 @@ export class MapScene extends BaseGameScene {
 
     // Special events are also auctions.
     if (!this.hasGarageSpace()) {
-      this.showGarageFullGate();
+      this.uiManager.showGarageFullGate({
+        primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+        secondary: { text: 'Stay Here', onClick: () => {} },
+      });
       return;
     }
 
@@ -604,29 +625,56 @@ export class MapScene extends BaseGameScene {
           text: 'Start Special Auction',
           onClick: () => {
             if (!this.hasGarageSpace()) {
-              this.showGarageFullGate();
+              this.uiManager.showGarageFullGate({
+                primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+                secondary: { text: 'Stay Here', onClick: () => {} },
+              });
               return;
             }
 
             if (!this.gameManager.canSpendTime(specialEvent.timeCost)) {
               const remaining = this.gameManager.getTimeRemaining();
-              this.uiManager.showTimeBlockModal(
-                'Out of Time',
-                `You don't have enough time left today to attend this event.\n\nTime required: ${specialEvent.timeCost}\nTime remaining: ${remaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
-              );
+              this.uiManager.showOutOfTimeModal({
+                action: 'to attend this event',
+                timeRequired: specialEvent.timeCost,
+                timeRemaining: remaining,
+              });
               return;
             }
 
             const player = this.gameManager.getPlayerState();
             const openingBid = this.getAuctionOpeningBid(car);
             if (player.money < openingBid) {
-              this.showCannotAffordAuctionModal(openingBid);
+              const isTutorialActive = this.tutorialManager.isTutorialActive();
+              const bidIncrement = GAME_CONFIG.auction.bidIncrement;
+              const minMoneyToBid = openingBid; // Opening bid is all that's required to participate.
+              this.uiManager.showCannotAffordAuctionModal({
+                context: 'map',
+                openingBid,
+                playerMoney: player.money,
+                isTutorialActive,
+                bidIncrement,
+                minMoneyToBid,
+                onGoToGarage: () => this.scene.start('GarageScene'),
+                onSkipTutorial: () => {
+                  setTimeout(() => this.tutorialManager.requestSkipTutorialPrompt(), 0);
+                },
+              });
+              return;
+            }
+
+            if (!this.gameManager.trySpendTime(specialEvent.timeCost)) {
+              const remaining = this.gameManager.getTimeRemaining();
+              this.uiManager.showOutOfTimeModal({
+                action: 'to attend this event',
+                timeRequired: specialEvent.timeCost,
+                timeRemaining: remaining,
+              });
               return;
             }
 
             // Remove the event since it's been started/completed.
             this.gameManager.removeSpecialEvent(specialEvent.id);
-            this.gameManager.spendTime(specialEvent.timeCost);
             this.scene.start('AuctionScene', { ...routed.sceneData, specialEvent });
           },
         },
@@ -636,16 +684,5 @@ export class MapScene extends BaseGameScene {
 
   private hasGarageSpace(): boolean {
     return this.gameManager.hasGarageSpace();
-  }
-
-  private showGarageFullGate(): void {
-    this.uiManager.showModal(
-      'Garage Full',
-      'Your garage is full. Sell or scrap a car before acquiring another.',
-      [
-        { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-        { text: 'Stay Here', onClick: () => {} },
-      ]
-    );
   }
 }

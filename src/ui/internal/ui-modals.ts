@@ -3,6 +3,7 @@ import { SKILL_METADATA, type SkillKey } from '@/config/game-config';
 import type { CreateButton, CreateDiv, CreateHeading, CreateText } from './ui-factories';
 import type { ButtonVariant } from './ui-types';
 import { createImg } from './ui-elements';
+import { attachModalEventBlocker } from './ui-overlay';
 
 /**
  * Creates and manages modal UI in the DOM overlay.
@@ -137,28 +138,9 @@ export class ModalManager {
     }>,
     onCancel: () => void
   ): void {
-    const stop = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
     const backdrop = this.deps.createDiv('game-modal-backdrop');
 
-    [
-      'pointerdown',
-      'pointerup',
-      'pointermove',
-      'click',
-      'mousedown',
-      'mouseup',
-      'mousemove',
-      'wheel',
-      'touchstart',
-      'touchend',
-      'touchmove',
-    ].forEach((eventName) => {
-      backdrop.addEventListener(eventName, stop, { capture: true });
-    });
+    attachModalEventBlocker(backdrop);
 
     const modal = this.deps.createDiv('game-modal restoration-modal');
 
@@ -269,28 +251,9 @@ export class ModalManager {
     message: string,
     buttons: { text: string; onClick: () => void; variant?: ButtonVariant }[]
   ): HTMLDivElement {
-    const stop = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
     const backdrop = this.deps.createDiv('game-modal-backdrop');
 
-    [
-      'pointerdown',
-      'pointerup',
-      'pointermove',
-      'click',
-      'mousedown',
-      'mouseup',
-      'mousemove',
-      'wheel',
-      'touchstart',
-      'touchend',
-      'touchmove',
-    ].forEach((eventName) => {
-      backdrop.addEventListener(eventName, stop, { capture: true });
-    });
+    attachModalEventBlocker(backdrop);
 
     const modal = this.deps.createDiv('game-modal');
 
@@ -336,12 +299,9 @@ export class ModalManager {
     options: { portraitUrl: string; portraitAlt?: string; portraitSizePx?: number },
     buttons: { text: string; onClick: () => void; variant?: ButtonVariant }[]
   ): HTMLDivElement {
-    const stop = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-    };
-
     const backdrop = this.deps.createDiv('game-modal-backdrop');
+
+    attachModalEventBlocker(backdrop);
 
     [
       'pointerdown',

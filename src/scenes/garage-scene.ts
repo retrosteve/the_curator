@@ -3,19 +3,19 @@ import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/Economy';
-import { MarketFluctuationSystem } from '@/systems/market-fluctuation-system';
-import { SpecialEventsSystem } from '@/systems/special-events-system';
 import { Car, getCarById } from '@/data/car-database';
-import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
-import { getAllCharacterProfiles } from '@/data/character-database';
-import { GAME_CONFIG, SKILL_METADATA, type SkillKey } from '@/config/game-config';
+import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
 import type { VictoryResult } from '@/core/game-manager';
 import type { DeepReadonly } from '@/utils/types';
-import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 import { showRestorationChallenges, showRestorationOptions } from './internal/garage-restoration';
 import { sellCar as sellCarInternal, sellCarAsIs as sellCarAsIsInternal } from './internal/garage-inventory';
 import { createCarCard as createCarCardInternal } from './internal/garage-ui';
+import { createGarageMenuInfo } from './internal/garage-menu-info';
+import { showVictoryProgress as showVictoryProgressInternal } from './internal/garage-victory-progress';
+import { createGarageCollectionPanel } from './internal/garage-collection-view';
+import { createGarageRivalTierInfoPanel } from './internal/garage-rival-tier-info';
+import { showFinanceModal as showFinanceModalInternal } from './internal/garage-finance';
 
 /**
  * Garage Scene - Player's home base for managing cars.
@@ -111,71 +111,6 @@ export class GarageScene extends BaseGameScene {
       this.autoEndDayOnEnter = false;
       this.endDay();
     }
-  }
-
-  private createMorningPaper(): HTMLElement {
-    const container = document.createElement('div');
-    container.className = 'garage-brief';
-
-    const player = this.gameManager.getPlayerState();
-    const world = this.gameManager.getWorldState();
-    const garageCarCount = this.gameManager.getGarageCarCount();
-    const rentDue = this.gameManager.getDailyRent();
-
-    const marketSystem = MarketFluctuationSystem.getInstance();
-    const marketState = marketSystem.getState();
-    const marketEvent = marketState.currentEvent;
-    const marketSummary = marketEvent
-      ? `${marketEvent.type.replace(/([A-Z])/g, ' $1').trim()} (${marketEvent.daysRemaining}d)`
-      : 'Stable';
-
-    const eventsSystem = SpecialEventsSystem.getInstance();
-    const activeEvents = eventsSystem.getActiveEvents();
-
-    const lineStyle: Partial<CSSStyleDeclaration> = {
-      margin: '6px 0',
-      fontSize: '12px',
-      lineHeight: '1.35',
-      opacity: '0.9',
-    };
-
-    container.appendChild(
-      this.uiManager.createText(
-        `Day ${world.day}`,
-        lineStyle
-      )
-    );
-
-    container.appendChild(
-      this.uiManager.createText(
-        `Cash: ${formatCurrency(player.money)} · Rent due tonight: ${formatCurrency(rentDue)}`,
-        lineStyle
-      )
-    );
-
-    container.appendChild(
-      this.uiManager.createText(
-        `Garage: ${garageCarCount}/${player.garageSlots} cars · Prestige: ${formatNumber(player.prestige)}`,
-        lineStyle
-      )
-    );
-
-    const activeLoan = this.gameManager.getActiveLoan();
-    const financeLine = activeLoan
-      ? `Finance: Owes ${formatCurrency(activeLoan.principal + activeLoan.fee)} (${formatCurrency(activeLoan.principal)} + ${formatCurrency(activeLoan.fee)} fee, taken day ${activeLoan.takenDay})`
-      : 'Finance: No active loan';
-    container.appendChild(this.uiManager.createText(financeLine, lineStyle));
-
-    const eventsLine = activeEvents.length
-      ? activeEvents
-          .map((event) => `${event.name} (${event.expiresInDays}d)`)
-          .join(' · ')
-      : 'None';
-
-    container.appendChild(this.uiManager.createText(`Market: ${marketSummary}`, lineStyle));
-    container.appendChild(this.uiManager.createText(`Events: ${eventsLine}`, lineStyle));
-
-    return container;
   }
 
   private setupUI(): void {
@@ -343,140 +278,13 @@ export class GarageScene extends BaseGameScene {
 
     moreActions.appendChild(secondaryActions);
 
-    // Less info up-front: tuck brief + skills into collapsible sections below actions.
-    const infoContainer = document.createElement('div');
-    infoContainer.className = 'garage-menu-info';
-
-    const marketSystem = MarketFluctuationSystem.getInstance();
-    const marketState = marketSystem.getState();
-    const marketEvent = marketState.currentEvent;
-    const marketSummary = marketEvent
-      ? `${marketEvent.type.replace(/([A-Z])/g, ' $1').trim()} (${marketEvent.daysRemaining}d)`
-      : 'Stable';
-
-    const eventsSystem = SpecialEventsSystem.getInstance();
-    const activeEvents = eventsSystem.getActiveEvents();
-
-    const morningBriefDetails = document.createElement('details');
-    morningBriefDetails.className = 'garage-collapsible';
-    const morningBriefSummary = document.createElement('summary');
-    morningBriefSummary.textContent = `Morning Brief — Market: ${marketSummary} · Events: ${activeEvents.length}`;
-    morningBriefDetails.appendChild(morningBriefSummary);
-    morningBriefDetails.appendChild(this.createMorningPaper());
-    infoContainer.appendChild(morningBriefDetails);
-
-    const skillsDetails = document.createElement('details');
-    skillsDetails.className = 'garage-collapsible';
-    const skillsSummary = document.createElement('summary');
-    skillsSummary.textContent = `Skills — ${SKILL_METADATA.eye.icon} Eye ${player.skills.eye} · ${SKILL_METADATA.tongue.icon} Tongue ${player.skills.tongue} · ${SKILL_METADATA.network.icon} Network ${player.skills.network}`;
-    skillsDetails.appendChild(skillsSummary);
-
-    // Skill XP Progress Bars (collapsed by default)
-    const skillsPanel = document.createElement('div');
-    skillsPanel.className = 'garage-skills-panel';
-
-    const skillsHeading = this.uiManager.createText('Skill Progress', { fontWeight: 'bold', margin: '0 0 8px 0', opacity: '0.9' });
-    skillsPanel.appendChild(skillsHeading);
-
-    const skills: SkillKey[] = ['eye', 'tongue', 'network'];
-    const skillTooltips = {
-      eye: 'Lvl 1: See basic car info\nLvl 2: Reveal hidden damage\nLvl 3: See accurate market value\nLvl 4: Unlock Kick Tires tactic\nLvl 5: Predict market trends',
-      tongue: 'Lvl 1: Basic auction tactics\nLvl 2: Unlock Stall tactic\nLvl 3: +1 Stall use per auction\nLvl 4: +1 Stall use per auction\nLvl 5: Master tactician (max Stall uses)',
-      network: 'Lvl 1: Access public opportunities\nLvl 2: Better location intel\nLvl 3: Earlier special-event visibility\nLvl 4: See rival movements\nLvl 5: Insider leads & exclusive events'
-    };
-
-    skills.forEach((skill) => {
-      const progress = this.gameManager.getSkillProgress(skill);
-      const isMaxLevel = progress.level >= 5;
-      const skillMeta = SKILL_METADATA[skill];
-
-      const skillRow = document.createElement('div');
-      skillRow.style.cssText = 'margin-bottom: 8px; cursor: help; position: relative;';
-      skillRow.title = skillTooltips[skill];
-
-      const label = document.createElement('div');
-      label.style.cssText = 'display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; opacity: 0.95;';
-
-      const leftSpan = document.createElement('span');
-      leftSpan.textContent = `${skillMeta.icon} ${skillMeta.name} Lv ${progress.level}`;
-      label.appendChild(leftSpan);
-
-      const rightSpan = document.createElement('span');
-      rightSpan.textContent = isMaxLevel ? 'MAX' : `${progress.current}/${progress.required} XP`;
-      label.appendChild(rightSpan);
-      skillRow.appendChild(label);
-
-      if (!isMaxLevel) {
-        const progressBar = document.createElement('div');
-        progressBar.style.cssText = 'width: 100%; height: 6px; background: rgba(0,0,0,0.28); border-radius: 999px; overflow: hidden;';
-
-        const progressFill = document.createElement('div');
-        const percentage = (progress.current / progress.required) * 100;
-        progressFill.style.cssText = `width: ${percentage}%; height: 100%; background: linear-gradient(90deg, #3498db, #2ecc71); transition: width 0.3s ease;`;
-
-        progressBar.appendChild(progressFill);
-        skillRow.appendChild(progressBar);
-      }
-
-      skillsPanel.appendChild(skillRow);
-    });
-
-    skillsDetails.appendChild(skillsPanel);
-    infoContainer.appendChild(skillsDetails);
-
-    const peopleDetails = document.createElement('details');
-    peopleDetails.className = 'garage-collapsible';
-    const peopleSummary = document.createElement('summary');
-    peopleSummary.textContent = 'People — Characters';
-    peopleDetails.appendChild(peopleSummary);
-
-    const peopleGrid = document.createElement('div');
-    peopleGrid.style.cssText =
-      'display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; margin-top: 10px;';
-
-    const pixelUI = isPixelUIEnabled();
-    const profiles = getAllCharacterProfiles();
-    for (const profile of profiles) {
-      const card = document.createElement('div');
-      card.style.cssText =
-        `display: flex; gap: 10px; align-items: flex-start; padding: 10px; ` +
-        `background: rgba(0,0,0,0.22); border: 1px solid rgba(255,255,255,0.12); ` +
-        `border-radius: ${pixelUI ? '0px' : '10px'};`;
-
-      const portrait = document.createElement('img');
-      portrait.src = getCharacterPortraitUrlOrPlaceholder(profile.name);
-      portrait.alt = `${profile.name} portrait`;
-      portrait.style.cssText =
-        `width: 56px; height: 56px; object-fit: cover; flex: 0 0 auto; ` +
-        `border: 2px solid rgba(255,255,255,0.18); background: rgba(0,0,0,0.18); ` +
-        `border-radius: ${pixelUI ? '0px' : '10px'}; image-rendering: ${pixelUI ? 'pixelated' : 'auto'};`;
-      card.appendChild(portrait);
-
-      const textCol = document.createElement('div');
-      textCol.style.cssText = 'min-width: 0;';
-
-      const nameLine = this.uiManager.createText(profile.name, {
-        margin: '0',
-        fontWeight: 'bold',
-      });
-      textCol.appendChild(nameLine);
-
-      const bioLine = this.uiManager.createText(profile.bio, {
-        margin: '6px 0 0 0',
-        fontSize: '12px',
-        lineHeight: '1.4',
-        color: '#ccc',
-      });
-      textCol.appendChild(bioLine);
-
-      card.appendChild(textCol);
-      peopleGrid.appendChild(card);
-    }
-
-    peopleDetails.appendChild(peopleGrid);
-    infoContainer.appendChild(peopleDetails);
-
-    menuPanel.appendChild(infoContainer);
+    menuPanel.appendChild(
+      createGarageMenuInfo({
+        gameManager: this.gameManager,
+        uiManager: this.uiManager,
+        playerSkills: player.skills,
+      })
+    );
     menuPanel.appendChild(moreActions);
     this.uiManager.append(menuPanel);
   }
@@ -545,7 +353,19 @@ export class GarageScene extends BaseGameScene {
       gameManager: this.gameManager,
       uiManager: this.uiManager,
       onRestore: (carId) => this.restoreCar(carId),
-      onSell: (carId) => this.sellCar(carId),
+      onSell: (carId) => {
+        if (context === 'collection') {
+          sellCarInternal(carId, {
+            gameManager: this.gameManager,
+            uiManager: this.uiManager,
+            tutorialManager: this.tutorialManager,
+            onShowInventory: () => this.showCollection(),
+            onShowTutorialBlockedModal: (message) => this.showTutorialBlockedActionModal(message),
+          });
+          return;
+        }
+        this.sellCar(carId);
+      },
       onSellAsIs: (carId) => this.sellCarAsIs(carId),
       onRefresh: refreshCallback,
       getCarById,
@@ -633,11 +453,7 @@ export class GarageScene extends BaseGameScene {
     if (!car) return;
 
     if (car.condition >= 100) {
-      this.uiManager.showModal(
-        'Already Restored',
-        'This car is already in perfect condition.',
-        [{ text: 'OK', onClick: () => {} }]
-      );
+      this.uiManager.showInfo('Already Restored', 'This car is already in perfect condition.');
       return;
     }
     
@@ -688,129 +504,7 @@ export class GarageScene extends BaseGameScene {
   }
 
   private showVictoryProgress(): void {
-    const victoryResult = this.gameManager.checkVictory();
-    const { prestige, unicorns, collectionCars, skillLevel } = victoryResult;
-    const world = this.gameManager.getWorldState();
-
-    // Calculate prestige pace
-    const currentDay = world.day;
-    const prestigePerDay = currentDay > 1 ? prestige.current / currentDay : 0;
-    const daysToVictory = prestigePerDay > 0 
-      ? Math.ceil((prestige.required - prestige.current) / prestigePerDay)
-      : 999;
-    
-    // Determine pace status
-    let paceStatus: 'on-track' | 'slow' | 'stalled';
-    let paceColor: string;
-    let paceIcon: string;
-    
-    if (prestigePerDay >= 20) {
-      paceStatus = 'on-track';
-      paceColor = '#2ecc71';
-      paceIcon = '🚀';
-    } else if (prestigePerDay >= 10) {
-      paceStatus = 'slow';
-      paceColor = '#f39c12';
-      paceIcon = '🐢';
-    } else {
-      paceStatus = 'stalled';
-      paceColor = '#e74c3c';
-      paceIcon = '⚠️';
-    }
-
-    // Create custom modal content with progress bars
-    const modalContent = document.createElement('div');
-    modalContent.style.cssText = 'padding: 10px;';
-
-    const createProgressRow = (label: string, current: number, required: number, met: boolean) => {
-      const row = document.createElement('div');
-      row.style.cssText = 'margin-bottom: 15px;';
-      
-      const labelDiv = document.createElement('div');
-      labelDiv.style.cssText = 'display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold;';
-
-      const leftLabel = document.createElement('span');
-      leftLabel.textContent = `${met ? '✅' : '⬜'} ${label}`;
-      labelDiv.appendChild(leftLabel);
-
-      const rightLabel = document.createElement('span');
-      rightLabel.textContent = `${current} / ${required}`;
-      labelDiv.appendChild(rightLabel);
-      row.appendChild(labelDiv);
-      
-      const progressBar = document.createElement('div');
-      progressBar.style.cssText = 'width: 100%; height: 20px; background: rgba(0,0,0,0.3); border-radius: 10px; overflow: hidden;';
-      
-      const progressFill = document.createElement('div');
-      const percentage = Math.min((current / required) * 100, 100);
-      const color = met ? '#2ecc71' : (percentage >= 75 ? '#f39c12' : '#3498db');
-      progressFill.style.cssText = `width: ${percentage}%; height: 100%; background: ${color}; transition: width 0.5s ease;`;
-      
-      progressBar.appendChild(progressFill);
-      row.appendChild(progressBar);
-      
-      return row;
-    };
-
-    modalContent.appendChild(createProgressRow('Prestige', prestige.current, prestige.required, prestige.met));
-    modalContent.appendChild(createProgressRow('Unicorns in Collection', unicorns.current, unicorns.required, unicorns.met));
-    modalContent.appendChild(createProgressRow('Cars in Collection (80%+)', collectionCars.current, collectionCars.required, collectionCars.met));
-    modalContent.appendChild(createProgressRow('Max Skill Level', skillLevel.current, skillLevel.required, skillLevel.met));
-
-    // Add pace indicator
-    const paceDiv = document.createElement('div');
-    paceDiv.style.cssText = `margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; border-left: 4px solid ${paceColor};`;
-    
-    const paceTitle = document.createElement('div');
-    paceTitle.style.cssText = 'font-weight: bold; font-size: 16px; margin-bottom: 8px;';
-    paceTitle.textContent = `${paceIcon} Prestige Pace: ${paceStatus.toUpperCase().replace('-', ' ')}`;
-    paceDiv.appendChild(paceTitle);
-    
-    const paceDetails = document.createElement('div');
-    paceDetails.style.cssText = 'font-size: 14px; color: #bbb;';
-
-    const rateLine = document.createElement('div');
-    rateLine.appendChild(document.createTextNode('• Current Rate: '));
-    const rateValue = document.createElement('span');
-    rateValue.style.cssText = `color: ${paceColor}; font-weight: bold;`;
-    rateValue.textContent = `${prestigePerDay.toFixed(1)} prestige/day`;
-    rateLine.appendChild(rateValue);
-    paceDetails.appendChild(rateLine);
-
-    const daysPlayedLine = document.createElement('div');
-    daysPlayedLine.textContent = `• Days Played: ${currentDay}`;
-    paceDetails.appendChild(daysPlayedLine);
-
-    const etaLine = document.createElement('div');
-    etaLine.textContent = `• Est. Days to Victory: ${daysToVictory < 999 ? daysToVictory : 'N/A'}`;
-    paceDetails.appendChild(etaLine);
-
-    paceDetails.appendChild(document.createElement('br'));
-
-    const tipLine = document.createElement('span');
-    tipLine.style.cssText = 'font-size: 12px; font-style: italic;';
-    tipLine.textContent =
-      paceStatus === 'on-track'
-        ? '✓ Great pace! Keep it up!'
-        : paceStatus === 'slow'
-          ? '⚡ Consider focusing on your collection and sets.'
-          : '💡 Tip: Add high-condition cars to your collection for daily prestige.';
-    paceDetails.appendChild(tipLine);
-    paceDiv.appendChild(paceDetails);
-    modalContent.appendChild(paceDiv);
-
-    const statusText = document.createElement('div');
-    statusText.style.cssText = `margin-top: 20px; text-align: center; font-weight: bold; font-size: 16px; color: ${victoryResult.hasWon ? '#2ecc71' : '#f39c12'};`;
-    statusText.textContent = victoryResult.hasWon 
-      ? '🎉 ALL CONDITIONS MET! End the day to claim victory!' 
-      : 'Keep building your sets and collection to achieve victory!';
-    modalContent.appendChild(statusText);
-
-    this.uiManager.showModal(
-      '🏆 Victory Progress',
-      modalContent.outerHTML,
-      [{ text: 'Close', onClick: () => {} }]
-    );
+    showVictoryProgressInternal({ gameManager: this.gameManager, uiManager: this.uiManager });
   }
 
   /**
@@ -1041,7 +735,7 @@ export class GarageScene extends BaseGameScene {
             const result = this.gameManager.takePrestonLoan();
             if (!result.ok) {
               setTimeout(() => {
-                this.uiManager.showModal('Finance', result.reason, [{ text: 'OK', onClick: () => {} }]);
+                this.uiManager.showInfo('Finance', result.reason);
               }, 0);
               return;
             }
@@ -1173,17 +867,9 @@ export class GarageScene extends BaseGameScene {
           text: 'Save Game',
           onClick: () => {
             if (this.gameManager.save()) {
-              this.uiManager.showModal(
-                'Game Saved',
-                'Your progress has been saved successfully.',
-                [{ text: 'OK', onClick: () => {} }]
-              );
+              this.uiManager.showInfo('Game Saved', 'Your progress has been saved successfully.');
             } else {
-              this.uiManager.showModal(
-                'Save Failed',
-                'Unable to save game. Check console for details.',
-                [{ text: 'OK', onClick: () => {} }]
-              );
+              this.uiManager.showInfo('Save Failed', 'Unable to save game. Check console for details.');
             }
           },
         },
@@ -1215,69 +901,12 @@ export class GarageScene extends BaseGameScene {
   }
 
   private showFinanceModal(): void {
-    const lenderName = 'Preston Banks';
-    const loan = this.gameManager.getActiveLoan();
-    const world = this.gameManager.getWorldState();
-
-    if (!loan) {
-      const terms = this.gameManager.getPrestonLoanTerms();
-      this.uiManager.showCharacterModal(
-        lenderName,
-        'Finance',
-        `Need liquidity for deals?\n\nTake a short-term loan: +${formatCurrency(terms.principal)}\nRepay anytime: ${formatCurrency(terms.totalDue)} (includes ${formatCurrency(terms.fee)} fee)\n\nRule: Only one active loan at a time.`,
-        [
-          {
-            text: `Take Loan (+${formatCurrency(terms.principal)})`,
-            onClick: () => {
-              const result = this.gameManager.takePrestonLoan();
-              if (!result.ok) {
-                setTimeout(() => {
-                  this.uiManager.showModal('Finance', result.reason, [{ text: 'OK', onClick: () => {} }]);
-                }, 0);
-                return;
-              }
-
-              this.uiManager.showCharacterToast(
-                lenderName,
-                `Approved. ${formatCurrency(terms.principal)} transferred. Repay ${formatCurrency(terms.totalDue)} anytime.`
-              );
-              this.setupUI();
-            },
-          },
-          { text: 'Cancel', onClick: () => {} },
-        ]
-      );
-      return;
-    }
-
-    const totalDue = loan.principal + loan.fee;
-    this.uiManager.showCharacterModal(
-      lenderName,
-      'Finance',
-      `Active loan:\n\nPrincipal: ${formatCurrency(loan.principal)}\nFee: ${formatCurrency(loan.fee)}\nTotal to repay: ${formatCurrency(totalDue)}\n\nTaken on day: ${loan.takenDay} (today is day ${world.day})`,
-      [
-        {
-          text: `Repay (${formatCurrency(totalDue)})`,
-          onClick: () => {
-            const repay = this.gameManager.repayActiveLoan();
-            if (!repay.ok) {
-              setTimeout(() => {
-                this.uiManager.showModal(
-                  'Not Enough Money',
-                  `${repay.reason}\n\nTotal due: ${formatCurrency(repay.totalDue)}`,
-                  [{ text: 'OK', onClick: () => this.showFinanceModal() }]
-                );
-              }, 0);
-              return;
-            }
-
-            this.uiManager.showCharacterToast(lenderName, 'Payment received. Pleasure doing business.');
-            this.setupUI();
-          },
-        },
-        { text: 'Close', onClick: () => {} },
-      ]
-    );
+    showFinanceModalInternal({
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onReturnToGarage: () => this.setupUI(),
+      onReopen: () => this.showFinanceModal(),
+    });
   }
 
   private loadSavedGame(): void {
@@ -1285,17 +914,11 @@ export class GarageScene extends BaseGameScene {
       // Emit events to update UI
       this.gameManager.emitAllStateEvents();
 
-      this.uiManager.showModal(
-        'Game Loaded',
-        'Your saved game has been loaded successfully.',
-        [{ text: 'OK', onClick: () => this.setupUI() }]
-      );
+      this.uiManager.showInfo('Game Loaded', 'Your saved game has been loaded successfully.', {
+        onOk: () => this.setupUI(),
+      });
     } else {
-      this.uiManager.showModal(
-        'Load Failed',
-        'No saved game found or load failed.',
-        [{ text: 'OK', onClick: () => {} }]
-      );
+      this.uiManager.showInfo('Load Failed', 'No saved game found or load failed.');
     }
   }
 
@@ -1309,19 +932,14 @@ export class GarageScene extends BaseGameScene {
     const player = this.gameManager.getPlayerState();
 
     if (cost === null) {
-      this.uiManager.showModal(
-        'Max Capacity',
-        'Your garage is already at maximum capacity.',
-        [{ text: 'OK', onClick: () => {} }]
-      );
+      this.uiManager.showInfo('Max Capacity', 'Your garage is already at maximum capacity.');
       return;
     }
 
     if (player.prestige < cost) {
-      this.uiManager.showModal(
+      this.uiManager.showInfo(
         'Insufficient Prestige',
-        `You need ${cost} prestige to upgrade your garage. You have ${player.prestige}.`,
-        [{ text: 'OK', onClick: () => {} }]
+        `You need ${cost} prestige to upgrade your garage. You have ${player.prestige}.`
       );
       return;
     }
@@ -1339,17 +957,13 @@ export class GarageScene extends BaseGameScene {
       `Upgrade to ${newSlots} garage slots for ${cost} prestige?\n\n💸 RENT WILL INCREASE:\nCurrent: ${formatCurrency(currentRent)}/day\nNew: ${formatCurrency(newRent)}/day\nIncrease: +${formatCurrency(rentIncrease)}/day\n\nMake sure you can afford the higher daily rent!`,
       () => {
         if (this.gameManager.upgradeGarageSlots()) {
-          this.uiManager.showModal(
+          this.uiManager.showInfo(
             'Garage Upgraded!',
             `Your garage now has ${newSlots} slots.\n\nDaily rent is now ${formatCurrency(newRent)}.`,
-            [{ text: 'OK', onClick: () => this.setupUI() }]
+            { onOk: () => this.setupUI() }
           );
         } else {
-          this.uiManager.showModal(
-            'Upgrade Failed',
-            'Unable to upgrade garage. Please try again.',
-            [{ text: 'OK', onClick: () => {} }]
-          );
+          this.uiManager.showInfo('Upgrade Failed', 'Unable to upgrade garage. Please try again.');
         }
       },
       () => {},
@@ -1361,10 +975,6 @@ export class GarageScene extends BaseGameScene {
     this.uiManager.clear();
     this.currentView = 'collection';
 
-    const collectionCars = this.gameManager.getCollectionCars();
-    const collectionPrestigeInfo = this.gameManager.getCollectionPrestigeInfo();
-    const player = this.gameManager.getPlayerState();
-
     // Reuse cached HUD
     if (this.cachedHUD) {
       this.uiManager.append(this.cachedHUD);
@@ -1373,139 +983,13 @@ export class GarageScene extends BaseGameScene {
       this.uiManager.append(hud);
     }
 
-    const panel = this.uiManager.createPanel({
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      minWidth: '700px',
-      maxHeight: '80%',
-      overflowY: 'auto',
+
+    const panel = createGarageCollectionPanel({
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      createCarCard: (car) => this.createCarCard(car, 'collection', () => this.showCollection()),
+      onBack: () => this.setupUI(),
     });
-
-    const heading = this.uiManager.createHeading('Your Collection', 2, {
-      textAlign: 'center',
-      color: '#f39c12',
-    });
-    panel.appendChild(heading);
-
-    // Collection stats - count eligible cars (condition >= 80%)
-    const eligibleCars = player.inventory.filter((car) => this.gameManager.isCollectionEligible(car));
-    const statsText = this.uiManager.createText(
-      `In Collection: ${collectionCars.length} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${collectionPrestigeInfo.totalPerDay}`,
-      { textAlign: 'center', fontWeight: 'bold', marginBottom: '10px' }
-    );
-    panel.appendChild(statsText);
-
-    const infoText = this.uiManager.createText(
-      'Quality Tiers: Good (80-89%) = +1/day | Excellent (90-99%) = +2/day | Perfect (100%) = +3/day',
-      { textAlign: 'center', fontSize: '13px', color: '#95a5a6', marginBottom: '20px' }
-    );
-    panel.appendChild(infoText);
-
-    // Sets progress
-    const collections = this.gameManager.getAllSetsProgress();
-    if (collections.length > 0) {
-      const collectionsHeading = this.uiManager.createHeading('📚 Sets', 3, {
-        marginTop: '20px',
-        marginBottom: '10px',
-      });
-      panel.appendChild(collectionsHeading);
-
-      collections.forEach(collection => {
-        const collectionCard = document.createElement('div');
-        collectionCard.style.cssText = `
-          background: ${collection.isComplete ? 'linear-gradient(145deg, rgba(46, 204, 113, 0.2), rgba(39, 174, 96, 0.2))' : 'rgba(255,255,255,0.05)'};
-          border: 2px solid ${collection.isComplete ? '#2ecc71' : 'rgba(100, 200, 255, 0.2)'};
-          border-radius: 8px;
-          padding: 12px;
-          margin-bottom: 10px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        `;
-
-        const leftSide = document.createElement('div');
-
-        const leftTitle = document.createElement('div');
-        leftTitle.style.cssText = 'font-size: 18px; margin-bottom: 4px;';
-        leftTitle.textContent = `${collection.icon} ${collection.name}`;
-        leftSide.appendChild(leftTitle);
-
-        const leftDescription = document.createElement('div');
-        leftDescription.style.cssText = 'font-size: 12px; color: #95a5a6;';
-        leftDescription.textContent = collection.description;
-        leftSide.appendChild(leftDescription);
-
-        const rightSide = document.createElement('div');
-        rightSide.style.cssText = 'text-align: right;';
-        
-        const statusIcon = collection.isClaimed ? '✅' : collection.isComplete ? '🎁' : '⬜';
-        const statusText = collection.isClaimed ? 'Completed!' : collection.isComplete ? 'Ready to Claim!' : `${collection.current}/${collection.required}`;
-
-        const statusLine = document.createElement('div');
-        statusLine.style.cssText = `font-size: 16px; font-weight: bold; color: ${collection.isClaimed ? '#2ecc71' : collection.isComplete ? '#f39c12' : '#64b5f6'};`;
-        statusLine.textContent = `${statusIcon} ${statusText}`;
-        rightSide.appendChild(statusLine);
-
-        const rewardLine = document.createElement('div');
-        rewardLine.style.cssText = 'font-size: 12px; color: #95a5a6; margin-top: 4px;';
-        rewardLine.textContent = `Reward: +${collection.prestigeReward} Prestige`;
-        rightSide.appendChild(rewardLine);
-
-        collectionCard.appendChild(leftSide);
-        collectionCard.appendChild(rightSide);
-        panel.appendChild(collectionCard);
-      });
-    }
-
-    // Collection Cars heading
-    const collectionHeading = this.uiManager.createHeading('🏛️ Collection Vehicles', 3, {
-      marginTop: '20px',
-      marginBottom: '10px',
-    });
-    panel.appendChild(collectionHeading);
-
-    if (collectionCars.length === 0) {
-      const emptyText = this.uiManager.createText(
-        'No cars in your collection yet. Restore cars to excellent condition (80%+) and add them from your garage!',
-        { textAlign: 'center', fontSize: '16px', color: '#7f8c8d' }
-      );
-      panel.appendChild(emptyText);
-    } else {
-      collectionCars.forEach((car) => {
-        const qualityTier = this.gameManager.getCollectionQualityTier(car.condition);
-        const carPanel = this.createCarCard(car, 'collection', () => this.showCollection());
-        
-        // Add quality tier badge to card
-        const tierBadge = document.createElement('div');
-        tierBadge.style.cssText = `
-          position: absolute;
-          top: 10px;
-          right: 10px;
-          background: ${qualityTier.color};
-          color: #fff;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: bold;
-        `;
-        tierBadge.textContent = `${qualityTier.tier}: +${qualityTier.prestigePerDay}/day`;
-        carPanel.style.position = 'relative';
-        carPanel.appendChild(tierBadge);
-        
-        panel.appendChild(carPanel);
-      });
-    }
-
-    // Back button
-    const backBtn = this.uiManager.createButton(
-      'Back to Garage',
-      () => this.setupUI(),
-      { style: { marginTop: '20px' } }
-    );
-    backBtn.dataset.tutorialTarget = 'garage.back';
-    panel.appendChild(backBtn);
 
     this.uiManager.append(panel);
   }
@@ -1513,8 +997,6 @@ export class GarageScene extends BaseGameScene {
   private showRivalTierInfo(): void {
     this.currentView = 'rival-info';
     this.uiManager.clear();
-
-    const player = this.gameManager.getPlayerState();
     
     // Reuse cached HUD
     if (this.cachedHUD) {
@@ -1524,107 +1006,12 @@ export class GarageScene extends BaseGameScene {
       this.uiManager.append(hud);
     }
 
-    const panel = this.uiManager.createPanel({
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      minWidth: '700px',
-      maxHeight: '80%',
-      overflowY: 'auto',
+
+    const panel = createGarageRivalTierInfoPanel({
+      gameManager: this.gameManager,
+      uiManager: this.uiManager,
+      onBack: () => this.setupUI(),
     });
-
-    const heading = this.uiManager.createHeading('Rival Tier Progression', 2, {
-      textAlign: 'center',
-      color: '#3498db',
-    });
-    panel.appendChild(heading);
-
-    const introText = this.uiManager.createText(
-      `As you gain prestige, you'll face tougher rivals in auctions. Your current prestige: ${player.prestige}`,
-      { textAlign: 'center', marginBottom: '20px', fontSize: '16px' }
-    );
-    panel.appendChild(introText);
-
-    // Tier 3 - Scrappers (Early Game)
-    const tier3Panel = this.uiManager.createPanel({
-      margin: '15px 0',
-      backgroundColor: player.prestige < 50 ? 'rgba(46, 204, 113, 0.2)' : 'rgba(127, 140, 141, 0.1)',
-      border: player.prestige < 50 ? '2px solid #2ecc71' : '1px solid #7f8c8d',
-    });
-
-    const tier3Name = this.uiManager.createHeading('Tier 3: Scrappers', 3, {
-      color: player.prestige < 50 ? '#2ecc71' : '#7f8c8d',
-    });
-    const tier3Details = this.uiManager.createText(
-      `Prestige Range: 0-49 ${player.prestige < 50 ? '(CURRENT)' : ''}\\n` +
-      `Difficulty: ★☆☆☆☆ (Easiest)\\n` +
-      `Budget: Low ($2,000-$5,000)\\n` +
-      `Tactics: Simple bidding, easy to outmaneuver`,
-      { fontSize: '14px', whiteSpace: 'pre-line' }
-    );
-    tier3Panel.appendChild(tier3Name);
-    tier3Panel.appendChild(tier3Details);
-    panel.appendChild(tier3Panel);
-
-    // Tier 2 - Enthusiasts (Mid Game)
-    const tier2Panel = this.uiManager.createPanel({
-      margin: '15px 0',
-      backgroundColor: player.prestige >= 50 && player.prestige < 150 ? 'rgba(52, 152, 219, 0.2)' : 'rgba(127, 140, 141, 0.1)',
-      border: player.prestige >= 50 && player.prestige < 150 ? '2px solid #3498db' : '1px solid #7f8c8d',
-    });
-
-    const tier2Name = this.uiManager.createHeading('Tier 2: Enthusiasts', 3, {
-      color: player.prestige >= 50 && player.prestige < 150 ? '#3498db' : '#7f8c8d',
-    });
-    const tier2Status = player.prestige < 50 ? '🔒 LOCKED' : (player.prestige < 150 ? '(CURRENT)' : '');
-    const tier2Details = this.uiManager.createText(
-      `Prestige Range: 50-149 ${tier2Status}\\n` +
-      `Difficulty: ★★★☆☆ (Medium)\\n` +
-      `Budget: Medium ($8,000-$15,000)\\n` +
-      `Tactics: Niche collectors, may overpay for preferred cars`,
-      { fontSize: '14px', whiteSpace: 'pre-line' }
-    );
-    tier2Panel.appendChild(tier2Name);
-    tier2Panel.appendChild(tier2Details);
-    panel.appendChild(tier2Panel);
-
-    // Tier 1 - Tycoons (Late Game)
-    const tier1Panel = this.uiManager.createPanel({
-      margin: '15px 0',
-      backgroundColor: player.prestige >= 150 ? 'rgba(231, 76, 60, 0.2)' : 'rgba(127, 140, 141, 0.1)',
-      border: player.prestige >= 150 ? '2px solid #e74c3c' : '1px solid #7f8c8d',
-    });
-
-    const tier1Name = this.uiManager.createHeading('Tier 1: Tycoons', 3, {
-      color: player.prestige >= 150 ? '#e74c3c' : '#7f8c8d',
-    });
-    const tier1Status = player.prestige < 150 ? '🔒 LOCKED' : '(CURRENT)';
-    const tier1Details = this.uiManager.createText(
-      `Prestige Range: 150+ ${tier1Status}\\n` +
-      `Difficulty: ★★★★★ (Hardest)\\n` +
-      `Budget: High ($20,000-$50,000)\\n` +
-      `Tactics: Deep pockets, strategic bidding, may control Unicorns`,
-      { fontSize: '14px', whiteSpace: 'pre-line' }
-    );
-    tier1Panel.appendChild(tier1Name);
-    tier1Panel.appendChild(tier1Details);
-    panel.appendChild(tier1Panel);
-
-    const tipText = this.uiManager.createText(
-      '💡 Tip: Use skills like Kick Tires and Stall to reduce rival budgets and patience. Strategy beats pure money!',
-      { textAlign: 'center', fontSize: '14px', color: '#f39c12', marginTop: '20px', fontStyle: 'italic' }
-    );
-    panel.appendChild(tipText);
-
-    // Back button
-    const backBtn = this.uiManager.createButton(
-      'Back to Garage',
-      () => this.setupUI(),
-      { style: { marginTop: '20px', width: '100%' } }
-    );
-    backBtn.dataset.tutorialTarget = 'garage.back';
-    panel.appendChild(backBtn);
 
     this.uiManager.append(panel);
   }

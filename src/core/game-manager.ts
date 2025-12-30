@@ -220,6 +220,17 @@ export class GameManager {
   }
 
   /**
+   * Convenience helper: checks and spends time in one call.
+   * Returns false if insufficient time or input is invalid.
+   */
+  public trySpendTime(units: number): boolean {
+    if (!Number.isFinite(units)) return false;
+    const cost = Math.max(0, Math.floor(units));
+    if (!this.canSpendTime(cost)) return false;
+    return this.spendTime(cost);
+  }
+
+  /**
    * Ensure daily car offers are rolled once per day for each location id.
    * Garage and special nodes should not be passed.
    */

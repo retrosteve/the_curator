@@ -1,5 +1,5 @@
 import { Car } from '@/data/car-database';
-import { type SkillKey } from '@/config/game-config';
+import { GAME_CONFIG, type SkillKey } from '@/config/game-config';
 import { createMapDashboardContainer, createMapLocationCard } from '@/ui/internal/ui-map';
 import { ModalManager } from '@/ui/internal/ui-modals';
 import { ToastManager } from '@/ui/internal/ui-toasts';
@@ -18,6 +18,7 @@ import {
 import { createHUD as createHUDInternal, updateHUD as updateHUDInternal } from '@/ui/internal/ui-hud';
 import { eventBus } from '@/core/event-bus';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
+import { formatCurrency } from '@/utils/format';
 import type { ButtonVariant, HUDData, HUDUpdate } from '@/ui/internal/ui-types';
 
 /**
@@ -74,7 +75,7 @@ export class UIManager {
     return createMapLocationCard({
       ...options,
       onShowLockedModal: (title, message) => {
-        this.showModal(title, message, [{ text: 'OK', onClick: () => {} }]);
+        this.showInfo(title, message);
       },
     });
   }
@@ -382,6 +383,21 @@ export class UIManager {
     this.modalManager.showGarageFullModal();
   }
 
+  public showGarageFullGate(options: {
+    message?: string;
+    primary: { text: string; onClick: () => void };
+    secondary?: { text: string; onClick: () => void };
+  }): void {
+    this.showModal(
+      'Garage Full',
+      options.message ?? 'Your garage is full. Sell or scrap a car before acquiring another.',
+      [
+        { text: options.primary.text, onClick: options.primary.onClick },
+        ...(options.secondary ? [{ text: options.secondary.text, onClick: options.secondary.onClick }] : []),
+      ]
+    );
+  }
+
   /**
    * Show restoration options modal with proper card-based layout.
    * @param carName - Name of the car being restored
@@ -416,6 +432,62 @@ export class UIManager {
     this.modalManager.showInsufficientFundsModal();
   }
 
+  public showCannotAffordAuctionModal(
+    options:
+      | {
+          context: 'map';
+          openingBid: number;
+          playerMoney: number;
+          isTutorialActive: boolean;
+          bidIncrement: number;
+          minMoneyToBid: number;
+          onGoToGarage: () => void;
+          onSkipTutorial: () => void;
+        }
+      | {
+          context: 'auction-entry';
+          openingBid: number;
+          playerMoney: number;
+          onGoToGarage: () => void;
+          onBackToMap: () => void;
+        }
+  ): void {
+    if (options.context === 'map') {
+      if (!options.isTutorialActive) {
+        this.showInfo(
+          'Not Enough Money',
+          `You can't afford the opening bid for this auction.\n\nOpening bid: ${formatCurrency(options.openingBid)}\nYour money: ${formatCurrency(options.playerMoney)}`
+        );
+        return;
+      }
+
+      this.showModal(
+        'Not Enough Money',
+        `You can't afford to place a bid in this tutorial auction.\n\nOpening bid: ${formatCurrency(options.openingBid)}\nBid increment: ${formatCurrency(options.bidIncrement)}\nMinimum to bid: ${formatCurrency(options.minMoneyToBid)}\nYour money: ${formatCurrency(options.playerMoney)}\n\nIf you're stuck, skip the tutorial to continue freely.`,
+        [
+          { text: 'Go to Garage', onClick: options.onGoToGarage },
+          { text: 'Skip Tutorial', onClick: options.onSkipTutorial },
+          { text: 'OK', onClick: () => {} },
+        ]
+      );
+      return;
+    }
+
+    this.showModal(
+      'Not Enough Money',
+      `You can't afford the opening bid for this auction.
+
+Opening bid: ${formatCurrency(options.openingBid)}
+Your money: ${formatCurrency(options.playerMoney)}
+
+Tip: Visit the Garage to sell something, then come back.`,
+      [
+        { text: 'Go to Garage', onClick: options.onGoToGarage },
+        { text: 'Back to Map', onClick: options.onBackToMap },
+      ]
+    );
+  }
+
 
 
   /**
@@ -425,6 +497,37 @@ export class UIManager {
    */
   public showTimeBlockModal(title: string, message: string): void {
     this.modalManager.showTimeBlockModal(title, message);
+  }
+
+  public showOutOfTimeModal(options: {
+    action: string;
+    timeRequired: number;
+    timeRemaining: number;
+  }): void {
+    this.showTimeBlockModal(
+      'Out of Time',
+      `You don't have enough time left today ${options.action}.\n\nTime required: ${options.timeRequired}\nTime remaining: ${options.timeRemaining}/${GAME_CONFIG.time.unitsPerDay}\n\nEnd the day to reset your time budget.`
+    );
+  }
+
+  /**
+   * Show an informational modal with a single dismiss button.
+   * Convenience wrapper around showModal() to reduce repetitive boilerplate.
+   */
+  public showInfo(
+    title: string,
+    message: string,
+    options?: {
+      okText?: string;
+      onOk?: () => void;
+    }
+  ): HTMLDivElement {
+    return this.showModal(title, message, [
+      {
+        text: options?.okText ?? 'OK',
+        onClick: options?.onOk ?? (() => {}),
+      },
+    ]);
   }
 
   /**

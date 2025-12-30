@@ -140,7 +140,7 @@ export function createCarCard(
           if (result.success) {
             onRefresh();
           } else {
-            uiManager.showModal('Cannot Add', result.message, [{ text: 'OK', onClick: () => {} }]);
+            uiManager.showInfo('Cannot Add', result.message);
           }
         },
         {
@@ -179,20 +179,36 @@ export function createCarCard(
       carPanel.appendChild(notEligibleText);
     }
   } else {
-    // Collection context - only remove button
+    // Collection context
+    const buttonContainer = uiManager.createButtonContainer({
+      marginTop: '10px',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: '8px',
+    });
+    buttonContainer.classList.add('garage-card-actions');
+
+    const sellBtn = uiManager.createButton('Sell', () => onSell(car.id), {
+      variant: 'success',
+      style: compactButtonStyle,
+    });
+    buttonContainer.appendChild(sellBtn);
+
     const removeBtn = uiManager.createButton(
-      'Remove from Collection',
+      'Move to Garage',
       () => {
         const result = gameManager.toggleCollectionStatus(car.id);
         if (result.success) {
           onRefresh();
         } else {
-          uiManager.showModal('Cannot Remove', result.message, [{ text: 'OK', onClick: () => {} }]);
+          uiManager.showInfo('Cannot Move', result.message);
         }
       },
-      { variant: 'danger', style: { ...compactButtonStyle, marginTop: '10px' } }
+      { variant: 'danger', style: compactButtonStyle }
     );
-    carPanel.appendChild(removeBtn);
+    buttonContainer.appendChild(removeBtn);
+
+    carPanel.appendChild(buttonContainer);
   }
 
   return carPanel;

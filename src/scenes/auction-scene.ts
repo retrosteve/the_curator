@@ -121,6 +121,12 @@ export class AuctionScene extends BaseGameScene {
   private static readonly TURN_DELAY_MULTIPLIER = 1.6;
   private static readonly RIVAL_CONSIDERATION_MULTIPLIER = 1.35;
 
+  // After the player withdraws, the auction is informational only.
+  // Speed it up so the player isn't waiting through full "thinking" cadence.
+  private static readonly WITHDRAWN_TURN_DELAY_MULTIPLIER = 0.35;
+  private static readonly WITHDRAWN_RIVAL_CONSIDERATION_MULTIPLIER = 0.35;
+  private static readonly WITHDRAWN_BARK_DELAY_MULTIPLIER = 0.4;
+
   private static readonly KICK_TIRES_BUDGET_REDUCTION = GAME_CONFIG.auction.kickTires.rivalBudgetReduction;
   private static readonly REQUIRED_EYE_LEVEL_FOR_KICK_TIRES = GAME_CONFIG.auction.kickTires.requiredEyeLevel;
 
@@ -216,33 +222,24 @@ export class AuctionScene extends BaseGameScene {
     // Entry points (e.g., MapScene) should prevent this, but keep this to avoid bypasses.
     const player = this.gameManager.getPlayerState();
     if (!this.gameManager.hasGarageSpace()) {
-      this.uiManager.showModal(
-        'Garage Full',
-        'Your garage is full. Sell or scrap a car before entering an auction.',
-        [
-          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-          { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
-        ]
-      );
+      this.uiManager.showGarageFullGate({
+        message: 'Your garage is full. Sell or scrap a car before entering an auction.',
+        primary: { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
+        secondary: { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
+      });
       return;
     }
 
     // Defensive guard: don't start an auction if the player can't even afford the opening bid.
     // Important: do NOT consume the daily offer in this case (player never meaningfully participated).
     if (player.money < this.currentBid) {
-      this.uiManager.showModal(
-        'Not Enough Money',
-        `You can't afford the opening bid for this auction.
-
-Opening bid: ${formatCurrency(this.currentBid)}
-Your money: ${formatCurrency(player.money)}
-
-Tip: Visit the Garage to sell something, then come back.`,
-        [
-          { text: 'Go to Garage', onClick: () => this.scene.start('GarageScene') },
-          { text: 'Back to Map', onClick: () => this.scene.start('MapScene') },
-        ]
-      );
+      this.uiManager.showCannotAffordAuctionModal({
+        context: 'auction-entry',
+        openingBid: this.currentBid,
+        playerMoney: player.money,
+        onGoToGarage: () => this.scene.start('GarageScene'),
+        onBackToMap: () => this.scene.start('MapScene'),
+      });
       return;
     }
 
@@ -633,11 +630,15 @@ Tip: Visit the Garage to sell something, then come back.`,
     const order = active.slice();
     this.shuffleInPlace(order);
 
+    const considerationMultiplier = isRivalOnly
+      ? AuctionScene.WITHDRAWN_RIVAL_CONSIDERATION_MULTIPLIER
+      : AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER;
+
     // Provide a visible "thinking" cadence.
     // Cap total delay so auctions don't feel sluggish with many rivals.
-    const maxTotalMs = Math.round(2600 * AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER);
-    const minStepMs = Math.round(340 * AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER);
-    const maxStepMs = Math.round(650 * AuctionScene.RIVAL_CONSIDERATION_MULTIPLIER);
+    const maxTotalMs = Math.round(2600 * considerationMultiplier);
+    const minStepMs = Math.round(340 * considerationMultiplier);
+    const maxStepMs = Math.round(650 * considerationMultiplier);
     const stepMs = Math.min(maxStepMs, Math.max(minStepMs, Math.floor(maxTotalMs / Math.max(1, order.length))));
 
     type RivalTurnDecision = ReturnType<RivalAI['decideBid']>;
@@ -685,7 +686,7 @@ Tip: Visit the Garage to sell something, then come back.`,
 
           const message = outOfPatience ? "I'm out." : outOfBudget ? "Can't afford it." : 'Pass.';
 
-          const bubbleMs = Math.min(1800, Math.max(900, stepMs + 350));
+          const bubbleMs = Math.min(1800, Math.max(550, stepMs + 350));
           this.showParticipantBarkBubble(makeRivalBidderId(rivalId), message, {
             durationMs: bubbleMs,
             tone: willDrop ? 'drop' : 'comment',
@@ -704,7 +705,10 @@ Tip: Visit the Garage to sell something, then come back.`,
 
   private scheduleRivalTurn(delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBid): void {
     this.clearPendingRivalTurn();
-    const scaledDelayMs = Math.max(0, Math.round(delayMs * AuctionScene.TURN_DELAY_MULTIPLIER));
+    const multiplier = this.playerHasWithdrawn
+      ? AuctionScene.WITHDRAWN_TURN_DELAY_MULTIPLIER
+      : AuctionScene.TURN_DELAY_MULTIPLIER;
+    const scaledDelayMs = Math.max(0, Math.round(delayMs * multiplier));
     this.pendingRivalTurnTimeoutId = window.setTimeout(() => {
       this.pendingRivalTurnTimeoutId = undefined;
       if (!this.scene.isActive()) return;
@@ -795,11 +799,14 @@ Tip: Visit the Garage to sell something, then come back.`,
     delayMs: number = GAME_CONFIG.ui.modalDelays.rivalBarkAfterAuctioneer
   ): void {
     this.clearPendingRivalBark();
+    const effectiveDelayMs = this.playerHasWithdrawn
+      ? Math.max(0, Math.round(delayMs * AuctionScene.WITHDRAWN_BARK_DELAY_MULTIPLIER))
+      : delayMs;
     this.pendingRivalBarkTimeoutId = window.setTimeout(() => {
       this.pendingRivalBarkTimeoutId = undefined;
       if (!this.scene.isActive()) return;
       this.showRivalBark(rivalId, trigger);
-    }, delayMs);
+    }, effectiveDelayMs);
   }
 
   private recordBid(bidderId: BidderId, totalBid: number): void {

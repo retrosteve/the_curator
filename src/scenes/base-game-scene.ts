@@ -306,13 +306,13 @@ export abstract class BaseGameScene extends Phaser.Scene {
 
           const nextSteps: string[] = [];
           if (!victoryResult.prestige.met) {
-            nextSteps.push('Earn Prestige by adding cars to your collection (80%+), completing sets, and profiting from flips.');
+            nextSteps.push('Earn Prestige by adding cars to your collection (75%+), completing sets, and profiting from flips.');
           }
           if (!victoryResult.unicorns.met) {
             nextSteps.push('Find Unicorn-tier cars via auctions and special events, then keep them in your collection.');
           }
           if (!victoryResult.collectionCars.met) {
-            nextSteps.push('Add more cars to your collection (any car at 80%+ condition can be added).');
+            nextSteps.push('Add more cars to your collection (any car at 75%+ condition can be added).');
           }
           if (!victoryResult.skillLevel.met) {
             nextSteps.push('Level skills: Inspect (Eye), Auction tactics (Tongue), Visit new locations (Network).');

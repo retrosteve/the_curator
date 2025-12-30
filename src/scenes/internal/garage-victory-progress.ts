@@ -79,7 +79,7 @@ export function showVictoryProgress(context: { gameManager: GameManager; uiManag
   );
   modalContent.appendChild(
     createProgressRow(
-      'Cars in Collection (80%+)',
+      'Cars in Collection (75%+)',
       collectionCars.current,
       collectionCars.required,
       collectionCars.met

@@ -19,7 +19,7 @@ export interface Car {
   tags: string[]; // e.g., "Muscle", "JDM", "Classic"
   history: string[]; // e.g., "Flooded", "Rust", "Barn Find"
   tier: CarTier; // Car's rarity tier
-  inCollection?: boolean; // Whether car is in the private collection (requires condition >= 80)
+  inCollection?: boolean; // Whether car is in the private collection (requires condition >= 75)
 
   /**
    * The price the player paid to acquire the car (e.g., winning auction bid).
@@ -644,8 +644,10 @@ export function getRandomCarWithPreferences(params?: {
 
   const minCondition = GAME_CONFIG.cars.randomConditionMin;
   const maxCondition = GAME_CONFIG.cars.randomConditionMax;
-  const randomCondition =
-    Math.floor(Math.random() * (maxCondition - minCondition + 1)) + minCondition;
+  // Bias toward lower conditions while preserving the configured range.
+  // This keeps high-condition cars exciting, and makes restoration more meaningful.
+  const roll = Math.random() ** 2;
+  const randomCondition = Math.floor(roll * (maxCondition - minCondition + 1)) + minCondition;
   
   // Create a copy with a unique ID (use crypto.randomUUID if available, fallback to timestamp)
   const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID 

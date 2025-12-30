@@ -12,10 +12,10 @@ export function decideToggleCollectionStatus(params: {
   garageCarCount: number;
   garageSlots: number;
 }): ToggleCollectionDecision {
-  if (!params.currentlyInCollection && params.car.condition < 80) {
+  if (!params.currentlyInCollection && params.car.condition < 75) {
     return {
       ok: false,
-      message: 'Car must be in excellent condition (80%+) to add to your collection',
+      message: 'Car must be in good condition (75%+) to add to your collection',
     };
   }
 

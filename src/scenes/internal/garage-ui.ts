@@ -136,7 +136,7 @@ export function createCarCard(
     // Show eligibility message if not collection-eligible
     if (!isCollectionEligible) {
       const notEligibleText = uiManager.createText(
-        `Requires 80%+ condition to add to collection (currently ${car.condition}%)`,
+        `Requires 75%+ condition to add to collection (currently ${car.condition}%)`,
         {
           fontSize: '12px',
           color: '#95a5a6',

@@ -722,7 +722,9 @@ export class AuctionScene extends BaseGameScene {
   ): void {
     // Cap rival-vs-rival bidding after the player withdraws to avoid extreme overpaying.
     // Allow a modest premium over the estimate so outcomes still feel competitive.
-    const rivalOnlyMaxBid = Math.floor(this.auctionMarketEstimateValue * 1.05);
+    const rivalOnlyMaxBid = Math.floor(
+      this.auctionMarketEstimateValue * GAME_CONFIG.auction.rivalOnlyMaxBidMultiplier
+    );
 
     const context: BiddingContext = {
       car: this.car,
@@ -1940,6 +1942,10 @@ export class AuctionScene extends BaseGameScene {
     rivalTurnOrder?: string[],
     rivalTurnDecisions?: Record<string, ReturnType<RivalAI['decideBid']>>
   ): void {
+    // Cap rival bids relative to the auction's market estimate to reduce extreme overpaying.
+    // Player bids are not capped; this only limits how far rivals will push the price.
+    const rivalMaxBid = Math.floor(this.auctionMarketEstimateValue * GAME_CONFIG.auction.rivalMaxBidMultiplier);
+
     const context: BiddingContext = {
       car: this.car,
       rivals: this.rivals,
@@ -1953,6 +1959,7 @@ export class AuctionScene extends BaseGameScene {
       isPlayerTurn: this.isPlayerTurn,
       locationId: this.locationId,
       activeRivalIds: this.activeRivalIds,
+      maxBid: rivalMaxBid,
       rivalTurnOrder,
       rivalTurnDecisions,
     };

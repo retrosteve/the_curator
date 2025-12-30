@@ -35,16 +35,17 @@ export function createGarageCollectionPanel(context: {
   });
   panel.appendChild(heading);
 
-  // Collection stats - count eligible cars (condition >= 80%)
+  // Collection stats - count eligible cars (condition >= 75%)
   const eligibleCars = player.inventory.filter((car) => gameManager.isCollectionEligible(car));
+  const collectionSlots = gameManager.getCollectionSlots();
   const statsText = uiManager.createText(
-    `In Collection: ${collectionCars.length} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${collectionPrestigeInfo.totalPerDay}`,
+    `In Collection: ${collectionCars.length}/${collectionSlots} | Eligible: ${eligibleCars.length} | Daily Prestige Bonus: +${collectionPrestigeInfo.totalPerDay}`,
     { textAlign: 'center', fontWeight: 'bold', marginBottom: '10px' }
   );
   panel.appendChild(statsText);
 
   const infoText = uiManager.createText(
-    'Quality Tiers: Good (80-89%) = +1/day | Excellent (90-99%) = +2/day | Perfect (100%) = +3/day',
+    'Quality Tiers: Good (75-89%) = +1/day | Excellent (90-99%) = +2/day | Perfect (100%) = +4/day',
     { textAlign: 'center', fontSize: '13px', color: '#95a5a6', marginBottom: '20px' }
   );
   panel.appendChild(infoText);
@@ -124,7 +125,7 @@ export function createGarageCollectionPanel(context: {
 
   if (collectionCars.length === 0) {
     const emptyText = uiManager.createText(
-      'No cars in your collection yet. Restore cars to excellent condition (80%+) and add them from your garage!',
+      'No cars in your collection yet. Restore cars to good condition (75%+) and add them from your garage!',
       { textAlign: 'center', fontSize: '16px', color: '#7f8c8d' }
     );
     panel.appendChild(emptyText);

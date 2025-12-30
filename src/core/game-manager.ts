@@ -493,7 +493,7 @@ export class GameManager {
     const currentSlots = this.player.garageSlots;
     // Prestige progression for expanding storage (1->2, 2->3, ...).
     // Keep early upgrades familiar, then slow the ramp past 5 slots.
-    const costs = [100, 200, 400, 800, 1000, 1200, 1400, 1600, 1800];
+    const costs = [60, 150, 325, 650, 1000, 1200, 1400, 1600, 1800];
     const maxSlots = costs.length + 1;
     const costIndex = currentSlots - 1; // Current slots = 1 → index 0
 
@@ -518,7 +518,7 @@ export class GameManager {
 
   /**
    * Calculate daily prestige bonus from cars in the private collection.
-   * Quality tiers: 80-89% = 1 prestige, 90-99% = 2 prestige, 100% = 3 prestige
+    * Quality tiers: 75-89% = 1 prestige, 90-99% = 2 prestige, 100% = 4 prestige
    * @returns Number of prestige points earned from the collection
    */
   private calculateCollectionPrestigeBonus(): number {
@@ -581,11 +581,14 @@ export class GameManager {
   /**
    * Collection capacity.
    * 
-   * Current rule: collection capacity scales with garage slots (same number).
-   * This keeps progression simple while still separating garage vs collection storage.
+   * Current rule: collection capacity scales with garage slots, with a small bonus.
+   *
+   * Rationale: the early game is prestige-starved because prestige is primarily generated
+   * by collection cars (daily bonus) and set completions. Allowing one extra collection
+   * slot reduces the early progression bottleneck without changing garage storage rules.
    */
   public getCollectionSlots(): number {
-    return this.player.garageSlots;
+    return this.player.garageSlots + 1;
   }
 
   /**
@@ -725,7 +728,7 @@ export class GameManager {
 
   /**
    * Toggle collection status for a car.
-   * Only cars with condition >= 80 can be added.
+    * Only cars with condition >= 75 can be added.
    * @param carId - The unique ID of the car
    * @returns Object with success flag and message
    */
@@ -767,10 +770,10 @@ export class GameManager {
   /**
    * Check if a car is eligible to be added to the collection.
    * @param car - The car to check
-   * @returns True if car meets collection requirements (condition >= 80)
+   * @returns True if car meets collection requirements (condition >= 75)
    */
   public isCollectionEligible(car: { condition: number }): boolean {
-    return car.condition >= 80;
+    return car.condition >= 75;
   }
 
   /**

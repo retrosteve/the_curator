@@ -3,7 +3,7 @@ import type { SetConfig } from '@/core/game-types';
 
 export type CollectionQualityTier = {
   tier: 'Good' | 'Excellent' | 'Perfect';
-  prestigePerDay: 1 | 2 | 3;
+  prestigePerDay: 1 | 2 | 4;
   color: string;
 };
 
@@ -17,7 +17,7 @@ export function getCollectionCarsFromInventory(inventory: readonly Car[]): Car[]
 
 export function getCollectionQualityTier(condition: number): CollectionQualityTier {
   if (condition >= 100) {
-    return { tier: 'Perfect', prestigePerDay: 3, color: '#f39c12' };
+    return { tier: 'Perfect', prestigePerDay: 4, color: '#f39c12' };
   }
   if (condition >= 90) {
     return { tier: 'Excellent', prestigePerDay: 2, color: '#3498db' };

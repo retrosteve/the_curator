@@ -36,7 +36,7 @@ export const GAME_CONFIG = {
     // - Travel is charged when committing to start an encounter from the map.
     // - Auction participation is charged on top of travel for base-location auctions.
     travelCost: 1,
-    auctionParticipationCost: 1,
+    auctionParticipationCost: 0,
   },
   save: {
     /**
@@ -141,7 +141,7 @@ export const GAME_CONFIG = {
         description: 'Collect iconic Japanese sports cars',
         requiredTags: ['JDM'],
         requiredCount: 5,
-        prestigeReward: 50,
+        prestigeReward: 45,
         icon: '🇯🇵',
       },
       muscleMasters: {
@@ -149,7 +149,7 @@ export const GAME_CONFIG = {
         description: 'Own the kings of American muscle',
         requiredTags: ['Muscle'],
         requiredCount: 5,
-        prestigeReward: 50,
+        prestigeReward: 45,
         icon: '👊',
       },
       europeanElite: {
@@ -157,7 +157,7 @@ export const GAME_CONFIG = {
         description: 'Curate finest European automobiles',
         requiredTags: ['European'],
         requiredCount: 5,
-        prestigeReward: 50,
+        prestigeReward: 45,
         icon: '🇪🇺',
       },
       exoticCollection: {
@@ -165,7 +165,7 @@ export const GAME_CONFIG = {
         description: 'Acquire rare exotic supercars',
         requiredTags: ['Exotic'],
         requiredCount: 4,
-        prestigeReward: 75,
+        prestigeReward: 65,
         icon: '💎',
       },
       classicsCurator: {
@@ -173,7 +173,7 @@ export const GAME_CONFIG = {
         description: 'Preserve automotive history',
         requiredTags: ['Classic'],
         requiredCount: 6,
-        prestigeReward: 60,
+        prestigeReward: 55,
         icon: '🏛️',
       },
   },
@@ -186,9 +186,9 @@ export const GAME_CONFIG = {
     rentByGarageSlots: {
       1: 100,
       2: 150,  // Was 200
-      3: 250,  // Was 400
-      4: 400,  // Was 800
-      5: 600,  // Was 1600
+      3: 225,  // Was 400
+      4: 350,  // Was 800
+      5: 525,  // Was 1600
       6: 850,
       7: 1150,
       8: 1500,
@@ -212,7 +212,7 @@ export const GAME_CONFIG = {
 
     // Emergency cash injection - one-time use only
     bankLoan: {
-      amount: 500,
+      amount: 1500,
       oneTime: true,
     },
 
@@ -232,8 +232,8 @@ export const GAME_CONFIG = {
       charlieMinor: {
         availableBelowCondition: 100,
         // Rebalanced: no longer a guaranteed-profit button.
-        costRateOfBaseValue: 0.08,
-        conditionGain: 6,
+        costRateOfBaseValue: 0.10,
+        conditionGain: 10,
         timeCost: 1,
         failChance: 0.12,
         failConditionPenalty: 6,
@@ -241,9 +241,9 @@ export const GAME_CONFIG = {
 
       artisanMajor: {
         availableBelowCondition: 90,
-        costRateOfBaseValue: 0.15,
+        costRateOfBaseValue: 0.18,
         conditionGain: 30,
-        timeCost: 2,
+        timeCost: 1,
       },
     },
 
@@ -261,15 +261,15 @@ export const GAME_CONFIG = {
 
       // Random market events
       events: {
-        boom: { chance: 0.1, duration: 3, modifier: 1.3, description: "Market Boom!" },
-        bust: { chance: 0.1, duration: 2, modifier: 0.7, description: "Market Bust!" },
-        nicheBoom: { chance: 0.15, duration: 2, modifier: 1.25, description: "Niche Demand Spike" },
+        boom: { chance: 0.06, duration: 2, modifier: 1.2, description: "Market Boom!" },
+        bust: { chance: 0.06, duration: 2, modifier: 0.8, description: "Market Bust!" },
+        nicheBoom: { chance: 0.1, duration: 2, modifier: 1.2, description: "Niche Demand Spike" },
       },
     },
   },
 
   encounters: {
-    rivalPresenceChance: 0.5,
+    rivalPresenceChance: 0.45,
   },
 
   valuation: {
@@ -282,13 +282,19 @@ export const GAME_CONFIG = {
   },
 
   auction: {
-    startingBidMultiplier: 0.65,
+    startingBidMultiplier: 0.75,
+
+    // Cap rival bidding relative to the auction's market estimate.
+    // Prevents low-value cars from being pushed to extreme prices purely due to rival budgets.
+    rivalMaxBidMultiplier: 1.2,
+    // When the player withdraws, keep rival-vs-rival outcomes closer to the estimate.
+    rivalOnlyMaxBidMultiplier: 1.05,
 
     bidIncrement: 200,
     powerBidIncrement: 500,
 
-    powerBidPatiencePenalty: 20,
-    stallPatiencePenalty: 20,
+    powerBidPatiencePenalty: 15,
+    stallPatiencePenalty: 15,
 
     stall: {
       requiredTongueLevel: 2,

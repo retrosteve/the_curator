@@ -53,10 +53,10 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Starting Capacity:** 1 garage slot.
 - **Upgrade Mechanics:** Prestige-based upgrades unlock additional slots (up to 10 total).
 - **Upgrade Costs:**
-  - Slot 2: 100 prestige
-  - Slot 3: 200 prestige
-  - Slot 4: 400 prestige
-  - Slot 5: 800 prestige
+  - Slot 2: 60 prestige
+  - Slot 3: 150 prestige
+  - Slot 4: 325 prestige
+  - Slot 5: 650 prestige
   - Slot 6: 1000 prestige
   - Slot 7: 1200 prestige
   - Slot 8: 1400 prestige
@@ -65,27 +65,27 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
 - **Garage Full:** Players cannot acquire new cars when garage is full; must sell or scrap existing cars first.
 
 ### Private Collection Mechanic
-- **Eligibility:** Cars with condition >= 80% can be added to your collection.
+- **Eligibility:** Cars with condition >= 75% can be added to your collection.
 - **Passive Prestige:** Cars in your collection generate prestige based on quality tiers:
-  - Good (80-89%): +1 prestige/day
+  - Good (75-89%): +1 prestige/day
   - Excellent (90-99%): +2 prestige/day
-  - Perfect (100%): +3 prestige/day
+  - Perfect (100%): +4 prestige/day
 - **Management:** Players can toggle cars between garage storage and their collection.
 - **Garage vs Collection Slots:** Cars in the collection do **not** consume garage slots.
-- **Capacity:** Collection capacity scales with garage capacity (collection slots = garage slots).
+- **Capacity:** Collection capacity scales with garage capacity (collection slots = garage slots + 1).
   - If the collection is full, you must remove a car from the collection before adding another.
   - If the garage is full, you must add a garage car to the collection (or sell one) before removing a car from the collection.
 
 ### Car Sets System
 - **Sets:** Players can complete themed sets for one-time prestige bonuses:
-  - **JDM Legends** (5 JDM cars): +50 prestige
-  - **Muscle Masters** (5 Muscle cars): +50 prestige
-  - **European Elite** (5 European cars): +50 prestige
-  - **Exotic Collection** (4 Exotic cars): +75 prestige
-  - **Classics Curator** (6 Classic cars): +60 prestige
+  - **JDM Legends** (5 JDM cars): +45 prestige
+  - **Muscle Masters** (5 Muscle cars): +45 prestige
+  - **European Elite** (5 European cars): +45 prestige
+  - **Exotic Collection** (4 Exotic cars): +65 prestige
+  - **Classics Curator** (6 Classic cars): +55 prestige
 - **Auto-Detection:** Sets automatically check for completion when cars are added to inventory.
 - **Collection View Integration:** Set progress displayed in the collection view.
-- **Total Reward Potential:** +285 prestige from all sets.
+- **Total Reward Potential:** +255 prestige from all sets.
 
 ## Data Structures
 
@@ -128,9 +128,9 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
   - **Daily Rent:** Scales with garage capacity (balanced to avoid mid-game bankruptcies):
     - 1 slot: $100/day
     - 2 slots: $150/day
-    - 3 slots: $250/day
-    - 4 slots: $400/day
-    - 5 slots: $600/day
+    - 3 slots: $225/day
+    - 4 slots: $350/day
+    - 5 slots: $525/day
     - 6 slots: $850/day
     - 7 slots: $1150/day
     - 8 slots: $1500/day
@@ -141,7 +141,7 @@ The game is played across **Days** and **Weeks**. The player manages **Cash**, *
     - Sell a car (if you have one), or
     - Take a bank loan (if one is available).
   - If you still can’t pay rent, you are **bankrupt** and it is **Game Over**.
-  - Bank loan: a one-time emergency loan that adds cash immediately.
+    - Bank loan: a one-time emergency loan that adds cash immediately (currently $1,500).
 - **Market Trends:** Periodic modifiers can shift prices by category (e.g., seasonal demand affecting convertibles).
 
 ### Time Costs (Current)
@@ -264,7 +264,8 @@ As the player levels up, they improve three core tools:
 - **Tier 4: Unicorns** (win-condition vehicles)
 
 ## Valuation & Costs (Implementation-Friendly)
-- **Valuation Math:** `carValue = (baseValue × (condition/100)) × historyMultiplier`.
+- **Valuation Math:** `carValue = baseValue × conditionMultiplier × historyMultiplier`.
+  - `conditionMultiplier` is linear up to 80% condition, then has diminishing returns above 80%.
 - **History multipliers:**
   - `Flooded` = `0.5`
   - `Rust` = `0.7`
@@ -272,6 +273,10 @@ As the player levels up, they improve three core tools:
 - **Default history multiplier:** `1.0` ("Standard") if `car.history` is empty or contains no recognized tags.
 - **History resolution rule (when multiple tags exist):** `historyMultiplier` is the **minimum** multiplier from all recognized entries in `car.history` ("worst tag wins").
 - **Profit Math (Restoration Cost):** `restorationCost = conditionGain × baseValue × 0.005`.
+
+## Auction Pricing (Balance Notes)
+- **Opening Bid:** Auctions start at a fraction of the current market estimate (tuned to reduce pure restoration arbitrage).
+- **Rival Overpay Guard:** Rivals generally won't push bids far above the market estimate, so low-value cars don't routinely inflate to absurd prices.
 
 ## Tutorial Script (First ~10 Minutes)
 

@@ -1018,7 +1018,8 @@ export class AuctionScene extends BaseGameScene {
     mainGrid.classList.add('auction-layout__main');
     Object.assign(mainGrid.style, {
       display: 'grid',
-      gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)',
+      // Swap columns: info/status column on the left, car/bidding column on the right.
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)',
       gap: '10px',
       alignItems: 'stretch',
       flex: '1 1 auto',
@@ -1047,7 +1048,7 @@ export class AuctionScene extends BaseGameScene {
       overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    // RIGHT: status strip (current/next bid + auctioneer)
+    // INFO COLUMN: status strip (current/next bid + auctioneer)
     const statusStrip = this.uiManager.createPanel({
       padding: '8px 10px',
       display: 'flex',
@@ -1388,7 +1389,7 @@ export class AuctionScene extends BaseGameScene {
     );
     leftCol.appendChild(biddingPanel);
 
-    // RIGHT: combined panel (bidder portrait grid + bid history)
+    // INFO COLUMN: combined panel (bidder portrait grid + bid history)
     const rightPanel = this.uiManager.createPanel({ padding: '10px 12px' });
     Object.assign(rightPanel.style, {
       display: 'flex',
@@ -1568,8 +1569,9 @@ export class AuctionScene extends BaseGameScene {
     rightPanel.appendChild(bidHistoryScroll);
     rightCol.appendChild(rightPanel);
 
-    mainGrid.appendChild(leftCol);
+    // Append in swapped order so the "info" column is on the left.
     mainGrid.appendChild(rightCol);
+    mainGrid.appendChild(leftCol);
     layoutRoot.appendChild(mainGrid);
 
     this.uiManager.append(layoutRoot);

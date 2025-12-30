@@ -969,102 +969,18 @@ export class AuctionScene extends BaseGameScene {
     header.appendChild(headerLeft);
     layoutRoot.appendChild(header);
 
-    const mainGrid = document.createElement('div');
-    mainGrid.classList.add('auction-layout__main');
-    Object.assign(mainGrid.style, {
-      display: 'grid',
-      // Swap columns: info/status column on the left, car/bidding column on the right.
-      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)',
-      gap: '10px',
-      alignItems: 'stretch',
-      flex: '1 1 auto',
-      minHeight: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const leftCol = document.createElement('div');
-    Object.assign(leftCol.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      minWidth: '0',
-      minHeight: '0',
-      // Allow bark bubbles to extend beyond panels.
-      overflow: 'visible',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const rightCol = document.createElement('div');
-    Object.assign(rightCol.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '10px',
-      minWidth: '0',
-      minHeight: '0',
-      // Allow bark bubbles to extend beyond panels.
-      overflow: 'visible',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    // INFO COLUMN: status strip (current/next bid + auctioneer)
-    const statusStrip = this.uiManager.createPanel({
+    // Bid bar: sits directly under the header and spans the full layout width.
+    const bidBar = this.uiManager.createPanel({
       padding: '8px 10px',
-      display: 'flex',
-      gap: '10px',
+      display: 'grid',
+      gridTemplateColumns: 'auto minmax(0, 1fr) auto',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      gap: '12px',
     });
-    Object.assign(statusStrip.style, {
+    Object.assign(bidBar.style, {
       // Bubbles are positioned above portrait anchors; don't clip them.
       overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
-
-    const bidBox = document.createElement('div');
-    Object.assign(bidBox.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'flex-end',
-      gap: '6px',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-    bidBox.appendChild(
-      this.uiManager.createText('Current bid', {
-        margin: '0',
-        fontSize: '11px',
-        opacity: '0.75',
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      })
-    );
-    const bidAmountsRow = document.createElement('div');
-    Object.assign(bidAmountsRow.style, {
-      display: 'flex',
-      alignItems: 'baseline',
-      justifyContent: 'flex-end',
-      gap: '10px',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    bidAmountsRow.appendChild(
-      this.uiManager.createText(formatCurrency(this.currentBid), {
-        margin: '0',
-        fontWeight: '900',
-        fontSize: '16px',
-        color: '#ffd700',
-        textAlign: 'right',
-        whiteSpace: 'nowrap',
-      })
-    );
-
-    bidAmountsRow.appendChild(
-      this.uiManager.createText(`Next: ${formatCurrency(normalBidTotal)}`, {
-        margin: '0',
-        fontWeight: '800',
-        fontSize: '12px',
-        opacity: '0.8',
-        textAlign: 'right',
-        whiteSpace: 'nowrap',
-      })
-    );
-
-    bidBox.appendChild(bidAmountsRow);
 
     const auctioneerBox = document.createElement('div');
     Object.assign(auctioneerBox.style, {
@@ -1115,9 +1031,104 @@ export class AuctionScene extends BaseGameScene {
     auctioneerBox.appendChild(statusAuctioneerPortrait);
     auctioneerBox.appendChild(statusAuctioneerMeta);
 
-    statusStrip.appendChild(auctioneerBox);
-    statusStrip.appendChild(bidBox);
-    rightCol.appendChild(statusStrip);
+    const currentBidBox = document.createElement('div');
+    Object.assign(currentBidBox.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '4px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    currentBidBox.appendChild(
+      this.uiManager.createText('Current bid', {
+        margin: '0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        textAlign: 'center',
+      })
+    );
+    currentBidBox.appendChild(
+      this.uiManager.createText(formatCurrency(this.currentBid), {
+        margin: '0',
+        fontWeight: '900',
+        fontSize: '16px',
+        color: '#ffd700',
+        textAlign: 'center',
+        whiteSpace: 'nowrap',
+      })
+    );
+
+    const nextBidBox = document.createElement('div');
+    Object.assign(nextBidBox.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      gap: '4px',
+      minWidth: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+    nextBidBox.appendChild(
+      this.uiManager.createText('Next bid', {
+        margin: '0',
+        fontSize: '11px',
+        opacity: '0.75',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        textAlign: 'right',
+      })
+    );
+    nextBidBox.appendChild(
+      this.uiManager.createText(formatCurrency(normalBidTotal), {
+        margin: '0',
+        fontWeight: '800',
+        fontSize: '12px',
+        opacity: '0.9',
+        textAlign: 'right',
+        whiteSpace: 'nowrap',
+      })
+    );
+
+    bidBar.appendChild(auctioneerBox);
+    bidBar.appendChild(currentBidBox);
+    bidBar.appendChild(nextBidBox);
+    layoutRoot.appendChild(bidBar);
+
+    const mainGrid = document.createElement('div');
+    mainGrid.classList.add('auction-layout__main');
+    Object.assign(mainGrid.style, {
+      display: 'grid',
+      // Swap columns: info/status column on the left, car/bidding column on the right.
+      gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)',
+      gap: '10px',
+      alignItems: 'stretch',
+      flex: '1 1 auto',
+      minHeight: '0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const leftCol = document.createElement('div');
+    Object.assign(leftCol.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      minWidth: '0',
+      minHeight: '0',
+      // Allow bark bubbles to extend beyond panels.
+      overflow: 'visible',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const rightCol = document.createElement('div');
+    Object.assign(rightCol.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      minWidth: '0',
+      minHeight: '0',
+      // Allow bark bubbles to extend beyond panels.
+      overflow: 'visible',
+    } satisfies Partial<CSSStyleDeclaration>);
 
     // LEFT: car + quick stats (compact; uses width instead of height)
     const marketValue = this.auctionMarketEstimateValue;

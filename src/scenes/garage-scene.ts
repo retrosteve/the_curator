@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { BaseGameScene } from './base-game-scene';
 import { eventBus } from '@/core/event-bus';
 import { Economy } from '@/systems/Economy';
-import { Car, getCarById } from '@/data/car-database';
+import { Car } from '@/data/car-database';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency, formatNumber } from '@/utils/format';
 import type { VictoryResult } from '@/core/game-manager';
@@ -368,7 +368,6 @@ export class GarageScene extends BaseGameScene {
       },
       onSellAsIs: (carId) => this.sellCarAsIs(carId),
       onRefresh: refreshCallback,
-      getCarById,
     });
   }
 

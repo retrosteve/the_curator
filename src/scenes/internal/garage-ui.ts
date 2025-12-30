@@ -1,11 +1,10 @@
-import type { Car, getCarById } from '@/data/car-database';
+import type { Car } from '@/data/car-database';
 import { Economy } from '@/systems/Economy';
 import type { GameManager } from '@/core/game-manager';
 import type { UIManager } from '@/ui/ui-manager';
 import { formatCurrency } from '@/utils/format';
-import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
-import { isPixelUIEnabled } from '@/ui/internal/ui-style';
 import type { DeepReadonly } from '@/utils/types';
+import { createCarCardPreset } from '@/ui/internal/ui-car-card';
 
 /**
  * UI creation utilities for the Garage scene.
@@ -29,10 +28,9 @@ export function createCarCard(
     onSell: (carId: string) => void;
     onSellAsIs: (carId: string) => void;
     onRefresh: () => void;
-    getCarById: typeof getCarById;
   }
 ): HTMLDivElement {
-  const { gameManager, uiManager, onRestore, onSell, onSellAsIs, onRefresh, getCarById } = callbacks;
+  const { gameManager, uiManager, onRestore, onSell, onSellAsIs, onRefresh } = callbacks;
 
   const compactButtonStyle: Partial<CSSStyleDeclaration> = {
     padding: '8px 12px',
@@ -40,26 +38,15 @@ export function createCarCard(
     borderRadius: '8px',
   };
 
-  const carPanel = uiManager.createPanel({
-    margin: '0',
-    padding: '14px',
-    backgroundColor:
-      context === 'inventory' ? 'rgba(52, 73, 94, 0.6)' : 'rgba(243, 156, 18, 0.1)',
-    border: context === 'collection' ? '2px solid #f39c12' : undefined,
-  });
-
-  carPanel.classList.add('garage-car-card');
-
-  const carName = uiManager.createHeading(car.name, 3, {
-    color: context === 'collection' ? '#f39c12' : undefined,
-    margin: '0 0 6px 0',
-    fontSize: '18px',
-  });
+  const { panel: carPanel, body } = createCarCardPreset(
+    car as unknown as Car,
+    context === 'collection' ? 'collection' : 'standard'
+  );
 
   const salePrice = Economy.getSalePrice(car, gameManager);
 
   const metaText = uiManager.createText(
-    `Tier ${car.tier} · Cond ${car.condition}/100 · Value ${formatCurrency(salePrice)}`,
+    `Tier: ${car.tier} · Cond ${car.condition}/100 · Value ${formatCurrency(salePrice)}`,
     { margin: '0', fontSize: '13px', lineHeight: '1.35', opacity: '0.95' }
   );
 
@@ -81,27 +68,9 @@ export function createCarCard(
     opacity: '0.9',
   });
 
-  const templateId = car.templateId ?? (getCarById(car.id) ? car.id : undefined);
-  const imageUrl = getCarImageUrlOrPlaceholder(templateId);
-
-  const img = document.createElement('img');
-  img.src = imageUrl;
-  img.alt = car.name;
-  img.loading = 'lazy';
-  img.style.width = '100%';
-  img.style.height = '120px';
-  img.style.objectFit = 'cover';
-  img.style.borderRadius = isPixelUIEnabled() ? '0px' : '10px';
-  img.style.border = '2px solid rgba(255,255,255,0.2)';
-  img.style.backgroundColor = 'rgba(0,0,0,0.2)';
-  img.style.imageRendering = isPixelUIEnabled() ? 'pixelated' : 'auto';
-  img.style.margin = '0 0 10px 0';
-  carPanel.appendChild(img);
-
-  carPanel.appendChild(carName);
-  carPanel.appendChild(metaText);
+  body.appendChild(metaText);
   if (context === 'inventory') {
-    carPanel.appendChild(profitMetaText);
+    body.appendChild(profitMetaText);
   }
 
   if (context === 'collection') {
@@ -111,7 +80,7 @@ export function createCarCard(
       margin: '6px 0 0 0',
       lineHeight: '1.35',
     });
-    carPanel.appendChild(carTags);
+    body.appendChild(carTags);
   }
 
   if (context === 'inventory') {
@@ -162,7 +131,7 @@ export function createCarCard(
     buttonContainer.appendChild(sellBtn);
     buttonContainer.appendChild(sellAsIsBtn);
 
-    carPanel.appendChild(buttonContainer);
+    body.appendChild(buttonContainer);
 
     // Show eligibility message if not collection-eligible
     if (!isCollectionEligible) {
@@ -176,7 +145,7 @@ export function createCarCard(
           lineHeight: '1.35',
         }
       );
-      carPanel.appendChild(notEligibleText);
+      body.appendChild(notEligibleText);
     }
   } else {
     // Collection context
@@ -208,7 +177,7 @@ export function createCarCard(
     );
     buttonContainer.appendChild(removeBtn);
 
-    carPanel.appendChild(buttonContainer);
+    body.appendChild(buttonContainer);
   }
 
   return carPanel;

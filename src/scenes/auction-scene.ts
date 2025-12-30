@@ -4,7 +4,6 @@ import { Car, calculateCarValue, getCarById } from '@/data/car-database';
 import { Rival, getRivalById, calculateRivalInterest, BarkTrigger, getRivalBark } from '@/data/rival-database';
 import { BASE_LOCATIONS } from '@/data/location-database';
 import { getCharacterPortraitUrlOrPlaceholder } from '@/assets/character-portraits';
-import { getCarImageUrlOrPlaceholder } from '@/assets/car-images';
 import { RivalAI } from '@/systems/rival-ai';
 import { GAME_CONFIG } from '@/config/game-config';
 import { formatCurrency } from '@/utils/format';
@@ -17,6 +16,7 @@ import {
   ensureEncounterLayoutStyles,
 } from '@/ui/internal/ui-encounter';
 import { ensureStyleElement, isPixelUIEnabled } from '@/ui/internal/ui-style';
+import { createCarCardPreset } from '@/ui/internal/ui-car-card';
 import {
   type BiddingContext,
   type BiddingCallbacks,
@@ -1159,100 +1159,16 @@ export class AuctionScene extends BaseGameScene {
       overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    // LEFT: car + quick stats (compact; uses width instead of height)
+    // LEFT: car card (shared across scenes)
     const marketValue = this.auctionMarketEstimateValue;
-    const carStatsPanel = this.uiManager.createPanel({
-      margin: '0',
-      padding: '8px 10px',
-    });
+    const { panel: carStatsPanel, body: carCardBody } = createCarCardPreset(this.car, 'standard');
 
-    const carStatsTitle = this.uiManager.createHeading(this.car.name, 3, {
-      margin: '0 0 6px 0',
-      color: '#ecf0f1',
-      textAlign: 'left',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    });
-    carStatsPanel.appendChild(carStatsTitle);
+    const metaText = this.uiManager.createText(
+      `Tier: ${this.car.tier} · Cond ${Math.round(this.car.condition)}/100 · Estimate ${formatCurrency(marketValue)}`,
+      { margin: '0', fontSize: '13px', lineHeight: '1.35', opacity: '0.95' }
+    );
+    carCardBody.appendChild(metaText);
 
-    const carStatsRow = document.createElement('div');
-    Object.assign(carStatsRow.style, {
-      display: 'flex',
-      alignItems: 'stretch',
-      gap: '10px',
-      minWidth: '0',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const templateId = this.car.templateId ?? this.car.id;
-    const imageUrl = getCarImageUrlOrPlaceholder(templateId);
-    const carImg = document.createElement('img');
-    carImg.src = imageUrl;
-    carImg.alt = this.car.name;
-    carImg.loading = 'lazy';
-    carImg.className = 'car-info-image';
-    Object.assign(carImg.style, {
-      width: '220px',
-      height: '120px',
-      objectFit: 'cover',
-      flex: '0 0 auto',
-      borderRadius: pixelUI ? '0px' : '12px',
-      border: '2px solid rgba(255,255,255,0.16)',
-      backgroundColor: 'rgba(0,0,0,0.18)',
-      imageRendering: pixelUI ? 'pixelated' : 'auto',
-      boxSizing: 'border-box',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const statsGrid = document.createElement('div');
-    Object.assign(statsGrid.style, {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: '6px',
-      flex: '1 1 auto',
-      minWidth: '0',
-      alignContent: 'start',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const makeStatChip = (label: string, value: string, valueColor?: string): HTMLDivElement => {
-      const chip = document.createElement('div');
-      Object.assign(chip.style, {
-        border: '1px solid rgba(255,255,255,0.12)',
-        borderRadius: pixelUI ? '0px' : '12px',
-        padding: '6px 6px',
-        backgroundColor: 'rgba(0,0,0,0.14)',
-        minWidth: '0',
-      } satisfies Partial<CSSStyleDeclaration>);
-
-      chip.appendChild(
-        this.uiManager.createText(label, {
-          margin: '0 0 3px 0',
-          fontSize: '10px',
-          opacity: '0.75',
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-        })
-      );
-      chip.appendChild(
-        this.uiManager.createText(value, {
-          margin: '0',
-          fontWeight: '800',
-          fontSize: '13px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          color: valueColor ?? '#e0e6ed',
-        })
-      );
-
-      return chip;
-    };
-
-    statsGrid.appendChild(makeStatChip('Estimate', formatCurrency(marketValue), '#FFC107'));
-    statsGrid.appendChild(makeStatChip('Condition', `${Math.round(this.car.condition)}/100`, '#4CAF50'));
-
-    carStatsRow.appendChild(carImg);
-    carStatsRow.appendChild(statsGrid);
-    carStatsPanel.appendChild(carStatsRow);
     leftCol.appendChild(carStatsPanel);
 
     // LEFT: bidding controls (reference: quick increments + place bid)

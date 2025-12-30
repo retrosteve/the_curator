@@ -966,52 +966,7 @@ export class AuctionScene extends BaseGameScene {
       })
     );
 
-    const headerRight = document.createElement('div');
-    Object.assign(headerRight.style, {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '10px',
-      flex: '0 0 auto',
-    } satisfies Partial<CSSStyleDeclaration>);
-
-    const creditsBox = this.uiManager.createPanel({
-      padding: '10px 12px',
-      borderRadius: pixelUI ? '0px' : '12px',
-      background: 'rgba(0,0,0,0.18)',
-      boxShadow: 'none',
-      border: '1px solid rgba(255,255,255,0.10)',
-    });
-    creditsBox.appendChild(
-      this.uiManager.createText('Your credits', {
-        margin: '0 0 2px 0',
-        fontSize: '11px',
-        opacity: '0.75',
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      })
-    );
-    creditsBox.appendChild(
-      this.uiManager.createText(formatCurrency(player.money), {
-        margin: '0',
-        fontWeight: '800',
-        color: '#ffd700',
-      })
-    );
-    headerRight.appendChild(creditsBox);
-
-    const youPortrait = makePortraitAnchor(PLAYER_PORTRAIT_PLACEHOLDER_URL, 'You', 36);
-    this.participantFlash.anchors.player = youPortrait;
-    headerRight.appendChild(youPortrait);
-    headerRight.appendChild(
-      this.uiManager.createText('You', {
-        margin: '0',
-        fontWeight: '800',
-        whiteSpace: 'nowrap',
-      })
-    );
-
     header.appendChild(headerLeft);
-    header.appendChild(headerRight);
     layoutRoot.appendChild(header);
 
     const mainGrid = document.createElement('div');
@@ -1254,10 +1209,6 @@ export class AuctionScene extends BaseGameScene {
 
     statsGrid.appendChild(makeStatChip('Estimate', formatCurrency(marketValue), '#FFC107'));
     statsGrid.appendChild(makeStatChip('Condition', `${Math.round(this.car.condition)}/100`, '#4CAF50'));
-    statsGrid.appendChild(makeStatChip('Increment', formatCurrency(AuctionScene.BID_INCREMENT)));
-    statsGrid.appendChild(
-      makeStatChip('Active rivals', `${this.activeRivalIds.length}/${this.rivals.length}`, '#ffd700')
-    );
 
     carStatsRow.appendChild(carImg);
     carStatsRow.appendChild(statsGrid);
@@ -1274,6 +1225,52 @@ export class AuctionScene extends BaseGameScene {
         textAlign: 'left',
       })
     );
+
+    const reservedFunds = this.lastBidder === 'player' && !this.playerHasWithdrawn ? this.currentBid : 0;
+    const availableFunds = Math.max(0, player.money - reservedFunds);
+
+    const fundsBox = document.createElement('div');
+    Object.assign(fundsBox.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
+      margin: '0 0 8px 0',
+    } satisfies Partial<CSSStyleDeclaration>);
+
+    const makeFundsRow = (label: string, value: string): HTMLDivElement => {
+      const row = document.createElement('div');
+      Object.assign(row.style, {
+        display: 'flex',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        gap: '10px',
+      } satisfies Partial<CSSStyleDeclaration>);
+      row.appendChild(
+        this.uiManager.createText(label, {
+          margin: '0',
+          fontSize: '11px',
+          opacity: '0.75',
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+        })
+      );
+      row.appendChild(
+        this.uiManager.createText(value, {
+          margin: '0',
+          fontWeight: '900',
+          color: '#ffd700',
+          whiteSpace: 'nowrap',
+        })
+      );
+      return row;
+    };
+
+    fundsBox.appendChild(makeFundsRow('Funds', formatCurrency(player.money)));
+    if (reservedFunds > 0) {
+      fundsBox.appendChild(makeFundsRow('Committed', formatCurrency(reservedFunds)));
+    }
+    fundsBox.appendChild(makeFundsRow('Available', formatCurrency(availableFunds)));
+    biddingPanel.appendChild(fundsBox);
 
     const quickRow = document.createElement('div');
     Object.assign(quickRow.style, {
@@ -1400,6 +1397,17 @@ export class AuctionScene extends BaseGameScene {
       // Bubbles are positioned above portrait anchors; don't clip them.
       overflow: 'visible',
     } satisfies Partial<CSSStyleDeclaration>);
+
+    const activeBidderCount = (this.playerHasWithdrawn ? 0 : 1) + this.activeRivalIds.length;
+    const totalBidderCount = 1 + this.rivals.length;
+    rightPanel.appendChild(
+      this.uiManager.createText(`Active bidders: ${activeBidderCount}/${totalBidderCount}`, {
+        margin: '0',
+        fontSize: '12px',
+        fontWeight: '800',
+        opacity: '0.85',
+      })
+    );
 
     const biddersGrid = document.createElement('div');
     Object.assign(biddersGrid.style, {

@@ -1441,7 +1441,7 @@ export class AuctionScene extends BaseGameScene {
     const activeBidderCount = (this.playerHasWithdrawn ? 0 : 1) + this.activeRivalIds.length;
     const totalBidderCount = 1 + this.rivals.length;
     rightPanel.appendChild(
-      this.uiManager.createText(`Active bidders: ${activeBidderCount}/${totalBidderCount}`, {
+      this.uiManager.createText(`Active Bidders: ${activeBidderCount}/${totalBidderCount}`, {
         margin: '0',
         fontSize: '12px',
         fontWeight: '800',
